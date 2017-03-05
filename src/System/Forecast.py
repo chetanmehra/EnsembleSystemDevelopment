@@ -4,6 +4,7 @@ Created on 20 Dec 2014
 @author: Mark
 '''
 import pandas as pd
+import numpy as np
 from numpy import NaN, mean, std, empty, isinf
 from copy import deepcopy
 from pandas.core.panel import Panel
@@ -69,7 +70,32 @@ class MeanForecast(Forecast):
     @sd.setter
     def sd(self, data):
         self._sd = data
-    
+
+
+class NullForecaster(ModelElement):
+    '''
+    The NullForecaster returns 1 for mean and sd where the indicator is equal to any of the
+    provided levels in 'in_trade_levels'.
+    '''
+
+    def __init__(self, in_trade_levels):
+        if not isinstance(in_trade_levels, list):
+            in_trade_levels = list(in_trade_levels)
+        self.in_trade_levels = in_trade_levels
+
+    def execute(self, strategy):
+        indicator = strategy.lagged_indicator
+        mean = deepcopy(indicator.data)
+        mean[:] = 0
+        mean = mean.astype(float)
+        sd = deepcopy(mean)
+        sd[:] = 1
+        
+        for lvl in self.in_trade_levels:
+            mean[indicator.data == lvl] = 1
+        
+        return Forecast(pd.Panel({"Forecast":mean}), pd.Panel({"Forecast":sd}))
+        
 
 class BlockForecaster(ModelElement):
     

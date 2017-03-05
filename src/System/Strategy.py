@@ -14,14 +14,14 @@ class Strategy(object):
     '''
 
     def __init__(self, trade_timing, ind_timing):
-        '''
-        Constructor
-        '''
         self.indexer = Indexer(trade_timing, ind_timing)
         self.required_fields = ["market", "measure", "model", "select_positions"]
         self.indicator = None
         self.forecasts = None
         self.positions = None
+        self.measure = None
+        self.model = None
+        self.select_positions = None
         
     def check_fields(self):
         missing_fields = []
@@ -133,11 +133,20 @@ class PositionSelectionElement(StrategyElement):
     
     
 class StrategyContainerElement(object):
-    
+    '''
+    StrategyContainerElements represent the data objects used by Strategy.
+    Each StrategyContainerElement must have a (DataFrame) field called data.
+    '''
     def shift(self, lag):
         lagged = copy(self)
         lagged.data = self.data.shift(lag)
         return lagged
+
+    def index(self):
+        return self.data.index
+
+    def __getitem__(self, key):
+        return self.data[key]
 
 
 class Indexer(object):

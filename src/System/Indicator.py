@@ -27,12 +27,17 @@ class Indicator(StrategyContainerElement):
     @property
     def index(self):
         return self.data.index
+
+    @property
+    def columns(self):
+        return self.data.columns
     
     def __getitem__(self, ticker):
         return self.data[ticker]
     
     def __len__(self):
         return len(self.data)
+
 
 
 class Crossover(MeasureElement):
@@ -51,7 +56,8 @@ class Crossover(MeasureElement):
     def update_param(self, new_params):
         self.slow = new_params[0]
         self.fast = new_params[1]
-     
+ 
+        
         
 def EMA(price_series, period):
         alpha = 2 / (period + 1)
