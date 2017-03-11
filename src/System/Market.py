@@ -64,15 +64,15 @@ class Market(object):
     
     @property
     def open(self):
-        return self.get_series("Open") * self.adjustment_ratios()
+        return self.get_series("Open")
     
     @property
     def high(self):
-        return self.get_series("High") * self.adjustment_ratios()
+        return self.get_series("High")
     
     @property
     def low(self):
-        return self.get_series("Low") * self.adjustment_ratios()
+        return self.get_series("Low")
     
     @property
     def close(self):
@@ -83,10 +83,13 @@ class Market(object):
         return self.get_series("Volume")
     
     def get_series(self, name):
-        return self.instruments.minor_xs(name)
+        series = self.instruments.minor_xs(name)
+        if name not in ["Adj Close", "Volume"]:
+            series = series * self.adjustment_ratios()
+        return series
 
     def adjustment_ratios(self):
-        return self.get_series("Adj Close") / self.get_series("Close")
+        return self.get_series("Adj Close") / self.instruments.minor_xs("Close")
     
     @property
     def status(self):

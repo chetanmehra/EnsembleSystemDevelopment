@@ -9,7 +9,7 @@ from System.Strategy import Strategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
 from System.Indicator import Crossover
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
-from System.Position import SingleLargestF, DefaultPositions, TradeCollection
+from System.Position import SingleLargestF, DefaultPositions, TradeCollection, Filter
 import datetime
 import matplotlib.pyplot as plt
 
@@ -174,18 +174,27 @@ valued_tickers = [u'ONT', u'TGP', u'TIX', u'TOF', u'3PL', u'ABP', u'ALR', u'ACR'
 
 dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT', u'ICS', u'XTE', u'EGO', u'BXN', u'DRA', u'VMT']
 
+good_tickers = list(valued_tickers)
+[good_tickers.remove(tick) for tick in dodgy_tickers]
 
 def getValues():
     import pandas
     return pandas.read_excel(r'D:\Investing\Valuations\Valuations20170129.xlsx', index_col = 0)
 
-def testPlotSeries():
-    market = Market(valued_tickers, "start", "end")
+def getMarket():
+    market = Market(good_tickers, "start", "end")
     import pandas
     instruments = pandas.read_pickle(r"D:\Investing\Workspace\market_instruments.pkl")
-    market.instruments = instruments
+    market.instruments = instruments[good_tickers]
+    return market
+
+def testPlotSeries():
+    market = getMarket()
     strat = run_basic_crossover(market)
     strat.trades = TradeCollection(strat)
     values = getValues()
-    strat.trades.create_plot_series(values, [-1, 0, 0.5, 1, 1.5, 2, 4, 10], "mean_return")
+    filter_values = Filter(values[["ticker", "Base"]])
+    strat.trades.create_plot_series(filter_values, [-1, 0, 0.5, 1, 1.25, 1.5, 2, 4], "mean_return")
     return strat
+
+

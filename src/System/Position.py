@@ -1,5 +1,5 @@
 
-from pandas.core.frame import DataFrame, Series
+from pandas import Panel, DataFrame, Series
 from pandas.core.common import isnull
 from pandas.tseries.offsets import DateOffset
 import matplotlib.pyplot as plt
@@ -26,19 +26,58 @@ class Position(StrategyContainerElement):
         data = deepcopy(self.data)
         data[data > 0] = 0
         return Position(data)
+
+    def remove(self, trade):
+        self.data[trade.ticker][trade.entry:trade.exit] = 0
         
     def applied_to(self, returns):
         return AggregateReturns(self.data * returns.data)
 
 
+class Filter(object):
+
+    def __init__(self, values):
+        '''
+        Requires that values is a DataFrame with first column 'ticker' and next column filter values.
+        '''
+        self.values = {}
+        self.name = values.columns[-1]
+        for ticker in set(values["ticker"]):
+            self.values[ticker] = values[values["ticker"] == ticker].iloc[:, -1]
+
+    def at(self, date, ticker):
+        ticker_values = self.values[ticker]
+        values = ticker_values[ticker_values.index <= date]
+        if len(values):
+            return values.iloc[-1]
+        else:
+            return None
+
+
+    def __call__(self, strategy, range):
+        '''
+        Removes position values where filter criteria is not met.
+        range should be a tuple representing the acceptable filter range.
+        '''
+        left = min(range)
+        right = max(range)
+        condition = lambda trade: trade.filter(self, "entry") < left or trade.filter(self, "entry") > right
+        eliminated = strategy.trades.filter(condition)
+        for trade in eliminated.trades:
+            strategy.positions.remove(trade)
+
+
+
+
 class Trade(object):
 
-    def __init__(self, prices, entry_date, exit_date):
+    def __init__(self, ticker, prices, entry_date, exit_date):
+        self.ticker = ticker
         self.prices = prices
         self.entry = entry_date
         self.exit = exit_date
         self.duration = (exit_date - entry_date).days
-        self.normalised = Series((prices[self.entry:self.exit] / prices[self.entry]).values)
+        self.normalised = Series((prices[self.entry:self.exit] / prices[self.entry]).values) - 1
 
     def plot_normalised(self):
         self.normalised.plot()
@@ -57,7 +96,7 @@ class Trade(object):
 
     @property
     def annualised_return(self):
-        return (1 + sum(self.normalised.apply(log))) ** (260 / self.duration) - 1
+        return (sum(self.normalised.apply(log))) ** (260 / self.duration) - 1
 
     @property
     def MAE(self):
@@ -69,16 +108,15 @@ class Trade(object):
 
     def filter(self, filter, timing):
         '''
-        Gets the filter value at specified timing (entry/exit)
-        Assumes filter is for the same ticker as trade.
+        Gets the filter value vs price at specified timing (entry/exit)
         '''
         if timing not in ["entry", "exit"]:
             raise ValueError("Timing must be entry or exit")
         date = getattr(self, timing)
         price = getattr(self, "price_at_" + timing)
-        filter_value = filter[filter.index <= date]
-        if len(filter_value):
-            return filter_value.iloc[-1] / price
+        filter_value = filter.at(date, self.ticker)
+        if filter_value is not None:
+            return filter_value / price
         else:
             return None
     
@@ -89,45 +127,40 @@ class TradeCollection(object):
     def __init__(self, data):
         '''
         TradeCollection supports two ways of construction.
-        1. From a dictionary of trades {ticker:[Trades]} - e.g. from filtering an existing collection.
+        1. From a list of trades - e.g. from filtering an existing collection.
         2. From a Strategy object - in which case it will create from scratch.
         '''
-        if isinstance(data, dict):
-            self.tickers = data.keys()
+        if isinstance(data, list):
+            self.tickers = list(set(trade.ticker for trade in data))
             self.trades = data
         else:
             self.tickers = data.market.tickers
-            self.trades = {}
+            self.trades = []
             for ticker in self.tickers:
-                self.trades[ticker] = self.create_trades(data.positions, ticker, data.market[ticker]["Close"])
-        
+                self.trades.extend(self.create_trades(data.positions, ticker, data.market.close[ticker]))
+        self.plot_series = TradePlotSeriesCollection()
+    
 
     def create_trades(self, positions, ticker, prices):
-        '''
-        Note: this requires positions to be all normalised to 1.
-        This could be done with sign(positions).
-        '''
+
         flags = positions.data - positions.data.shift(1)
-        entries = flags.index[flags[ticker] == 1]
+        entries = flags.index[flags[ticker] > 0]
         trades = []
         for i in range(1, len(entries)):
             entry = entries[i - 1]
             next = entries[i]
-            exit = flags[entry:next].index[flags[ticker][entry:next] == -1][0]
+            exit = flags[entry:next].index[flags[ticker][entry:next] < 0][0]
             if exit is None:
                 exit = flags.index[-1]
-            trades.append(Trade(prices, entry, exit))
+            trades.append(Trade(ticker, prices, entry, exit))
         return trades
 
     def __getitem__(self, key):
-        return self.trades[key]
+        return filter(lambda trade:trade.ticker == key, self.trades)
 
     @property
     def returns(self):
-        all_returns = []
-        for ticker in self.trades:
-            all_returns.extend([trade.base_return for trade in self.trades[ticker]])
-        return all_returns
+        return [trade.base_return for trade in self.trades]
 
     @property
     def mean_return(self):
@@ -150,42 +183,31 @@ class TradeCollection(object):
 
 
     def max_duration(self):
-        overall_max = 0
-        for ticker in self.trades:
-            set_max = max([trade.duration for trade in self.trades[ticker]])
-            overall_max = max([overall_max, set_max])
-        return overall_max
+        return max([trade.duration for trade in self.trades])
 
     def max_MAE(self):
-        overall_MAE = 0
-        for ticker in self.trades:
-            set_min = min([trade.MAE for trade in self.trades[ticker]])
-            overall_MAE = min([overall_MAE, set_min])
-        return overall_MAE
+        return min([trade.MAE for trade in self.trades])
 
     def max_MFE(self):
-        overall_MFE = 0
-        for ticker in self.trades:
-            set_max = max([trade.MFE for trade in self.trades[ticker]])
-            overall_MFE = max([overall_MFE, set_max])
-        return overall_MFE
+        return max([trade.MFE for trade in self.trades])
 
     def filter(self, condition):
         '''
         filter accepts a lambda expression which must accept a Trade object as its input.
         A dictionary of list of trades meeting the condition is returned.
         '''
-        sub_trades = {ticker:filter(condition, self.trades[ticker]) for ticker in self.tickers}
-        sub_trades = {ticker:trades for ticker, trades in sub_trades.items() if len(trades) > 0}
+        sub_trades = filter(condition, self.trades)
         return TradeCollection(sub_trades)
+        
+    def clear_plot_series(self):
+        self.plot_series = TradePlotSeriesCollection()
 
-
-    def create_plot_series(self, filter_frame, boundaries, summary_method):
+    def create_plot_series(self, filter_object, boundaries, summary_method):
         '''
         Creates a series for plotting trade return measures vs a filter, e.g. the mean
         returns for a range of filter values.
         Inputs:
-            filter_frame - the filter data as a pandas.DataFrame
+            filter_object - the filter data as a Filter object
             boundaries - list of end points for each of the buckets, plot series point will 
                    be created at the mid point of each bucket.
             summary_method - the method to be applied to the subset of trade returns. must be one of the
@@ -193,25 +215,44 @@ class TradeCollection(object):
         Outputs:
             PlotSeries is added to the TradeCollection for plotting.
         '''
-        partition_centres = []
+        partition_labels = []
         results = []
-        self.plot_series = TradePlotSeriesCollection()
-
         for i in range(0, len(boundaries) - 1):
             left = boundaries[i]
             right = boundaries[i + 1]
-            partition_centres.append((left + right) / 2.0)
-
-            sub_trades = {}
-            for ticker in self.trades:
-                filter_values = filter_frame[filter_frame["ticker"] == ticker]["Base"]
-                condition = lambda trade: ((trade.filter(filter_values, "entry") >= left) and (trade.filter(filter_values, "entry") <= right))
-                filtered_trades = filter(condition, self.trades[ticker])
-                if len(filtered_trades):
-                    sub_trades[ticker] = filtered_trades
-            trades  = TradeCollection(sub_trades)
+            partition_labels.append("[{0}, {1})".format(left, right))
+            condition = lambda trade:((trade.filter(filter_object, "entry") >= left) and (trade.filter(filter_object, "entry") < right))
+            trades  = TradeCollection(filter(condition, list(self.trades)))
             results.append(getattr(trades, summary_method))
-        self.plot_series.append(TradePlotSeries(partition_centres, results))
+        self.plot_series.append(Series(results, partition_labels, name = ": ".join([summary_method, filter_object.name])))
+
+
+    def create_filter_summary(self, filter_values, boundaries, timing = "entry"):
+        '''
+        filter_values is assumed to be a dataframe with first column 'ticker' and remaining columns as different, 
+        but related filter values.
+        '''
+        if timing not in ["entry", "exit"]:
+            raise ValueError("timing muse be entry or exit")
+
+        filter_types = filter_values.columns[1:]
+        boundary_tuples = zip(boundaries[:-1], boundaries[1:])
+        partition_labels = ["[{0}, {1})".format(left, right) for left, right in boundary_tuples]
+        filter_summary = Panel(None, ["mean", "std"], partition_labels, filter_types)
+
+        for type in filter_types:
+            filter_object = Filter(filter_values[["ticker", type]])
+            mean = []
+            std_dev = []
+            for left, right in boundary_tuples:
+                condition = lambda trade:((trade.filter(filter_object, "entry") >= left) and (trade.filter(filter_object, "entry") < right))
+                trades = TradeCollection(filter(condition, list(self.trades)))
+                mean.append(trades.mean_return)
+                std_dev.append(trades.std_return)
+            filter_summary["mean"][type] = mean
+            filter_summary["std"][type] = std_dev
+
+        return filter_summary
 
 
     def plot_ticker(self, ticker):
@@ -223,55 +264,28 @@ class TradeCollection(object):
         '''
         Filter needs to be entered as a pandas.DataFrame.
         '''
-        returns = []
-        filters = []
-        for ticker in self.tickers:
-            base_value = filter["Base"].loc[filter["ticker"] == ticker]
-            for trade in self[ticker]:
-                try:
-                    filter_at_entry = base_value[base_value.index < trade.entry][-1]
-                    filter_at_entry = filter_at_entry / trade.price_at_entry
-                    filters.append(filter_at_entry)
-                except IndexError:
-                    filters.append(None)
-                
-                returns.append(trade.base_return)
+        returns, filters = zip(*[(trade.filter(filter, "entry"), trade.base_return) for trade in self.trades])
         return (filters, returns)
 
 
-    def plot_return_vs_filter(self, filter):
+    def plot_return_vs_filter(self, filter, xlim = None):
         plt.scatter(*self.return_vs_filter(filter))
-
-
-class TradePlotSeries(object):
-
-    def __init__(self, x, y, col = "red", style = "-"):
-        self.x = x
-        self.y = y
-        self.col = col
-        self.style = style
-
-    def plot(self):
-        plt.plot(self.x, self.y, color = self.col, ls = self.style)
+        plt.plot([-10, 10], [0, 0], "k-")
+        if xlim is not None:
+            plt.xlim(xlim)
 
 
 class TradePlotSeriesCollection(object):
 
     def __init__(self, color_map = "jet"):
         self.color_map = color_map
-        self.plot_series = []
+        self.collection = DataFrame()
 
     def plot(self, **kwargs):
-        color_map = plt.get_cmap(self.color_map)
-        col_index = 80
-        col_increment = round(60 / len(self.plot_series))
-        for series in self.plot_series:
-            series.col = color_map(col_index)
-            series.plot(**kwargs)
-            col_index += col_increment
+        self.collection.plot()
 
     def append(self, series):
-        self.plot_series.append(series)
+        self.collection[series.name] = series
 
 
 class Returns(object):
