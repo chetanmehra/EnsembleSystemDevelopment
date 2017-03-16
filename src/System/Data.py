@@ -4,7 +4,7 @@ Created on 6 Dec 2014
 @author: Mark
 '''
 
-import pandas.io.data
+import pandas_datareader
 import pickle
 
 class Handler(object):
@@ -21,7 +21,7 @@ class Handler(object):
         
     def get(self, ticker, start, end):
         self.ticker = ticker
-        return pandas.io.data.get_data_yahoo(ticker, start, end)
+        return pandas_datareader.get_data_yahoo(ticker, start, end)
     
     
     def save(self, item, filename):

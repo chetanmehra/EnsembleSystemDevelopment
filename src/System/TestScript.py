@@ -9,7 +9,7 @@ from System.Strategy import Strategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
 from System.Indicator import Crossover
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
-from System.Position import SingleLargestF, DefaultPositions, TradeCollection, Filter
+from System.Position import SingleLargestF, DefaultPositions, Filter
 import datetime
 import matplotlib.pyplot as plt
 
@@ -191,10 +191,50 @@ def getMarket():
 def testPlotSeries():
     market = getMarket()
     strat = run_basic_crossover(market)
-    strat.trades = TradeCollection(strat)
     values = getValues()
     filter_values = Filter(values[["ticker", "Base"]])
     strat.trades.create_plot_series(filter_values, [-1, 0, 0.5, 1, 1.25, 1.5, 2, 4], "mean_return")
     return strat
+
+def testFilteredStrat(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
+    market = getMarket()
+    strategy = Strategy(trade_timing, ind_timing)
+    strategy.market = market
+    strategy.measure = Crossover(*params)
+    strategy.model = NullForecaster(["True"])
+    strategy.select_positions = DefaultPositions()
+    values = getValues()
+    strategy.filter = Filter(values[["ticker", "Base"]], (1.5, 3))
+    strategy.initialise()
+    return strategy
+    
+
+def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
+    market = getMarket()
+    strategy = Strategy(trade_timing, ind_timing)
+    strategy.market = market
+    strategy.measure = Crossover(*params)
+    strategy.model = NullForecaster(["True"])
+    strategy.select_positions = DefaultPositions()
+    values = getValues()
+    strategy.filter = Filter(values[["ticker", "Base"]], (1.5, 3))
+    return strategy
+
+
+def plotBaseVsFilter(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
+    strat = testFilteredStrat(trade_timing = "CC", ind_timing = "O", params = (50, 20))
+    filtP = strat.filtered_lagged_positions
+    num = filtP.num_concurrent()
+    start = num[num > 0].index[0]
+    markR = strat.market_returns
+    filtR = filtP.long_only().normalised().applied_to(markR)
+    baseR = strat.lagged_positions.long_only().normalised().applied_to(markR)
+    markR.data = markR.data[start:]
+    filtR.data = filtR.data[start:]
+    baseR.data = baseR.data[start:]
+    markR.plot("mean", color = "black")
+    baseR.plot("sum", color = "blue")
+    filtR.plot("sum", color = "red")
+
 
 

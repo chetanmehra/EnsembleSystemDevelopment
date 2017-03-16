@@ -56,6 +56,27 @@ class Crossover(MeasureElement):
     def update_param(self, new_params):
         self.slow = new_params[0]
         self.fast = new_params[1]
+
+
+class TripleCrossover(MeasureElement):
+    
+    def __init__(self, slow, mid, fast):
+        self.fast = fast
+        self.mid = mid
+        self.slow = slow
+        
+    def execute(self, strategy):
+        prices = strategy.get_indicator_prices()
+        fast_ema = ewma(prices, span = self.fast)
+        mid_ema = ewma(prices, span = self.mid)
+        slow_ema = ewma(prices, span = self.slow)
+        levels = (fast_ema > mid_ema) & (mid_ema > slow_ema)
+        return Indicator(levels.astype('str'))
+    
+    def update_param(self, new_params):
+        self.slow = new_params[0]
+        self.fast = new_params[1]
+
  
         
         
