@@ -179,7 +179,7 @@ good_tickers = list(valued_tickers)
 
 def getValues():
     import pandas
-    return pandas.read_excel(r'D:\Investing\Valuations\Valuations20170129.xlsx', index_col = 0)
+    return pandas.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
 
 def getMarket():
     market = Market(good_tickers, "start", "end")

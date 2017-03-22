@@ -48,7 +48,7 @@ class Crossover(MeasureElement):
 
     @property
     def name(self):
-        return "EMAx_" + str(self.fast) + "_" + str(self.slow)
+        return ".".join(["EMAx", str(self.fast), str(self.slow)])
 
 
     def execute(self, strategy):
@@ -69,6 +69,10 @@ class TripleCrossover(MeasureElement):
         self.fast = fast
         self.mid = mid
         self.slow = slow
+
+    @property
+    def name(self):
+        return ".".join(["TRPx", str(self.fast), str(self.mid), str(self.slow)])
         
     def execute(self, strategy):
         prices = strategy.get_indicator_prices()
@@ -80,7 +84,8 @@ class TripleCrossover(MeasureElement):
     
     def update_param(self, new_params):
         self.slow = new_params[0]
-        self.fast = new_params[1]
+        self.mid = new_params[1]
+        self.fast = new_params[2]
 
  
         

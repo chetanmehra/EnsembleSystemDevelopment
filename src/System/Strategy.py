@@ -43,7 +43,7 @@ class Strategy(object):
         
     def initialise(self):
         self.check_fields()
-        self.name = self.indicator.name
+        self.name = self.measure.name
         self.indicator = self.measure(self)
         self.forecasts = self.model(self)
         self.positions = self.select_positions(self)
@@ -94,6 +94,9 @@ class Strategy(object):
     @property
     def filtered_lagged_positions(self):
         return self.indexer.positions(self.filtered_positions)
+
+    def filter_summary(self, filter_values, boundaries):
+        return self.trades.filter_summary(filter_values, boundaries)
 
     def plot_returns(self, long_only = False, short_only = False, color = "blue", **kwargs):
         if long_only:
@@ -232,7 +235,7 @@ class StrategyException(Exception):
 class EnsembleStrategy(Strategy):
     
     def __init__(self, trade_timing, ind_timing, parameter_set):
-        super().__init__(trade_timing, ind_timing)
+        super(EnsembleStrategy, self).__init__(trade_timing, ind_timing)
         self.parameter_set = parameter_set
         self.required_fields += ["forecast_weight"]
         self.strategies = []
@@ -265,6 +268,10 @@ class EnsembleStrategy(Strategy):
     @property
     def _positions(self):
         return [strategy.positions for strategy in self.strategies]
+
+    @property
+    def names(self):
+        return [strategy.name for strategy in self.strategies]
     
     def combined_returns(self, collapse_fun):
         returns = self.returns
@@ -272,6 +279,20 @@ class EnsembleStrategy(Strategy):
             sub_returns = strategy.returns.collapse_by(collapse_fun)
             returns.append(sub_returns)
         return returns
+
+    def filter_summary(self, filter_values, boundaries):
+
+        mu = {}
+        sd = {}
+
+        for strategy in self.strategies:
+            print("Calculating strat: " + strategy.name)
+            summary = strategy.filter_summary(filter_values, boundaries)
+            mu[strategy.name] = summary["mean"]
+            sd[strategy.name] = summary["std"]
+
+        return {"mean" : Panel(mu), "std" : Panel(sd)}
+
     
     def plot_returns(self, long_only = False, short_only = False, color = "blue", **kwargs):
         self.plot_substrats(long_only, short_only, color, **kwargs)
@@ -497,6 +518,27 @@ class TradeCollection(object):
             filter_summary["std"][type] = std_dev
 
         return filter_summary
+
+
+    def filter_summary(self, filter_values, boundaries):
+        '''
+        filter_values is assumed to be a dataframe with first column 'ticker' and remaining columns as different, 
+        but related filter values.
+        boundaries is an iterable of boundary points e.g. (-1, 0, 0.5, 1, etc...)
+        '''
+        filter_types = filter_values.columns[1:]
+        boundary_tuples = zip(boundaries[:-1], boundaries[1:])
+        partition_labels = ["[{0}, {1})".format(left, right) for left, right in boundary_tuples]
+        trade_df = self.as_dataframe_with(filter_values)
+        mu = DataFrame(data = None, index = partition_labels, columns = filter_types)
+        sd = DataFrame(data = None, index = partition_labels, columns = filter_types)
+        for type in filter_types:
+            ratio = trade_df[type] / trade_df.price_at_entry
+            for i, bounds in enumerate(boundary_tuples):
+                filtered = trade_df.base_return[(ratio >= bounds[0]) & (ratio < bounds[1])]
+                mu.loc[partition_labels[i], type] = filtered.mean()
+                sd.loc[partition_labels[i], type] = filtered.std()
+        return {"mean" : mu, "std" : sd}
 
 
     def plot_ticker(self, ticker):
