@@ -43,6 +43,7 @@ class Strategy(object):
         
     def initialise(self):
         self.check_fields()
+        self.name = self.indicator.name
         self.indicator = self.measure(self)
         self.forecasts = self.model(self)
         self.positions = self.select_positions(self)
@@ -145,6 +146,7 @@ class StrategyElement(object):
     def get_result(self, strategy):
         raise StrategyException("Strategy Element must define 'get_child'")
     
+
 
 class MeasureElement(StrategyElement):
     

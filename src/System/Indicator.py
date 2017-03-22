@@ -45,7 +45,12 @@ class Crossover(MeasureElement):
     def __init__(self, slow, fast):
         self.fast = fast
         self.slow = slow
-        
+
+    @property
+    def name(self):
+        return "EMAx_" + str(self.fast) + "_" + str(self.slow)
+
+
     def execute(self, strategy):
         prices = strategy.get_indicator_prices()
         fast_ema = ewma(prices, span = self.fast)
