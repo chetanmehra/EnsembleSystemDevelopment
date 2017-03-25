@@ -50,7 +50,17 @@ class Strategy(object):
         self.trades = TradeCollection(self)
         if self.filter is not None:
             self.filtered_positions = self.filter(self)
-    
+            
+            
+    def refresh(self):
+        self.indicator = None
+        self.forecasts = None
+        self.positions = None
+        self.filtered_positions = None
+        self.trades = None
+        self.initialise()
+            
+                
     @property
     def trade_timing(self):
         return self.indexer.trade_timing
@@ -122,15 +132,16 @@ class Strategy(object):
         mkt_R.data = mkt_R.data[start:]
         filtR.data = filtR.data[start:]
         baseR.data = baseR.data[start:]
-        markR.plot("mean", color = "black")
-        baseR.plot("sum", color = "blue")
-        filtR.plot("sum", color = "red")
+        mkt_R.plot("mean", color = "black", label = "Market")
+        baseR.plot("sum", color = "blue", label = "Base")
+        filtR.plot("sum", color = "red", label = "Filter")
+        plt.legend(loc = "upper left")
 
 
 class StrategyElement(object):
     
     @property
-    def ID(self):
+    def ID(self): 
         return id(self)
         
     def __call__(self, strategy):
@@ -218,13 +229,13 @@ class Indexer(object):
         return series.shift(lag)
     
     def market_returns(self, market):
-        timing_map = {"O":"Open", "C":"Close"}
+        timing_map = {"O":"open", "C":"close"}
         if self.trade_timing == "OC":
             lag = 0
         else:
             lag = 1
-        trade_open = market.get_series(timing_map[self.trade_timing[0]])
-        trade_close = market.get_series(timing_map[self.trade_timing[1]])
+        trade_open = getattr(market, timing_map[self.trade_timing[0]])
+        trade_close = getattr(market, timing_map[self.trade_timing[1]])
         return (trade_close / trade_open.shift(lag)) - 1
 
         

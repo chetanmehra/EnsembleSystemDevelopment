@@ -172,7 +172,9 @@ valued_tickers = [u'ONT', u'TGP', u'TIX', u'TOF', u'3PL', u'ABP', u'ALR', u'ACR'
                   u'SOL', u'WAT', u'WEB', u'WBA', u'WLL', u'WES', u'WSA', u'WHF',
                   u'WIG', u'WPL', u'WOW', u'WRR', u'XRF', u'XTE', u'ZGL']
 
-dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT', u'ICS', u'XTE', u'EGO', u'BXN', u'DRA', u'VMT']
+dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT', 
+                 u'ICS', u'XTE', u'EGO', u'BXN', u'DRA', u'VMT', 
+                 u'PGC']
 
 good_tickers = list(valued_tickers)
 [good_tickers.remove(tick) for tick in dodgy_tickers]
@@ -217,24 +219,8 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
     strategy.model = NullForecaster(["True"])
     strategy.select_positions = DefaultPositions()
     values = getValues()
-    strategy.filter = Filter(values[["ticker", "Base"]], (1.5, 3))
+    strategy.filter = Filter(values[["ticker", "Cyclic"]], (1.5, 4))
     return strategy
-
-
-def plotBaseVsFilter(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
-    strat = testFilteredStrat(trade_timing = "CC", ind_timing = "O", params = (50, 20))
-    filtP = strat.filtered_lagged_positions
-    num = filtP.num_concurrent()
-    start = num[num > 0].index[0]
-    markR = strat.market_returns
-    filtR = filtP.long_only().normalised().applied_to(markR)
-    baseR = strat.lagged_positions.long_only().normalised().applied_to(markR)
-    markR.data = markR.data[start:]
-    filtR.data = filtR.data[start:]
-    baseR.data = baseR.data[start:]
-    markR.plot("mean", color = "black")
-    baseR.plot("sum", color = "blue")
-    filtR.plot("sum", color = "red")
 
 
 
