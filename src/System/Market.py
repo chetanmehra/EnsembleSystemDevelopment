@@ -32,7 +32,13 @@ class Market(object):
         self.instruments = Panel.from_dict(instruments)
     
     def __getitem__(self, key):
-        return self.instruments[key]
+        adjust = self.adjustment_ratios()
+        df = self.instruments[key]
+        df.Open = df.Open * adjust[key]
+        df.High = df.High * adjust[key]
+        df.Low = df.Low * adjust[key]
+        df.Close = df.Close * adjust[key]
+        return df
 
     def clean_adj_close(self, instrument, ticker):
         '''

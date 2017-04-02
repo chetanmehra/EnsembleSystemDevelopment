@@ -179,9 +179,23 @@ dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT',
 good_tickers = list(valued_tickers)
 [good_tickers.remove(tick) for tick in dodgy_tickers]
 
-def getValues():
+def getValues(type = None):
     import pandas
-    return pandas.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
+    vals = pandas.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
+    if type is not None:
+        return vals[["ticker", type]]
+    else:
+        return vals
+
+
+def getValueMetrics(type = None):
+    import pandas
+    vals = pandas.read_excel(r'D:\Investing\Workspace\ValueMetrics20170329.xlsx', index_col = 0)
+    if type is not None:
+        return vals[["ticker", type]]
+    else:
+        return vals
+
 
 def getMarket():
     market = Market(good_tickers, "start", "end")
@@ -211,7 +225,7 @@ def testFilteredStrat(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
     return strategy
     
 
-def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
+def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
     market = getMarket()
     strategy = Strategy(trade_timing, ind_timing)
     strategy.market = market

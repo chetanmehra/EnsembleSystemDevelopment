@@ -74,7 +74,7 @@ class MeanForecast(Forecast):
 
 class NullForecaster(ModelElement):
     '''
-    The NullForecaster returns 1 for mean and sd where the indicator is equal to any of the
+    The NullForecaster returns 1 for mean where the indicator is equal to any of the
     provided levels in 'in_trade_levels'.
     '''
 
