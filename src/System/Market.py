@@ -4,7 +4,7 @@ Created on 6 Dec 2014
 @author: Mark
 '''
 import System.Data as Data
-from pandas import Panel, DataFrame
+from pandas import DateOffset, Panel, DataFrame
 from System.Position import AverageReturns
 
 class Market(object):
@@ -40,7 +40,7 @@ class Market(object):
         df.Close = df.Close * adjust[key]
         return df
 
-    def clean_adj_close(self, instrument, ticker):
+    def clean_adj_close(self, instrument):
         '''
         Takes a dataframe [OHLCV & Adj Close] for a ticker
         Tries to find any erroneous Adj Close values caused by stock splits.
@@ -52,14 +52,18 @@ class Market(object):
         while any(possible_errors):
             try:
                 start = adj_ratios[possible_errors].index[0]
-                end = adj_ratios[adj_ratios < (1 / limit)].index[0]
+                ix = 0
+                end = adj_ratios[adj_ratios < (1 / limit)].index[ix]
+                while end < start:
+                    ix += 1
+                    end = adj_ratios[adj_ratios < (1 / limit)].index[ix]
             except IndexError:
-                print(ticker)
                 possible_errors[start] = False
             else:
                 if (1 / limit) < close_ratios[end] < limit:
                     # Indicates Close is out of sync with Adj Close
-                    instrument["Adj Close"][start:(end - 1)] = instrument["Adj Close"][start:(end - 1)] / round(adj_ratios[start])
+                    divisor = round(adj_ratios[start])
+                    instrument["Adj Close"][start:(end - DateOffset(1))] = instrument["Adj Close"][start:(end - DateOffset(1))] / divisor
                     adj_ratios = instrument["Adj Close"] / instrument["Adj Close"].shift(1)
                     possible_errors = adj_ratios > limit
                 else:
@@ -111,5 +115,7 @@ class Market(object):
     def returns(self, indexer):
         returns = indexer.market_returns(self)
         return AverageReturns(returns)
+
+
     
         

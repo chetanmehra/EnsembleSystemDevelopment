@@ -9,7 +9,8 @@ from System.Strategy import Strategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
 from System.Indicator import Crossover
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
-from System.Position import SingleLargestF, DefaultPositions, Filter
+from System.Position import SingleLargestF, DefaultPositions
+from System.Filter import Filter, StackedFilterValues, WideFilterValues
 import datetime
 import matplotlib.pyplot as plt
 
@@ -183,25 +184,23 @@ def getValues(type = None):
     import pandas
     vals = pandas.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
     if type is not None:
-        return vals[["ticker", type]]
-    else:
-        return vals
+        vals = vals[["ticker", type]]
+    return StackedFilterValues(vals, type)
 
 
 def getValueMetrics(type = None):
     import pandas
     vals = pandas.read_excel(r'D:\Investing\Workspace\ValueMetrics20170329.xlsx', index_col = 0)
     if type is not None:
-        return vals[["ticker", type]]
-    else:
-        return vals
+        vals = vals[["ticker", type]]
+    return StackedFilterValues(vals, type)
 
 
 def getMarket():
     market = Market(good_tickers, "start", "end")
     import pandas
-    instruments = pandas.read_pickle(r"D:\Investing\Workspace\market_instruments.pkl")
-    market.instruments = instruments[good_tickers]
+    instruments = pandas.read_pickle(r'D:\Investing\Workspace\market_instruments.pkl')
+    market.instruments = instruments.loc[good_tickers, :, :]
     return market
 
 def testPlotSeries():
@@ -232,9 +231,13 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
     strategy.measure = Crossover(*params)
     strategy.model = NullForecaster(["True"])
     strategy.select_positions = DefaultPositions()
-    values = getValues()
-    strategy.filter = Filter(values[["ticker", "Cyclic"]], (1.5, 4))
+    values = getValues("Cyclic")
+    strategy.filter = Filter(values, (1.5, 4))
     return strategy
 
 
-
+# TODO
+# Filter on performance relative to market
+# Test breakout strategy
+# Filter on volatility (std dev and true range)
+# Filter on stock price (e.g. don't trade unless > $0.10)

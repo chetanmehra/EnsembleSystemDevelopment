@@ -102,12 +102,10 @@ class TradeCollection(object):
 
     def as_dataframe_with(self, values):
         '''
-        requires that values is a dataframe with first column ticker
-        and remaining columns values to be inserted.
-        Assumes index of values are dates / timestamps.
+        requires that values is a FilterValues object.
         '''
         df = self.as_dataframe()
-        cols = values.columns[1:]
+        cols = values.types
         for col in cols:
             df[col] = None
 
@@ -115,10 +113,7 @@ class TradeCollection(object):
             cols = cols[0]
 
         for i in df.index:
-            tick_values = values[values.ticker == df.ticker[i]][cols]
-            existing_values = tick_values[tick_values.index < df.entry[i]]
-            if not existing_values.empty:
-                df.loc[i, cols] = existing_values.iloc[-1]
+            df.loc[i, cols] = values.get(df.ticker[i], df.entry[i])
 
         return df
 
@@ -183,11 +178,10 @@ class TradeCollection(object):
 
     def filter_summary(self, filter_values, boundaries):
         '''
-        filter_values is assumed to be a dataframe with first column 'ticker' and remaining columns as different, 
-        but related filter values.
+        filter_values is a FilterValue object.
         boundaries is an iterable of boundary points e.g. (-1, 0, 0.5, 1, etc...)
         '''
-        filter_types = filter_values.columns[1:]
+        filter_types = filter_values.types
         boundary_tuples = zip(boundaries[:-1], boundaries[1:])
         partition_labels = ["[{0}, {1})".format(left, right) for left, right in boundary_tuples]
         trade_df = self.as_dataframe_with(filter_values)
@@ -242,22 +236,6 @@ class TradeCollection(object):
         for trade in self[ticker]:
             trade.plot_normalised()
 
-
-    def return_vs_filter(self, filter):
-        '''
-        Filter needs to be entered as a pandas.DataFrame.
-        '''
-        returns, filters = zip(*[(trade.filter(filter, "entry"), trade.base_return) for trade in self.trades])
-        return (filters, returns)
-
-
-    def plot_return_vs_filter(self, filter, xlim = None):
-        plt.scatter(*self.return_vs_filter(filter))
-        plt.plot([-10, 10], [0, 0], "k-")
-        plt.plot([0, 0], [-10, 10], "k--")
-        plt.plot([1, 1], [-10, 10], "k--")
-        if xlim is not None:
-            plt.xlim(xlim)
 
 
 class Trade(object):
@@ -333,43 +311,6 @@ class FilteredPositions(Position):
         return self.original_positions.filter_summary(filter_values, boundaries)
 
 
-
-class Filter(PositionSelectionElement):
-
-    def __init__(self, values, filter_range):
-        '''
-        Requires that values is a DataFrame with first column 'ticker' and next column filter values.
-        filter_range should be a tuple representing the acceptable filter range.
-        '''
-        self.values = values
-        self.bounds = filter_range
-        self.left = min(filter_range)
-        self.right = max(filter_range)
-        self.name = values.columns[-1]
-
-
-    def execute(self, strategy):
-        '''
-        Removes position values where filter criteria is not met.
-        '''
-        trades = strategy.positions.trades.as_list()
-        trade_frame = strategy.positions.trades.as_dataframe_with(self.values)
-        trade_frame["Filter"] = trade_frame[self.name] / trade_frame.entry_price
-        filtered_bools = (trade_frame.Filter > self.left) & (trade_frame.Filter <= self.right)
-
-        accepted_trades = []
-        eliminated_trades = []
-
-        for i, keep in enumerate(filtered_bools.values):
-            if keep:
-                accepted_trades.append(trades[i])
-            else:
-                eliminated_trades.append(trades[i])
-
-        new_positions = strategy.positions.copy()
-        new_positions.remove(eliminated_trades)
-
-        return FilteredPositions(strategy.positions, new_positions.data, accepted_trades, new_positions.tickers)
 
 
 class Returns(object):
