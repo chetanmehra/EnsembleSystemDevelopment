@@ -27,6 +27,9 @@
     <Compile Include="src\System\Filter.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="src\System\Trade.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="src\System\Position.py" />
     <Compile Include="src\System\Strategy.py" />
     <Compile Include="src\System\TestScript.py" />

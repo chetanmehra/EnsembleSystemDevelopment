@@ -5,7 +5,10 @@ Created on 6 Dec 2014
 '''
 import System.Data as Data
 from pandas import DateOffset, Panel, DataFrame
+from pandas.stats.moments import ewma
+import pandas as pd
 from System.Position import AverageReturns
+from System.Filter import WideFilterValues
 
 class Market(object):
     '''
@@ -117,5 +120,12 @@ class Market(object):
         return AverageReturns(returns)
 
 
-    
+    def volatility(self, window):
+        vol = pd.rolling_std(self.close, window)
+        return WideFilterValues(vol, "volatility")
+
+    def relative_performance(self, indexer, period):
+        returns = indexer.market_returns(self)
+        relative = returns.subtract(returns.mean(axis = 'columns'), axis = 'rows')
+        return WideFilterValues(ewma(relative, span = period), "relative_return")
         

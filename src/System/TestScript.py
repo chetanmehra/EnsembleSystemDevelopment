@@ -10,7 +10,7 @@ from System.Strategy import Strategy, MeasureEnsembleStrategy,\
 from System.Indicator import Crossover
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
-from System.Filter import Filter, StackedFilterValues, WideFilterValues
+from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues
 import datetime
 import matplotlib.pyplot as plt
 
@@ -185,7 +185,7 @@ def getValues(type = None):
     vals = pandas.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
     if type is not None:
         vals = vals[["ticker", type]]
-    return StackedFilterValues(vals, type)
+    return ValueFilterValues(vals, type)
 
 
 def getValueMetrics(type = None):
@@ -203,25 +203,6 @@ def getMarket():
     market.instruments = instruments.loc[good_tickers, :, :]
     return market
 
-def testPlotSeries():
-    market = getMarket()
-    strat = run_basic_crossover(market)
-    values = getValues()
-    filter_values = Filter(values[["ticker", "Base"]])
-    strat.trades.create_plot_series(filter_values, [-1, 0, 0.5, 1, 1.25, 1.5, 2, 4], "mean_return")
-    return strat
-
-def testFilteredStrat(trade_timing = "CC", ind_timing = "O", params = (50, 20)):
-    market = getMarket()
-    strategy = Strategy(trade_timing, ind_timing)
-    strategy.market = market
-    strategy.measure = Crossover(*params)
-    strategy.model = NullForecaster(["True"])
-    strategy.select_positions = DefaultPositions()
-    values = getValues()
-    strategy.filter = Filter(values[["ticker", "Base"]], (1.5, 3))
-    strategy.initialise()
-    return strategy
     
 
 def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):

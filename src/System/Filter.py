@@ -19,10 +19,9 @@ class Filter(PositionSelectionElement):
         '''
         Removes position values where filter criteria is not met.
         '''
-        trades = strategy.positions.trades.as_list()
-        trade_frame = strategy.positions.trades.as_dataframe_with(self.values)
-        trade_frame["Filter"] = trade_frame[self.name] / trade_frame.entry_price
-        filtered_bools = (trade_frame.Filter > self.left) & (trade_frame.Filter <= self.right)
+        trades = strategy.trades.as_list()
+        trade_frame = strategy.trades.as_dataframe_with(self.values)
+        filtered_bools = (trade_frame[self.name] > self.left) & (trade_frame[self.name] <= self.right)
 
         accepted_trades = []
         eliminated_trades = []
@@ -55,9 +54,18 @@ class FilterValues:
     def __getitem__(self, key):
         raise NotImplementedError
 
-    def get(self, ticker, date):
+    def get(self, df, row):
+        relevant_values = self.find_relevant_values(df, row)
+        return self.most_recent(relevant_values)
+
+    def find_relevant_values(self, df, row):
+        ticker = df.ticker[row]
+        date = df.entry[row]
         tick_values = self[ticker]
-        relevant_values = tick_values[tick_values.index < date]
+        return tick_values[tick_values.index < date]
+
+
+    def most_recent(self, relevant_values):
         if relevant_values.empty:
             result = None
         elif relevant_values.shape[1] == 1:
@@ -68,6 +76,11 @@ class FilterValues:
 
 
 class StackedFilterValues(FilterValues):
+    '''
+    A stacked filter may contain more than one filter type, with a column for
+    ticker, and each of the filter types.
+    Each row denotes the related ticker.
+    '''
 
     def __getitem__(self, key):
         return self.values[self.values.ticker == key][self.values.columns[1:]]
@@ -79,6 +92,10 @@ class StackedFilterValues(FilterValues):
 
 class WideFilterValues(FilterValues):
 
+    '''
+    Wide filters contain one type of filter with a column for each ticker.
+    '''
+
     def __getitem__(self, key):
         return self.values[[key]]
 
@@ -86,3 +103,17 @@ class WideFilterValues(FilterValues):
     def types(self):
         return [self.name]
 
+
+class ValueFilterValues(StackedFilterValues):
+    '''
+    Returns the ratio of the calculated value to the price at time of entry.
+    '''
+
+    def get(self, df, row):
+        relevant_values = self.find_relevant_values(df, row)
+        price = df.entry_price[row]
+        recent = self.most_recent(relevant_values)
+        if recent is not None:
+            return recent / price
+        else:
+            return recent
