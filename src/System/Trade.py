@@ -97,7 +97,7 @@ class TradeCollection(object):
         A TradeCollection of trades meeting the condition is returned.
         '''
         trades = [trade for trade in self.trades if condition(trade)]
-        tickers = list(set([trade.ticker for ticker in trades]))
+        tickers = list(set([trade.ticker for trade in trades]))
         return TradeCollection(trades, tickers)
         
 
@@ -174,6 +174,30 @@ class TradeCollection(object):
         # First remove NaNs
         returns = [R for R in self.returns if R == R]
         plt.hist(returns, **kwargs)
+
+    def plot_MAE(self):
+        MAEs = self.MAEs
+        returns = self.returns
+        x_range = (min(MAEs) -0.05, 0.1)
+        y_range = (min(returns) - 0.05, max(returns) + 0.05)
+        plt.scatter(self.MAEs, self.returns)
+        plt.plot((0, 0), y_range, color = 'black')
+        plt.plot(x_range, (0, 0), color = 'black')
+        plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
+        plt.xlim(x_range)
+        plt.ylim(y_range)
+
+    def plot_MFE(self):
+        MFEs = self.MFEs
+        returns = self.returns
+        x_range = (-0.1, max(MFEs) + 0.05)
+        y_range = (min(returns) - 0.05, max(returns) + 0.05)
+        plt.scatter(self.MFEs, self.returns)
+        plt.plot((0, 0), y_range, color = 'black')
+        plt.plot(x_range, (0, 0), color = 'black')
+        plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
+        plt.xlim(x_range)
+        plt.ylim(y_range)
 
 
 
