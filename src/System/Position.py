@@ -146,6 +146,7 @@ class Returns(object):
     
     def log(self, collapse_fun):
         returns = self.collapse_by(collapse_fun)
+        returns[returns <= -1.0] = -0.9999999999
         return (returns + 1).apply(log)
         
     def plot(self, collapse_fun, start, **kwargs):
