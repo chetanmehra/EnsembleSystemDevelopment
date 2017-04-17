@@ -213,6 +213,11 @@ class Trade(object):
         self.normalised = Series((exit_prices[self.entry:self.exit] / self.entry_price).values) - 1
         self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]
 
+    def __repr__(self):
+        first_line = '{0:^23}\n'.format(self.ticker)
+        second_line = '{0:10} : {1:10} ({2} days)\n'.format(str(self.entry.date()), str(self.exit.date()), self.duration)
+        third_line = '{0:^10.2f} : {1:^10.2f} ({2:.1f} %)\n'.format(self.entry_price, self.exit_price, self.base_return * 100)
+        return first_line + second_line + third_line
 
     def get_price(self, date, prices):
         price = prices[date]

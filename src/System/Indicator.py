@@ -4,7 +4,7 @@ Created on 13 Dec 2014
 @author: Mark
 '''
 from numpy import isnan
-from pandas import notnull
+from pandas import notnull, DataFrame
 from pandas.stats.moments import ewma
 from System.Strategy import StrategyContainerElement, MeasureElement
 
@@ -107,7 +107,36 @@ def EMA(price_series, period):
                 ema.iloc[i][still_missing] = current_prices[still_missing]
                 
         return ema        
-        
+
+
+
+class ValueWeightedEMA(MeasureElement):
+
+    def __init__(self, values, fast, slow):
+        self.values = values
+        self.fast = fast
+        self.slow = slow
+
+    @property
+    def name(self):
+        return ".".join([self.values.name, "Wtd", str(self.fast), str(self.slow)])
+
+    def execute(self, strategy):
+        prices = strategy.get_indicator_prices()
+        value_ratio = DataFrame(prices)
+        value_ratio[:] = None
+        for col in self.values:
+            value_ratio[col] = self.values[col]
+        value_ratio.fillna(method = 'ffill')
+        value_ratio = value_ratio / prices
+
+
+
+    def update_param(self, new_params):
+        pass
+
+
+
                 
         
 

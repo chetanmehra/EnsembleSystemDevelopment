@@ -89,6 +89,14 @@ class StackedFilterValues(FilterValues):
     def types(self):
         return self.values.columns[1:].tolist()
 
+    def as_wide_values(self, type = None):
+        if type is None:
+            type = self.types[0]
+        df = self.values
+        df['date'] = df.index
+        df = df.pivot(index = 'date', columns = 'ticker', values = type)
+        df = df.fillna(method = 'ffill')
+        return WideFilterValues(df, name = type)
 
 class WideFilterValues(FilterValues):
 
