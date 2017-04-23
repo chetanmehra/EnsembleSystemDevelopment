@@ -220,5 +220,8 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
 # TODO
 # Filter on performance relative to market
 # Test breakout strategy
-# Filter on volatility (std dev and true range)
-# Filter on stock price (e.g. don't trade unless > $0.10)
+# Create trade summary report
+# Plot trade against market data (ideally candles) and indicators
+# Plot performance vs stop loss levels
+# Calculate trend detection benchmark data (i.e. with perfect hindsight).
+# Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)

@@ -1,5 +1,6 @@
 
 from pandas import Series, DataFrame, qcut, cut
+import matplotlib.pyplot as plt
 
 class TradeCollection(object):
 
@@ -8,7 +9,10 @@ class TradeCollection(object):
         self.trades = data
 
     def __getitem__(self, key):
-        return [trade for trade in self.trades if trade.ticker == key]
+        if isinstance(key, int):
+            return self.trades[key]
+        else:
+            return [trade for trade in self.trades if trade.ticker == key]
 
     def as_list(self):
         return self.trades

@@ -7,6 +7,11 @@ import System.Data as Data
 from pandas import DateOffset, Panel, DataFrame
 from pandas.stats.moments import ewma
 import pandas as pd
+from matplotlib.finance import candlestick_ohlc
+from matplotlib.dates import date2num
+import matplotlib.pyplot as plt
+import datetime
+
 from System.Position import AverageReturns
 from System.Filter import WideFilterValues
 
@@ -128,4 +133,13 @@ class Market(object):
         returns = indexer.market_returns(self)
         relative = returns.subtract(returns.mean(axis = 'columns'), axis = 'rows')
         return WideFilterValues(ewma(relative, span = period), "relative_return")
-        
+
+
+    def candlestick(self, ticker, start = None, end = None):
+        data = self[ticker][start:end]
+        quotes = zip(date2num(data.index.astype(datetime.date)), data.Open, data.High, data.Low, data.Close)
+        fig, ax = plt.subplots()
+        candlestick_ohlc(ax, quotes)
+        ax.xaxis_date()
+        fig.autofmt_xdate()
+        return (fig, ax)

@@ -137,7 +137,20 @@ class ValueWeightedEMA(MeasureElement):
 
 
 
-                
+class TrendBenchmark(object):
+    
+    def __init__(self, period):
+        self.period = period
         
+        
+    def __call__(self, strategy):
+        prices = strategy.get_indicator_prices()
+        trend = DataFrame(None, index = prices.index, columns = prices.columns)
+
+        for i in range(prices.shape[0] - self.period):
+            # If there are not any new highs in the recent period then must have been 
+            # a swing point high and vice versa.
+            SPH = ~(prices.iloc[(i + 1):(i + self.period)] > prices.iloc[i]).any()
+            SPL = ~(prices.iloc[(i + 1):(i + self.period)] < prices.iloc[i]).any()
 
 
