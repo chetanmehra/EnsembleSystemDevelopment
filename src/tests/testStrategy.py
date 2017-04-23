@@ -381,7 +381,7 @@ class TestStrategyMeasureEnsembleInitialisation(unittest.TestCase):
         
     def testMeasureEnsembleStoresAllMeasures(self):
         self.strategy.initialise()
-        for i in range(len(self.parameter_set)):
+        for i in bounds(len(self.parameter_set)):
             self.assertEqual(self.strategy._indicators[i], self.indicators[i])
         
     def testMeasureEnsembleForecastsEachMeasure(self):
@@ -391,7 +391,7 @@ class TestStrategyMeasureEnsembleInitialisation(unittest.TestCase):
         
     def testMeasureEnsembleStoresAllForecasts(self):
         self.strategy.initialise()
-        for i in range(len(self.parameter_set)):
+        for i in bounds(len(self.parameter_set)):
             self.assertEqual(self.strategy._forecasts[i], self.forecasts[i])
             
     def testMeasureEnsembleFeedsCorrectIndicatorToModel(self):
@@ -413,7 +413,7 @@ class TestStrategyMeasureEnsembleInitialisation(unittest.TestCase):
         
     def testMeasureEnsembleStoresAllPositions(self):
         self.strategy.initialise()
-        for i in range(len(self.parameter_set)):
+        for i in bounds(len(self.parameter_set)):
             self.assertEqual(self.strategy._positions[i], self.positions[i])
             
     def testMeasureEnsembleFeedsCorrectForecastsToPosition(self):
@@ -440,7 +440,7 @@ class TestEnsembleMeanForecast(unittest.TestCase):
     def setUp(self):
         self.means = []
         self.stds = []
-        for _ in range(3):
+        for _ in bounds(3):
             self.means += [buildNumericPanel(['Forecast', 'a', 'b'], ["ASX", "BHP", "CBA"], 20)]
             self.stds += [buildNumericPanel(['Forecast', 'a', 'b'], ["ASX", "BHP", "CBA"], 20)]
         mean_sd = zip(self.means, self.stds)
@@ -504,7 +504,7 @@ class TestStrategyModelEnsembleInitialisation(unittest.TestCase):
     
     def testModelEnsembleStoresAllForecasts(self):
         self.strategy.initialise()
-        for i in range(len(self.parameter_set)):
+        for i in bounds(len(self.parameter_set)):
             self.assertEqual(self.strategy._forecasts[i], self.forecasts[i])
             
     def testModelEnsembleSelectsAllPositions(self):
@@ -514,7 +514,7 @@ class TestStrategyModelEnsembleInitialisation(unittest.TestCase):
     
     def testModelEnsembleStoresAllPositions(self):
         self.strategy.initialise()
-        for i in range(len(self.parameter_set)):
+        for i in bounds(len(self.parameter_set)):
             self.assertEqual(self.strategy._positions[i], self.positions[i])
             
     def testModelEnsembleFeedsCorrectForecastsToPosition(self):

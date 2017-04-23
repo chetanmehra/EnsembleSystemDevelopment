@@ -4,7 +4,7 @@ Created on 13 Dec 2014
 @author: Mark
 '''
 from numpy import isnan
-from pandas import notnull, DataFrame
+from pandas import notnull, DataFrame, Series
 from pandas.stats.moments import ewma
 from System.Strategy import StrategyContainerElement, MeasureElement
 
@@ -93,7 +93,7 @@ class TripleCrossover(MeasureElement):
 def EMA(price_series, period):
         alpha = 2 / (period + 1)
         ema = price_series.copy()
-        for i in range(len(price_series.index))[1:]:
+        for i in bounds(len(price_series.index))[1:]:
             current_prices = price_series.iloc[i]
             previous_ema = ema.iloc[i - 1]
             
@@ -138,19 +138,39 @@ class ValueWeightedEMA(MeasureElement):
 
 
 class TrendBenchmark(object):
-    
+    '''
+    The TrendBenchmark is not intended for use in a strategy, but for testing the performance
+    of an indicator against ideal, perfect hindsight identification of trends.
+    '''
     def __init__(self, period):
         self.period = period
         
-        
     def __call__(self, strategy):
         prices = strategy.get_indicator_prices()
-        trend = DataFrame(None, index = prices.index, columns = prices.columns)
-
-        for i in range(prices.shape[0] - self.period):
+        trend = DataFrame(None, index = prices.index, columns = prices.columns, dtype = float)
+        last_SP = Series(None, index = prices.columns)
+        current_trend = Series('-', index = prices.columns)
+        for i in bounds(prices.shape[0] - self.period):
             # If there are not any new highs in the recent period then must have been 
-            # a swing point high and vice versa.
+            # a swing point high.
             SPH = ~(prices.iloc[(i + 1):(i + self.period)] > prices.iloc[i]).any()
+            # NaN in series will produce false signals and need to be removed
+            SPH = SPH[prices.iloc[i].notnull()]
+            SPH = SPH[SPH]
+            # Only mark as swing point high if currently in uptrend or unidentified tred, otherwise ignore.
+            SPH = SPH[current_trend[SPH.index] != 'DOWN']
+            if not SPH.empty:
+                current_trend[SPH.index] = 'DOWN'
+                trend.loc[trend.index[i], SPH.index] = prices.iloc[i][SPH.index]
+            # Repeat for swing point lows.
             SPL = ~(prices.iloc[(i + 1):(i + self.period)] < prices.iloc[i]).any()
+            SPL = SPL[prices.iloc[i].notnull()]
+            SPL = SPL[SPL]
+            SPL = SPL[current_trend[SPL.index] != 'UP']
+            if not SPL.empty:
+                current_trend[SPL.index] = 'UP'
+                trend.loc[trend.index[i], SPL.index] = prices.iloc[i][SPL.index]
+        self.trend = trend.interpolate()
+
 
 

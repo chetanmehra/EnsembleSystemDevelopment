@@ -1,5 +1,6 @@
 
 from pandas import Series, DataFrame, qcut, cut
+from numpy import sign
 import matplotlib.pyplot as plt
 
 class TradeCollection(object):
@@ -77,9 +78,19 @@ class TradeCollection(object):
         return returns.mean() / returns.std()
 
     @property
+    def Sharpe_annual(self):
+        returns = self.daily_returns()
+        return (250 ** 0.5) * (returns.mean() / returns.std())
+
+    @property
     def G(self):
         # Refer research note: EQ-2011-003
         S_sqd = self.Sharpe ** 2
+        return ((1 + S_sqd) ** 2 - S_sqd) ** 0.5 - 1
+
+    @property
+    def G_annual(self):
+        S_sqd = self.Sharpe_annual ** 2
         return ((1 + S_sqd) ** 2 - S_sqd) ** 0.5 - 1
 
     @property
@@ -169,6 +180,46 @@ class TradeCollection(object):
 
         return {"mean" : mu, "std" : sd, "count" : N}
 
+    def trade_frame(self, **kwargs):
+        '''
+        Returns a dataframe of daily cumulative return for each trade.
+        Each row is a trade, and columns are days in trade.
+        '''
+        df = DataFrame()
+        for trade in self.trades:
+            df = df.append(trade.normalised, ignore_index = True)
+        if df.shape[1] > 20:
+            cols = [(11, 15), (16, 20), (21, 30), (31, 50), (51, 100), (101, 200)]
+            trade_df = df.loc[:, 1:10]
+            trade_df.columns = trade_df.columns.astype(str)
+            for bounds in cols:
+                if (df.shape[1] <= bounds[1]):
+                    label = '{}+'.format(bounds[0])
+                    trade_df[label] = df.loc[:, bounds[0]:].mean(axis = 1)
+                    break
+                else:
+                    label = '{}-{}'.format(*bounds)
+                    trade_df[label] = df.loc[:, bounds[0]:bounds[1]].mean(axis = 1)
+        final_bound = cols[-1][1]
+        if df.shape[1] > final_bound:
+            label = '{}+'.format(final_bound + 1)
+            trade_df[label] = df.loc[:, (final_bound + 1):].mean(axis = 1)
+        return (df, trade_df)
+
+    def daily_returns(self):
+        '''
+        Returns an unsorted and unorderd list of daily returns for all trades.
+        Used for calculating daily or annualised statistics.
+        '''
+        df = self.trade_frame()[0]
+        daily = ((df + 1).T / (df + 1).T.shift(1)).T - 1
+        returns = []
+        for col in daily:
+            returns.extend(daily[col].values)
+        returns = Series(returns)
+        returns = returns[returns.notnull()]
+        return returns
+
 
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
@@ -203,6 +254,64 @@ class TradeCollection(object):
         plt.xlim(x_range)
         plt.ylim(y_range)
 
+    def summary_report(self):
+        '''
+        Provides a summary of the trade statistics
+        '''
+        winners = self.find(lambda trade: trade.base_return > 0)
+        losers = self.find(lambda trade: trade.base_return < 0)
+        evens = self.find(lambda trade: trade.base_return == 0)
+        daily_R = self.daily_returns()
+        trade_df = self.as_dataframe().sort(columns = 'exit')
+
+        win_loss = sign(trade_df.base_return).values
+        previous = win_loss[0]
+        win_streak = 0 + previous > 0
+        biggest_win_streak = 0
+        loss_streak = 0 + previous < 0
+        biggest_loss_streak = 0
+        for i in range(1, len(win_loss)):
+            current = win_loss[i]
+            if current > 0 and previous > 0:
+                win_streak += 1
+            elif current < 0 and previous < 0:
+                loss_streak += 1
+            elif current > 0 and previous < 0:
+                biggest_loss_streak = max(biggest_loss_streak, loss_streak)
+                loss_streak = 0
+            elif current < 0 and previous > 0:
+                biggest_win_streak = max(biggest_win_streak, win_streak)
+                win_streak = 0
+            previous = current
+
+        trade_volume = Series(dtype = float)
+        trade_volume['Number of trades'] = self.count
+        trade_volume['Percent winners'] = round(100 * (winners.count / self.count), 1)
+        trade_volume['Number winners'] = winners.count 
+        trade_volume['Number losers'] = losers.count
+        trade_volume['Number even'] = evens.count
+
+        returns = Series(dtype = float)
+        returns['Average return'] = round(100 * self.mean_return, 2)
+        returns['Median return'] = round(100 * Series(self.returns).median(), 2)
+        returns['Average winning return'] = round(100 * winners.mean_return, 2)
+        returns['Average losing return'] = round(100 * losers.mean_return, 2)
+        returns['Ratio average win to loss'] = round(winners.mean_return / abs(losers.mean_return), 2)
+        returns['Largest winner'] = round(100 * max(self.returns), 2)
+        returns['Largest loser'] = round(100 * min(self.returns), 2) 
+        returns['Sharpe by trade'] = round(self.Sharpe, 2)
+        returns['Sharpe annualised'] = round(self.Sharpe_annual, 2)
+        returns['G by trade'] = round(self.G, 2)
+        returns['G annualised'] = round(self.G_annual, 2)
+
+        duration = Series(dtype = float)
+        duration['Average duration'] = round(Series(self.durations).mean(), 2)
+        duration['Average duration winners'] = round(Series(winners.durations).mean(), 2)
+        duration['Average duration losers'] = round(Series(losers.durations).mean(), 2)
+        duration['Max consecutive winners'] = biggest_win_streak
+        duration['Max consecutive losers'] = biggest_loss_streak
+
+        return (trade_volume, returns, duration)
 
 
 class Trade(object):

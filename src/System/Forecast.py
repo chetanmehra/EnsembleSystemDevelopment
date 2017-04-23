@@ -43,7 +43,7 @@ class Forecast(StrategyContainerElement):
 class MeanForecastWeighting(object):
     
     def __call__(self, forecasts):
-        items = list(range(len(forecasts)))
+        items = list(bounds(len(forecasts)))
         means = [forecast.mean for forecast in forecasts]
         means = zip(items, means)
         stds = [forecast.sd for forecast in forecasts]

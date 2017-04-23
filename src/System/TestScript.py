@@ -13,6 +13,7 @@ from System.Position import SingleLargestF, DefaultPositions
 from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues
 import datetime
 import matplotlib.pyplot as plt
+import pandas as pd
 
 ASX20 = ["AMP", "ANZ", "BHP", "BXB", "CBA", "CSL", "IAG", "MQG", "NAB", "ORG", "QBE", 
          "RIO", "SCG", "SUN", "TLS", "WBC", "WES", "WFD", "WOW", "WPL"]
@@ -225,3 +226,21 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
 # Plot performance vs stop loss levels
 # Calculate trend detection benchmark data (i.e. with perfect hindsight).
 # Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
+# Enter trade 10 days after signal (maybe if trade isn't underwater)
+
+short_pars = [1, 5, 10, 20, 35]
+long_pars = [50, 70, 90]
+
+def test_pars(short_pars, long_pars):
+    strat = baseStratSetup()
+    summaries = []
+    sharpes = pd.DataFrame(None, index = short_pars, columns = long_pars, dtype = float)
+
+    for long in long_pars:
+        for short in short_pars:
+            strat.measure.update_param((short, long))
+            strat.initialise()
+            sharpes.loc[short, long] = strat.trades.Sharpe_annual
+            summaries.append((short, long, strat.trades.summary_report()))
+
+    return (sharpes, summaries)
