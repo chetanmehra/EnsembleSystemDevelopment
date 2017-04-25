@@ -213,8 +213,6 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
     strategy.measure = Crossover(*params)
     strategy.model = NullForecaster(["True"])
     strategy.select_positions = DefaultPositions()
-    values = getValues("Cyclic")
-    strategy.filter = Filter(values, (1.5, 4))
     return strategy
 
 
@@ -239,8 +237,8 @@ def test_pars(short_pars, long_pars):
     for long in long_pars:
         for short in short_pars:
             strat.measure.update_param((short, long))
-            strat.initialise()
+            strat.refresh()
             sharpes.loc[short, long] = strat.trades.Sharpe_annual
-            summaries.append((short, long, strat.trades.summary_report()))
+            summaries.append(('{}-{}'.format(short, long), strat.trades.summary_report()))
 
-    return (sharpes, summaries)
+    return (sharpes, pd.Dataframe(dict(summaries)))

@@ -1,6 +1,6 @@
 
-from pandas import Series, DataFrame, qcut, cut
-from numpy import sign
+from pandas import Series, DataFrame, qcut, cut, concat
+from numpy import sign, hstack
 import matplotlib.pyplot as plt
 
 class TradeCollection(object):
@@ -8,6 +8,9 @@ class TradeCollection(object):
     def __init__(self, data, tickers):
         self.tickers = tickers
         self.trades = data
+        self._returns = None
+        self._durations = None
+        self._daily_returns = None
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -50,11 +53,15 @@ class TradeCollection(object):
 
     @property
     def returns(self):
-        return [trade.base_return for trade in self.trades]
+        if self._returns is None:
+            self._returns = [trade.base_return for trade in self.trades]
+        return self._returns
 
     @property
     def durations(self):
-        return [trade.duration for trade in self.trades]
+        if self._durations is None:
+            self._durations = [trade.duration for trade in self.trades]
+        return self._durations
 
     @property
     def MAEs(self):
@@ -79,7 +86,7 @@ class TradeCollection(object):
 
     @property
     def Sharpe_annual(self):
-        returns = self.daily_returns()
+        returns = self.daily_returns
         return (250 ** 0.5) * (returns.mean() / returns.std())
 
     @property
@@ -104,6 +111,24 @@ class TradeCollection(object):
     @property
     def max_MFE(self):
         return max(self.MFEs)
+
+    def consecutive_wins_losses(self):
+        trade_df = self.as_dataframe().sort(columns = 'exit')
+        win_loss = sign(trade_df.base_return)
+        # Create series which has just 1's and 0's
+        positive = Series(hstack(([0], ((win_loss > 0) * 1).values, [0])))
+        negative = Series(hstack(([0], ((win_loss < 0) * 1).values, [0])))
+        pos_starts = positive.where(positive.diff() > 0)
+        pos_starts = Series(pos_starts.dropna().index.tolist())
+        pos_ends = positive.where(positive.diff() < 0)
+        pos_ends = Series(pos_ends.dropna().index.tolist())
+        positive_runs = pos_ends - pos_starts
+        neg_starts = negative.where(negative.diff() > 0)
+        neg_starts = Series(neg_starts.dropna().index.tolist())
+        neg_ends = negative.where(negative.diff() < 0)
+        neg_ends = Series(neg_ends.dropna().index.tolist())
+        negative_runs = neg_ends - neg_starts
+        return (positive_runs, negative_runs)
 
 
     def find(self, condition):
@@ -180,15 +205,15 @@ class TradeCollection(object):
 
         return {"mean" : mu, "std" : sd, "count" : N}
 
-    def trade_frame(self, **kwargs):
+    def trade_frame(self, compacted = True):
         '''
         Returns a dataframe of daily cumulative return for each trade.
         Each row is a trade, and columns are days in trade.
         '''
-        df = DataFrame()
-        for trade in self.trades:
-            df = df.append(trade.normalised, ignore_index = True)
-        if df.shape[1] > 20:
+        df = DataFrame(None, index = range(self.count), columns = range(self.max_duration), dtype = float)
+        for i, trade in enumerate(self.trades):
+            df.loc[i] = trade.normalised
+        if compacted and df.shape[1] > 10:
             cols = [(11, 15), (16, 20), (21, 30), (31, 50), (51, 100), (101, 200)]
             trade_df = df.loc[:, 1:10]
             trade_df.columns = trade_df.columns.astype(str)
@@ -200,25 +225,29 @@ class TradeCollection(object):
                 else:
                     label = '{}-{}'.format(*bounds)
                     trade_df[label] = df.loc[:, bounds[0]:bounds[1]].mean(axis = 1)
-        final_bound = cols[-1][1]
-        if df.shape[1] > final_bound:
-            label = '{}+'.format(final_bound + 1)
-            trade_df[label] = df.loc[:, (final_bound + 1):].mean(axis = 1)
-        return (df, trade_df)
+            final_bound = cols[-1][1]
+            if df.shape[1] > final_bound:
+                label = '{}+'.format(final_bound + 1)
+                trade_df[label] = df.loc[:, (final_bound + 1):].mean(axis = 1)
+            return trade_df
+        else:
+            return df
 
+    @property
     def daily_returns(self):
         '''
         Returns an unsorted and unorderd list of daily returns for all trades.
         Used for calculating daily or annualised statistics.
         '''
-        df = self.trade_frame()[0]
-        daily = ((df + 1).T / (df + 1).T.shift(1)).T - 1
-        returns = []
-        for col in daily:
-            returns.extend(daily[col].values)
-        returns = Series(returns)
-        returns = returns[returns.notnull()]
-        return returns
+        if self._daily_returns is None:
+            df = self.trade_frame(compacted = False)
+            daily = ((df + 1).T / (df + 1).T.shift(1)).T - 1
+            returns = []
+            for col in daily:
+                returns.extend(daily[col].tolist())
+            returns = Series(returns)
+            self._daily_returns = returns.dropna()
+        return self._daily_returns
 
 
     def plot_ticker(self, ticker):
@@ -254,42 +283,24 @@ class TradeCollection(object):
         plt.xlim(x_range)
         plt.ylim(y_range)
 
-    def summary_report(self):
-        '''
-        Provides a summary of the trade statistics
-        '''
+
+    def summary_trade_volume(self):
         winners = self.find(lambda trade: trade.base_return > 0)
         losers = self.find(lambda trade: trade.base_return < 0)
         evens = self.find(lambda trade: trade.base_return == 0)
-        daily_R = self.daily_returns()
-        trade_df = self.as_dataframe().sort(columns = 'exit')
-
-        win_loss = sign(trade_df.base_return).values
-        previous = win_loss[0]
-        win_streak = 0 + previous > 0
-        biggest_win_streak = 0
-        loss_streak = 0 + previous < 0
-        biggest_loss_streak = 0
-        for i in range(1, len(win_loss)):
-            current = win_loss[i]
-            if current > 0 and previous > 0:
-                win_streak += 1
-            elif current < 0 and previous < 0:
-                loss_streak += 1
-            elif current > 0 and previous < 0:
-                biggest_loss_streak = max(biggest_loss_streak, loss_streak)
-                loss_streak = 0
-            elif current < 0 and previous > 0:
-                biggest_win_streak = max(biggest_win_streak, win_streak)
-                win_streak = 0
-            previous = current
-
+        
         trade_volume = Series(dtype = float)
         trade_volume['Number of trades'] = self.count
         trade_volume['Percent winners'] = round(100 * (winners.count / self.count), 1)
         trade_volume['Number winners'] = winners.count 
         trade_volume['Number losers'] = losers.count
         trade_volume['Number even'] = evens.count
+        return trade_volume
+
+    def summary_returns(self):
+        winners = self.find(lambda trade: trade.base_return > 0)
+        losers = self.find(lambda trade: trade.base_return < 0)
+        evens = self.find(lambda trade: trade.base_return == 0)
 
         returns = Series(dtype = float)
         returns['Average return'] = round(100 * self.mean_return, 2)
@@ -303,15 +314,32 @@ class TradeCollection(object):
         returns['Sharpe annualised'] = round(self.Sharpe_annual, 2)
         returns['G by trade'] = round(self.G, 2)
         returns['G annualised'] = round(self.G_annual, 2)
+        return returns
+
+    def summary_duration(self):
+        winners = self.find(lambda trade: trade.base_return > 0)
+        losers = self.find(lambda trade: trade.base_return < 0)
+        evens = self.find(lambda trade: trade.base_return == 0)
+        positive_runs, negative_runs = self.consecutive_wins_losses()
 
         duration = Series(dtype = float)
         duration['Average duration'] = round(Series(self.durations).mean(), 2)
         duration['Average duration winners'] = round(Series(winners.durations).mean(), 2)
         duration['Average duration losers'] = round(Series(losers.durations).mean(), 2)
-        duration['Max consecutive winners'] = biggest_win_streak
-        duration['Max consecutive losers'] = biggest_loss_streak
+        duration['Max consecutive winners'] = positive_runs.max()
+        duration['Max consecutive losers'] = negative_runs.max()
+        duration['Avg consecutive winners'] = round(positive_runs.mean(), 2)
+        duration['Avg consecutive losers'] = round(negative_runs.mean(), 2)
+        return duration
 
-        return (trade_volume, returns, duration)
+    def summary_report(self):
+        '''
+        Provides a summary of the trade statistics
+        '''
+        trade_volume = self.summary_trade_volume()
+        returns = self.summary_returns()
+        duration = self.summary_duration()
+        return concat((trade_volume, returns, duration))
 
 
 class Trade(object):
@@ -322,8 +350,9 @@ class Trade(object):
         self.exit = exit_date
         self.entry_price = self.get_price(entry_date, entry_prices)
         self.exit_price = self.get_price(exit_date, exit_prices)
-        self.duration = (exit_date - entry_date).days
         self.normalised = Series((exit_prices[self.entry:self.exit] / self.entry_price).values) - 1
+        # Note: duration is measured by days-in-market not calendar days
+        self.duration = len(self.normalised)
         self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]
 
     def __repr__(self):
