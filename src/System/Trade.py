@@ -8,6 +8,7 @@ class TradeCollection(object):
     def __init__(self, data, tickers):
         self.tickers = tickers
         self.trades = data
+        self.slippage = 0.011
         self._returns = None
         self._durations = None
         self._daily_returns = None
@@ -54,13 +55,17 @@ class TradeCollection(object):
     @property
     def returns(self):
         if self._returns is None:
-            self._returns = [trade.base_return for trade in self.trades]
+            self._returns = Series([trade.base_return for trade in self.trades])
         return self._returns
+
+    @property
+    def returns_slippage(self):
+        return self.returns - self.slippage
 
     @property
     def durations(self):
         if self._durations is None:
-            self._durations = [trade.duration for trade in self.trades]
+            self._durations = Series([trade.duration for trade in self.trades])
         return self._durations
 
     @property
@@ -73,20 +78,27 @@ class TradeCollection(object):
 
     @property
     def mean_return(self):
-        return Series(self.returns).mean()
+        return self.returns.mean()
 
     @property
     def std_return(self):
-        return Series(self.returns).std()
+        return self.returns.std()
 
     @property
     def Sharpe(self):
-        returns = Series(self.returns)
-        return returns.mean() / returns.std()
+        return self.mean_return / self.std_return
 
     @property
     def Sharpe_annual(self):
         returns = self.daily_returns
+        return (250 ** 0.5) * (returns.mean() / returns.std())
+
+    @property
+    def Sharpe_annual_slippage(self):
+        returns = self.daily_returns
+        total_slippage = self.count * self.slippage
+        slippage_per_day = total_slippage / len(returns)
+        returns = returns - slippage_per_day
         return (250 ** 0.5) * (returns.mean() / returns.std())
 
     @property
@@ -113,7 +125,7 @@ class TradeCollection(object):
         return max(self.MFEs)
 
     def consecutive_wins_losses(self):
-        trade_df = self.as_dataframe().sort(columns = 'exit')
+        trade_df = self.as_dataframe().sort_values(by = 'exit')
         win_loss = sign(trade_df.base_return)
         # Create series which has just 1's and 0's
         positive = Series(hstack(([0], ((win_loss > 0) * 1).values, [0])))
@@ -276,7 +288,7 @@ class TradeCollection(object):
         returns = self.returns
         x_range = (-0.1, max(MFEs) + 0.05)
         y_range = (min(returns) - 0.05, max(returns) + 0.05)
-        plt.scatter(self.MFEs, self.returns)
+        plt.scatter(MFEs, returns)
         plt.plot((0, 0), y_range, color = 'black')
         plt.plot(x_range, (0, 0), color = 'black')
         plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
@@ -291,7 +303,7 @@ class TradeCollection(object):
         
         trade_volume = Series(dtype = float)
         trade_volume['Number of trades'] = self.count
-        trade_volume['Percent winners'] = round(100 * (winners.count / self.count), 1)
+        trade_volume['Percent winners'] = round(100 * (float(winners.count) / self.count), 1)
         trade_volume['Number winners'] = winners.count 
         trade_volume['Number losers'] = losers.count
         trade_volume['Number even'] = evens.count
@@ -304,14 +316,17 @@ class TradeCollection(object):
 
         returns = Series(dtype = float)
         returns['Average return'] = round(100 * self.mean_return, 2)
-        returns['Median return'] = round(100 * Series(self.returns).median(), 2)
+        returns['Average return inc slippage'] = round(100 * self.returns_slippage.mean(), 2)
+        returns['Median return'] = round(100 * self.returns.median(), 2)
         returns['Average winning return'] = round(100 * winners.mean_return, 2)
         returns['Average losing return'] = round(100 * losers.mean_return, 2)
         returns['Ratio average win to loss'] = round(winners.mean_return / abs(losers.mean_return), 2)
         returns['Largest winner'] = round(100 * max(self.returns), 2)
         returns['Largest loser'] = round(100 * min(self.returns), 2) 
         returns['Sharpe by trade'] = round(self.Sharpe, 2)
+        returns['Sharpe by trade inc slippage'] = round(self.returns_slippage.mean() / self.returns_slippage.std(), 2)
         returns['Sharpe annualised'] = round(self.Sharpe_annual, 2)
+        returns['Sharpe annualised inc slippage'] = round(self.Sharpe_annual_slippage, 2)
         returns['G by trade'] = round(self.G, 2)
         returns['G annualised'] = round(self.G_annual, 2)
         return returns
@@ -323,9 +338,9 @@ class TradeCollection(object):
         positive_runs, negative_runs = self.consecutive_wins_losses()
 
         duration = Series(dtype = float)
-        duration['Average duration'] = round(Series(self.durations).mean(), 2)
-        duration['Average duration winners'] = round(Series(winners.durations).mean(), 2)
-        duration['Average duration losers'] = round(Series(losers.durations).mean(), 2)
+        duration['Average duration'] = round(self.durations.mean(), 2)
+        duration['Average duration winners'] = round(winners.durations.mean(), 2)
+        duration['Average duration losers'] = round(losers.durations.mean(), 2)
         duration['Max consecutive winners'] = positive_runs.max()
         duration['Max consecutive losers'] = negative_runs.max()
         duration['Avg consecutive winners'] = round(positive_runs.mean(), 2)

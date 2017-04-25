@@ -11,6 +11,7 @@ from System.Indicator import Crossover
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
 from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues
+from multiprocessing import Pool
 import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -227,7 +228,7 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
 # Enter trade 10 days after signal (maybe if trade isn't underwater)
 
 short_pars = [1, 5, 10, 20, 35]
-long_pars = [50, 70, 90]
+long_pars = [30, 50, 70, 90, 120]
 
 def test_pars(short_pars, long_pars):
     strat = baseStratSetup()
@@ -242,3 +243,36 @@ def test_pars(short_pars, long_pars):
             summaries.append(('{}-{}'.format(short, long), strat.trades.summary_report()))
 
     return (sharpes, pd.Dataframe(dict(summaries)))
+
+def strat_summary(pars):
+    strat = baseStratSetup(params = pars)
+    strat.initialise()
+    attempts = 0
+    while True:
+        try:
+            if attempts >= 2:
+                summary = pd.Series(index = ['Sharpe annualised inc slippage'])
+            else:
+                summary = strat.trades.summary_report()
+        except ZeroDivisionError:
+            strat.refresh()
+            attempts += 1
+        else:
+            break
+            
+    return (pars[0], pars[1], summary)
+
+def parallel_test_pars(short_pars, long_pars):
+    par_tuples = []
+    for long in long_pars:
+        short = [s for s in short_pars if s < long]
+        par_tuples.extend(zip(short, [long] * len(short)))
+    pool = Pool(processes = 8)
+    results = pool.map(strat_summary, par_tuples)
+
+    summaries = []
+    sharpes = pd.DataFrame(None, index = short_pars, columns = long_pars, dtype = float)
+    for R in results:
+        sharpes.loc[R[0], R[1]] = R[2]["Sharpe annualised inc slippage"]
+        summaries.append(('{}-{}'.format(R[0], R[1]), R[2]))
+    return (sharpes, pd.DataFrame(dict(summaries)))
