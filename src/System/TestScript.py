@@ -237,7 +237,7 @@ def test_pars(short_pars, long_pars):
 
     for long in long_pars:
         for short in short_pars:
-            strat.measure.update_param((short, long))
+            strat.measure.update_param((long, short))
             strat.refresh()
             sharpes.loc[short, long] = strat.trades.Sharpe_annual
             summaries.append(('{}-{}'.format(short, long), strat.trades.summary_report()))

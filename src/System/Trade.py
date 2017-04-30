@@ -1,7 +1,9 @@
 
 from pandas import Series, DataFrame, qcut, cut, concat
 from numpy import sign, hstack
+from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
+
 
 class TradeCollection(object):
 
@@ -125,7 +127,7 @@ class TradeCollection(object):
         return max(self.MFEs)
 
     def consecutive_wins_losses(self):
-        trade_df = self.as_dataframe().sort_values(by = 'exit')
+        trade_df = self.as_dataframe().sort(columns = 'exit')
         win_loss = sign(trade_df.base_return)
         # Create series which has just 1's and 0's
         positive = Series(hstack(([0], ((win_loss > 0) * 1).values, [0])))
@@ -294,6 +296,27 @@ class TradeCollection(object):
         plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
         plt.xlim(x_range)
         plt.ylim(y_range)
+
+    def plot_trends(self, n_trends = 5):
+        lm = LinearRegression()
+        color_map = plt.get_cmap('jet')
+        color_index = 80
+        color_inc = round(120 / n_trends)
+        tf = self.trade_frame(compacted = False)
+        tf['R'] = self.returns
+        for i in range(0, n_trends):
+            column = tf.columns[i]
+            X = tf[column]
+            nulls = (X * tf['R']).isnull()
+            X = X[~nulls]
+            X = X.reshape(X.count(), 1)
+            R = tf['R'][~nulls]
+            lm.fit(X, R)
+            plt.plot(X, lm.predict(X), color = color_map(color_index), label = str(column))
+            color_index += color_inc
+        plt.plot(plt.xlim, (0, 0), color = 'black')
+        plt.plot((0, 0), plt.ylim(), color = 'black')
+        plt.legend(loc = "upper left")
 
 
     def summary_trade_volume(self):

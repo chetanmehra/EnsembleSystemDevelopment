@@ -5,7 +5,7 @@ Created on 21 Dec 2014
 '''
 import matplotlib.pyplot as plt
 from copy import copy, deepcopy
-from pandas import Panel, DataFrame, Series
+from pandas import DateOffset, Panel, DataFrame, Series
 
 
 class Strategy(object):
@@ -133,6 +133,17 @@ class Strategy(object):
         self.market_returns.plot(start = start, color = "black", label = "Market")
         plt.legend(loc = "upper left")
 
+    def plot_trade(self, key):
+        trade = self.trades[key]
+        start = trade.entry - DateOffset(10)
+        end = trade.exit + DateOffset(10)
+        fig, ax = self.market.candlestick(trade.ticker, start, end)
+        self.indicator.plot_measures(trade.ticker, start, end, ax)
+        lo_entry = self.market.low[trade.ticker][trade.entry] * 0.98
+        hi_exit = self.market.high[trade.ticker][trade.exit] * 1.02
+        plt.scatter(trade.entry, lo_entry, marker = '^', color = 'green')
+        plt.scatter(trade.exit, hi_exit, marker = 'v', color = 'red')
+        plt.title(trade.ticker)
 
 
 class StrategyElement(object):

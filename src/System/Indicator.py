@@ -4,15 +4,16 @@ Created on 13 Dec 2014
 @author: Mark
 '''
 from numpy import isnan
-from pandas import notnull, DataFrame, Series
+from pandas import notnull, Panel, DataFrame, Series
 from pandas.stats.moments import ewma
 from System.Strategy import StrategyContainerElement, MeasureElement
 
 class Indicator(StrategyContainerElement):
     
-    def __init__(self, data):
+    def __init__(self, data, measures):
         self._levels = None
         self.data = data
+        self.measures = measures
     
     @property
     def levels(self):
@@ -38,6 +39,9 @@ class Indicator(StrategyContainerElement):
     def __len__(self):
         return len(self.data)
 
+    def plot_measures(self, ticker, start = None, end = None, ax = None):
+        self.measures.minor_xs(ticker)[start:end].plot(ax = ax)
+
 
 
 class Crossover(MeasureElement):
@@ -56,7 +60,7 @@ class Crossover(MeasureElement):
         fast_ema = ewma(prices, span = self.fast)
         slow_ema = ewma(prices, span = self.slow)
         levels = fast_ema > slow_ema
-        return Indicator(levels.astype('str'))
+        return Indicator(levels.astype('str'), Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
         self.slow = new_params[0]
@@ -80,7 +84,7 @@ class TripleCrossover(MeasureElement):
         mid_ema = ewma(prices, span = self.mid)
         slow_ema = ewma(prices, span = self.slow)
         levels = (fast_ema > mid_ema) & (mid_ema > slow_ema)
-        return Indicator(levels.astype('str'))
+        return Indicator(levels.astype('str'), Panel.from_dict({'Fast':fast_ema, 'Mid':mid_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
         self.slow = new_params[0]
