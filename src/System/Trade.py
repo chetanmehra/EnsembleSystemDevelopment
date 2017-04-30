@@ -1,6 +1,6 @@
 
 from pandas import Series, DataFrame, qcut, cut, concat
-from numpy import sign, hstack
+from numpy import sign, log, hstack
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
@@ -219,7 +219,7 @@ class TradeCollection(object):
 
         return {"mean" : mu, "std" : sd, "count" : N}
 
-    def trade_frame(self, compacted = True):
+    def trade_frame(self, compacted = True, cumulative = True):
         '''
         Returns a dataframe of daily cumulative return for each trade.
         Each row is a trade, and columns are days in trade.
@@ -227,6 +227,8 @@ class TradeCollection(object):
         df = DataFrame(None, index = range(self.count), columns = range(self.max_duration), dtype = float)
         for i, trade in enumerate(self.trades):
             df.loc[i] = trade.normalised
+        if not cumulative:
+            df = ((df + 1).T / (df + 1).T.shift(1)).T - 1
         if compacted and df.shape[1] > 10:
             cols = [(11, 15), (16, 20), (21, 30), (31, 50), (51, 100), (101, 200)]
             trade_df = df.loc[:, 1:10]
@@ -254,8 +256,7 @@ class TradeCollection(object):
         Used for calculating daily or annualised statistics.
         '''
         if self._daily_returns is None:
-            df = self.trade_frame(compacted = False)
-            daily = ((df + 1).T / (df + 1).T.shift(1)).T - 1
+            daily = self.trade_frame(compacted = False, cumulative = False)
             returns = []
             for col in daily:
                 returns.extend(daily[col].tolist())
@@ -297,6 +298,38 @@ class TradeCollection(object):
         plt.xlim(x_range)
         plt.ylim(y_range)
 
+
+    def before_after(self, tf, i):
+        '''
+        tf is expected to be a dataframe of daily returns.
+        Returns data for trend calculation
+        '''
+        tf = log(tf + 1)
+        X = tf.iloc[:, :(i + 1)].sum(axis = 1)
+        Y = tf.iloc[:, (i + 1):].sum(axis = 1)
+        nulls = (X * Y).isnull()
+        X = X[~nulls]
+        X = X.reshape(X.count(), 1)
+        Y = Y[~nulls]
+        return (X, Y)
+
+    def plot_trends2(self, n_trends = 8):
+        lm = LinearRegression()
+        color_map = plt.get_cmap('jet')
+        color_index = 80
+        color_inc = round(120 / n_trends)
+        tf = self.trade_frame(compacted = False, cumulative = False)
+        for i in range(1, n_trends):
+            column = tf.columns[i]
+            X, R = self.before_after(tf, i)
+            lm.fit(X, R)
+            plt.plot(X, lm.predict(X), color = color_map(color_index), label = str(column))
+            color_index += color_inc
+        plt.plot(plt.xlim(), (0, 0), color = 'black')
+        plt.plot((0, 0), plt.ylim(), color = 'black')
+        plt.legend(loc = "upper left", fontsize = 8)
+
+
     def plot_trends(self, n_trends = 5):
         lm = LinearRegression()
         color_map = plt.get_cmap('jet')
@@ -314,9 +347,9 @@ class TradeCollection(object):
             lm.fit(X, R)
             plt.plot(X, lm.predict(X), color = color_map(color_index), label = str(column))
             color_index += color_inc
-        plt.plot(plt.xlim, (0, 0), color = 'black')
+        plt.plot(plt.xlim(), (0, 0), color = 'black')
         plt.plot((0, 0), plt.ylim(), color = 'black')
-        plt.legend(loc = "upper left")
+        plt.legend(loc = "upper left", fontsize = 8)
 
 
     def summary_trade_volume(self):
