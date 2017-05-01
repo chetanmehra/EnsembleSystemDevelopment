@@ -299,57 +299,87 @@ class TradeCollection(object):
         plt.ylim(y_range)
 
 
-    def before_after(self, tf, i):
-        '''
-        tf is expected to be a dataframe of daily returns.
-        Returns data for trend calculation
-        '''
-        tf = log(tf + 1)
-        X = tf.iloc[:, :(i + 1)].sum(axis = 1)
-        Y = tf.iloc[:, (i + 1):].sum(axis = 1)
-        nulls = (X * Y).isnull()
-        X = X[~nulls]
-        X = X.reshape(X.count(), 1)
-        Y = Y[~nulls]
-        return (X, Y)
+    def prep_for_lm(self, x, y):
+        nulls = (x * y).isnull()
+        x = x[~nulls]
+        x = x.reshape(x.count(), 1)
+        y = y[~nulls]
+        return (x, y)
 
-    def plot_trends2(self, n_trends = 8):
+    def tf_sum(self, tf, start, end):
+        tf_log = log(tf + 1)
+        X = tf_log.iloc[:, start:end].sum(axis = 1)
+        return X
+
+    def tf_sharpe(self, tf, start, end):
+        X_mean = tf.iloc[:, start:end].mean(axis = 1)
+        X_std = tf.iloc[:, start:end].std(axis = 1)
+        return X_mean / X_std
+
+
+    def calc_trends(self, dep_time, dep_method, indep_method):
+        allowable_timing = ['end', 'interim']
+        allowable_dep_methods = {
+            'sum' : self.tf_sum,
+            'sharpe' : self.tf_sharpe
+            }
+        allowable_indep_methods = {
+            'sum' : self.tf_sum
+            }
+        if dep_time not in allowable_timing:
+            raise ValueError('dep_timing must be one of: {}'.format(', '.join(allowable_timing)))
+        try:
+            dep_method = allowable_dep_methods[dep_method]
+        except KeyError:
+            raise ValueError('dep_method must be one of: {}'.format(', '.join(allowable_dep_methods.keys())))
+        try:
+            indep_method = allowable_indep_methods[indep_method]
+        except KeyError:
+            raise ValueError('indep_method must be one of: {}'.format(', '.join(allowable_indep_methods.keys())))
+
         lm = LinearRegression()
-        color_map = plt.get_cmap('jet')
-        color_index = 80
-        color_inc = round(120 / n_trends)
         tf = self.trade_frame(compacted = False, cumulative = False)
-        for i in range(1, n_trends):
-            column = tf.columns[i]
-            X, R = self.before_after(tf, i)
-            lm.fit(X, R)
-            plt.plot(X, lm.predict(X), color = color_map(color_index), label = str(column))
-            color_index += color_inc
-        plt.plot(plt.xlim(), (0, 0), color = 'black')
-        plt.plot((0, 0), plt.ylim(), color = 'black')
-        plt.legend(loc = "upper left", fontsize = 8)
+        trends = DataFrame([-0.1, -0.01, 0, 0.01, 0.1])
+        result = DataFrame(None, None, trends[0], dtype = float)
+
+        if dep_time == 'end':
+            R = dep_method(tf, None, None)
+        
+        i = j = 1
+        while j < tf.shape[1] and tf[tf.columns[j]].count() >= 20:
+            X = indep_method(tf, None, (j + 1))
+            if dep_time == 'interim':
+                R = dep_method(tf, (j + 1), None)
+            X, R_i = self.prep_for_lm(X, R)
+            lm.fit(X, R_i)
+            result.loc[j, :] = lm.predict(trends)
+            k = j
+            j += i
+            i = k
+        return result
 
 
-    def plot_trends(self, n_trends = 5):
-        lm = LinearRegression()
-        color_map = plt.get_cmap('jet')
-        color_index = 80
-        color_inc = round(120 / n_trends)
-        tf = self.trade_frame(compacted = False)
-        tf['R'] = self.returns
-        for i in range(0, n_trends):
-            column = tf.columns[i]
-            X = tf[column]
-            nulls = (X * tf['R']).isnull()
-            X = X[~nulls]
-            X = X.reshape(X.count(), 1)
-            R = tf['R'][~nulls]
-            lm.fit(X, R)
-            plt.plot(X, lm.predict(X), color = color_map(color_index), label = str(column))
-            color_index += color_inc
-        plt.plot(plt.xlim(), (0, 0), color = 'black')
-        plt.plot((0, 0), plt.ylim(), color = 'black')
-        plt.legend(loc = "upper left", fontsize = 8)
+    def plot_trends(self):
+        f, axarr = plt.subplots(2, 2, sharex = True)
+        sp00 = self.calc_trends(dep_time = 'interim', dep_method = 'sum', indep_method = 'sum')
+        sp10 = self.calc_trends(dep_time = 'interim', dep_method = 'sharpe', indep_method = 'sum')
+        sp01 = self.calc_trends(dep_time = 'end', dep_method = 'sum', indep_method = 'sum')
+        sp11 = self.calc_trends(dep_time = 'end', dep_method = 'sharpe', indep_method = 'sum')
+
+        sp00.plot(ax = axarr[0, 0])
+        sp10.plot(ax = axarr[1, 0])
+        sp01.plot(ax = axarr[0, 1])
+        sp11.plot(ax = axarr[1, 1])
+        
+        axarr[0, 0].set_xscale('log')
+        axarr[1, 0].set_xscale('log')
+        axarr[0, 1].set_xscale('log')
+        axarr[1, 1].set_xscale('log')
+
+        axarr[0, 0].set_title('Interim')
+        axarr[0, 0].set_ylabel('Sum')
+        axarr[1, 0].set_ylabel('Sharpe')
+        axarr[0, 1].set_title('End')
 
 
     def summary_trade_volume(self):
