@@ -79,6 +79,13 @@ class TradeCollection(object):
         return [trade.MFE for trade in self.trades]
 
     @property
+    def ETDs(self):
+        '''
+        End Trade Drawdown is defined as the difference between the MFE and the end return
+        '''
+        return [trade.MFE - trade.base_return for trade in self.trades]
+
+    @property
     def mean_return(self):
         return self.returns.mean()
 
@@ -271,30 +278,34 @@ class TradeCollection(object):
 
     def hist(self, **kwargs):
         # First remove NaNs
-        returns = [R for R in self.returns if R == R]
+        returns = self.returns.dropna()
         plt.hist(returns, **kwargs)
 
     def plot_MAE(self):
         MAEs = self.MAEs
         returns = self.returns
-        x_range = (min(MAEs) -0.05, 0.1)
+        x_range = (min(MAEs) -0.05, 0.05)
         y_range = (min(returns) - 0.05, max(returns) + 0.05)
         plt.scatter(self.MAEs, self.returns)
         plt.plot((0, 0), y_range, color = 'black')
         plt.plot(x_range, (0, 0), color = 'black')
         plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
+        plt.xlabel('MAE')
+        plt.xlabel('Return')
         plt.xlim(x_range)
         plt.ylim(y_range)
 
     def plot_MFE(self):
         MFEs = self.MFEs
         returns = self.returns
-        x_range = (-0.1, max(MFEs) + 0.05)
+        x_range = (-0.05, max(MFEs) + 0.05)
         y_range = (min(returns) - 0.05, max(returns) + 0.05)
         plt.scatter(MFEs, returns)
         plt.plot((0, 0), y_range, color = 'black')
         plt.plot(x_range, (0, 0), color = 'black')
         plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
+        plt.xlabel('MFE')
+        plt.xlabel('Return')
         plt.xlim(x_range)
         plt.ylim(y_range)
 
@@ -442,6 +453,27 @@ class TradeCollection(object):
         duration = self.summary_duration()
         return concat((trade_volume, returns, duration))
 
+    def summary_by_period(self, periods = 5):
+        exits = [T.exit for T in self.trades]
+        exits.sort()
+        bin_size = (self.count / 5) + 1
+        bin_size = max(bin_size, 25)
+        start, end = (0, bin_size)
+        period_summary = DataFrame(dtype = float)
+        while start < self.count:
+            end = min(end, self.count)
+            start_date = exits[start]
+            end_date = exits[end - 1]
+            label = '{}:{}'.format(start_date.strftime('%b-%y'), end_date.strftime('%b-%y'))
+            subset = self.find(lambda trade: start_date <= trade.exit <= end_date)
+            period_summary[label] = subset.summary_report()
+            start = end + 1
+            end += bin_size
+        return period_summary
+            
+
+        
+
 
 class Trade(object):
 
@@ -456,7 +488,7 @@ class Trade(object):
         self.duration = len(self.normalised)
         self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]
 
-    def __repr__(self):
+    def __str__(self):
         first_line = '{0:^23}\n'.format(self.ticker)
         second_line = '{0:10} : {1:10} ({2} days)\n'.format(str(self.entry.date()), str(self.exit.date()), self.duration)
         third_line = '{0:^10.2f} : {1:^10.2f} ({2:.1f} %)\n'.format(self.entry_price, self.exit_price, self.base_return * 100)

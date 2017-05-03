@@ -63,8 +63,8 @@ class Crossover(MeasureElement):
         return Indicator(levels.astype('str'), Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
-        self.slow = new_params[0]
-        self.fast = new_params[1]
+        self.slow = max(new_params)
+        self.fast = min(new_params)
 
 
 class TripleCrossover(MeasureElement):
@@ -87,9 +87,11 @@ class TripleCrossover(MeasureElement):
         return Indicator(levels.astype('str'), Panel.from_dict({'Fast':fast_ema, 'Mid':mid_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
-        self.slow = new_params[0]
-        self.mid = new_params[1]
-        self.fast = new_params[2]
+        pars = list(new_params)
+        pars.sort()
+        self.fast = pars[0]
+        self.mid = pars[1]
+        self.slow = pars[2]
 
  
         

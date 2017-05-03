@@ -27,6 +27,17 @@ class Strategy(object):
         self.model = None
         self.select_positions = None
         self.filter = None
+
+    def __str__(self):
+        first_line = self.name
+        second_line = 'Measure:\t{}\n'.format(self.measure.name)
+        third_line = 'Model:\t{}\n'.format(self.model.name)
+        fourth_line = 'Position:\t{}\n'.format(self.select_positions.name)
+        if self.filter is not None:
+            fifth_line = 'Filter:\t{}\n'.format(self.filter.name)
+        else:
+            fifth_line = 'No filter specified.\n'
+        return first_line + second_line + third_line + fourth_line + fifth_line
         
     def check_fields(self):
         missing_fields = []
@@ -134,16 +145,28 @@ class Strategy(object):
         plt.legend(loc = "upper left")
 
     def plot_trade(self, key):
-        trade = self.trades[key]
-        start = trade.entry - DateOffset(10)
-        end = trade.exit + DateOffset(10)
-        fig, ax = self.market.candlestick(trade.ticker, start, end)
-        self.indicator.plot_measures(trade.ticker, start, end, ax)
-        lo_entry = self.market.low[trade.ticker][trade.entry] * 0.98
-        hi_exit = self.market.high[trade.ticker][trade.exit] * 1.02
-        plt.scatter(trade.entry, lo_entry, marker = '^', color = 'green')
-        plt.scatter(trade.exit, hi_exit, marker = 'v', color = 'red')
-        plt.title(trade.ticker)
+        trades = self.trades[key]
+        if isinstance(trades, list):
+            if len(trades) == 0:
+                print('No trades for {}'.format(key))
+                return
+            entries, exits = zip(*[(T.entry, T.exit) for T in trades])
+            ticker = key
+        else:
+            entries = trades.entry
+            exits = trades.exit
+            ticker = trades.ticker
+        entries = list(entries)
+        exits = list(exits)
+        start = min(entries) - DateOffset(10)
+        end = max(exits) + DateOffset(10)
+        fig, ax = self.market.candlestick(ticker, start, end)
+        self.indicator.plot_measures(ticker, start, end, ax)
+        lo_entry = self.market.low[ticker][entries] * 0.98
+        hi_exit = self.market.high[ticker][exits] * 1.02
+        plt.scatter(entries, lo_entry, marker = '^', color = 'green')
+        plt.scatter(exits, hi_exit, marker = 'v', color = 'red')
+        plt.title(ticker)
 
 
 class StrategyElement(object):
@@ -158,6 +181,7 @@ class StrategyElement(object):
             result = self.execute(strategy)
             result.creator = self.ID
         return result
+
     
     def execute(self, strategy):
         raise StrategyException("Strategy Element must define 'execute'")

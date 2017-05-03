@@ -213,6 +213,10 @@ class DefaultPositions(PositionSelectionElement):
         optimal_size = strategy.forecasts.optF()
         return Position(sign(optimal_size))
 
+    @property
+    def name(self):
+        return 'Default positions'
+
 
 class SingleLargestF(PositionSelectionElement):
     
@@ -231,11 +235,15 @@ class SingleLargestF(PositionSelectionElement):
         
         return Position(result)
     
+    @property
+    def name(self):
+        return 'Single Largest F'
     
 class HighestRankedFs(PositionSelectionElement):
     
     def __init__(self, num_positions):
         self.num_positions = num_positions
+        self.name = str(num_positions) + ' Highest Ranked Fs'
         
     def execute(self, strategy):
         optimal_size = strategy.forecasts.optF()

@@ -12,7 +12,7 @@ class Filter(PositionSelectionElement):
         self.bounds = filter_range
         self.left = min(filter_range)
         self.right = max(filter_range)
-        self.name = values.name
+        self.name = '{}:{}-{}'.format(values.name, *filter_range)
 
 
     def execute(self, strategy):

@@ -227,8 +227,8 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
 # Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
 # Enter trade 10 days after signal (maybe if trade isn't underwater)
 
-short_pars = [1, 5, 10, 20, 35]
-long_pars = [30, 50, 70, 90, 120]
+short_pars = [1, 5, 10, 20, 35, 50]
+long_pars = [30, 50, 70, 90, 120, 150, 200]
 
 def test_pars(short_pars, long_pars):
     strat = baseStratSetup()
@@ -240,7 +240,7 @@ def test_pars(short_pars, long_pars):
             strat.measure.update_param((long, short))
             strat.refresh()
             sharpes.loc[short, long] = strat.trades.Sharpe_annual
-            summaries.append(('{}-{}'.format(short, long), strat.trades.summary_report()))
+            summaries.append(((short, long), strat.trades.summary_report()))
 
     return (sharpes, pd.Dataframe(dict(summaries)))
 
@@ -266,13 +266,13 @@ def parallel_test_pars(short_pars, long_pars):
     par_tuples = []
     for long in long_pars:
         short = [s for s in short_pars if s < long]
-        par_tuples.extend(zip(short, [long] * len(short)))
+        par_tuples.extend(zip([long] * len(short), short))
     pool = Pool(processes = 8)
     results = pool.map(strat_summary, par_tuples)
 
     summaries = []
-    sharpes = pd.DataFrame(None, index = short_pars, columns = long_pars, dtype = float)
+    sharpes = pd.DataFrame(None, index = long_pars, columns = short_pars, dtype = float)
     for R in results:
         sharpes.loc[R[0], R[1]] = R[2]["Sharpe annualised inc slippage"]
-        summaries.append(('{}-{}'.format(R[0], R[1]), R[2]))
+        summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))

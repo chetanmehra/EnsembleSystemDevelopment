@@ -82,6 +82,7 @@ class NullForecaster(ModelElement):
         if not isinstance(in_trade_levels, list):
             in_trade_levels = list(in_trade_levels)
         self.in_trade_levels = in_trade_levels
+        self.name = 'Null Forecaster (lvls: {})'.format(','.join(in_trade_levels))
 
     def execute(self, strategy):
         indicator = strategy.lagged_indicator
@@ -101,6 +102,7 @@ class BlockForecaster(ModelElement):
     
     def __init__(self, window):
         self.window = window
+        self.name = 'Block Forecast (window: {})'.format(window)
      
     def update_param(self, window):
         self.window = window   
@@ -149,6 +151,7 @@ class BlockMeanReturnsForecaster(ModelElement):
     
     def __init__(self, window):
         self.window = window
+        self.name = 'Block Mean Rtn Fcst (window: {})'.format(window)
     
     def update_param(self, window):
         self.window = window
