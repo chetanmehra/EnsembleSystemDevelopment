@@ -501,7 +501,14 @@ class Trade(object):
         return price
 
     def plot_normalised(self):
-        self.normalised.plot()
+        f, axarr = plt.subplots(2, 1, sharex = True)
+        axarr[0].set_ylabel('Return')
+        axarr[1].set_ylabel('Drawdown')
+        axarr[1].set_xlabel('Days in trade')
+        self.normalised.plot(ax = axarr[0])
+        dd = self.drawdowns()
+        dd.Highwater.plot(ax = axarr[0], color = 'red')
+        dd.Drawdown.plot(ax = axarr[1])
 
     def as_tuple(self):
         return tuple(getattr(self, name) for name in self.cols)
@@ -521,4 +528,14 @@ class Trade(object):
     @property
     def MFE(self):
         return max(self.normalised)
+
+    def drawdowns(self):
+        norm = self.normalised
+        high_water = Series(0, index = norm.index, dtype = float)
+        for i in range(1, len(norm)):
+            high_water[i] = max(high_water[i - 1], norm[i])
+        dd = norm - high_water
+
+        return DataFrame({'Drawdown' : dd, 'Highwater' : high_water})
+
 
