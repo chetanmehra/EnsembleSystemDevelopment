@@ -124,7 +124,6 @@ class Market(object):
         returns = indexer.market_returns(self)
         return AverageReturns(returns)
 
-
     def volatility(self, window):
         vol = pd.rolling_std(self.close, window)
         return WideFilterValues(vol, "volatility")

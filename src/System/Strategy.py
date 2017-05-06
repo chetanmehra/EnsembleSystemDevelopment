@@ -17,6 +17,7 @@ class Strategy(object):
     def __init__(self, trade_timing, ind_timing):
         self.indexer = Indexer(trade_timing, ind_timing)
         self.required_fields = ["market", "measure", "model", "select_positions"]
+        self.name = None
         # Container elements
         self.indicator = None
         self.forecasts = None
@@ -29,7 +30,10 @@ class Strategy(object):
         self.filter = None
 
     def __str__(self):
-        first_line = self.name
+        if self.name is not None:
+            first_line = self.name
+        else:
+            first_line = ''
         second_line = 'Measure:\t{}\n'.format(self.measure.name)
         third_line = 'Model:\t{}\n'.format(self.model.name)
         fourth_line = 'Position:\t{}\n'.format(self.select_positions.name)

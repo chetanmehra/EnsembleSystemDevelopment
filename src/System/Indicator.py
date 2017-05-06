@@ -6,6 +6,7 @@ Created on 13 Dec 2014
 from numpy import isnan
 from pandas import notnull, Panel, DataFrame, Series
 from pandas.stats.moments import ewma
+from TA_Indicators.MovingAverages import KAMA
 from System.Strategy import StrategyContainerElement, MeasureElement
 
 class Indicator(StrategyContainerElement):
@@ -47,24 +48,41 @@ class Indicator(StrategyContainerElement):
 class Crossover(MeasureElement):
     
     def __init__(self, slow, fast):
-        self.fast = fast
-        self.slow = slow
+        self.fast_period = fast
+        self.slow_period = slow
 
     @property
     def name(self):
         return ".".join(["EMAx", str(self.fast), str(self.slow)])
 
 
+    def fast(self, prices):
+        return ewma(prices, span = self.fast_period)
+
+    def slow(self, prices):
+        return ewma(prices, span = self.slow_period)
+
+
     def execute(self, strategy):
         prices = strategy.get_indicator_prices()
-        fast_ema = ewma(prices, span = self.fast)
-        slow_ema = ewma(prices, span = self.slow)
+        fast_ema = self.fast(prices)
+        slow_ema = self.slow(prices)
         levels = fast_ema > slow_ema
         return Indicator(levels.astype('str'), Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
-        self.slow = max(new_params)
-        self.fast = min(new_params)
+        self.slow_period = max(new_params)
+        self.fast_period = min(new_params)
+
+
+class KamaEmaCrossover(Crossover):
+
+    @property
+    def name(self):
+        return 'KAMA{}xEMA{}'.format(self.fast_period, self.slow_period)
+
+    def fast(self, prices):
+        return KAMA(prices, self.fast_period)
 
 
 class TripleCrossover(MeasureElement):
@@ -92,28 +110,6 @@ class TripleCrossover(MeasureElement):
         self.fast = pars[0]
         self.mid = pars[1]
         self.slow = pars[2]
-
- 
-        
-        
-def EMA(price_series, period):
-        alpha = 2 / (period + 1)
-        ema = price_series.copy()
-        for i in bounds(len(price_series.index))[1:]:
-            current_prices = price_series.iloc[i]
-            previous_ema = ema.iloc[i - 1]
-            
-            ema.iloc[i] = (1 - alpha) * previous_ema + alpha * current_prices
-            
-            missing = isnan(ema.iloc[i])
-            if any(missing):
-                ema.iloc[i][missing] = previous_ema[missing]
-            still_missing = isnan(ema.iloc[i])
-            if any(still_missing):
-                ema.iloc[i][still_missing] = current_prices[still_missing]
-                
-        return ema        
-
 
 
 class ValueWeightedEMA(MeasureElement):

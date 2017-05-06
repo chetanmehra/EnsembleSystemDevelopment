@@ -7,7 +7,7 @@ Created on 15 Feb 2015
 from System.Market import Market
 from System.Strategy import Strategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
-from System.Indicator import Crossover
+from System.Indicator import Crossover, KamaEmaCrossover
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
 from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues

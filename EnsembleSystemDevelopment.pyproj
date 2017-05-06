@@ -34,6 +34,18 @@
     <Compile Include="src\System\Strategy.py" />
     <Compile Include="src\System\TestScript.py" />
     <Compile Include="src\System\__init__.py" />
+    <Compile Include="src\TA_Indicators\MovingAverages.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\TA_Indicators\Oscillators.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\TA_Indicators\Volatility.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\TA_Indicators\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="src\tests\testDataHandler.py" />
     <Compile Include="src\tests\testForecast.py" />
     <Compile Include="src\tests\TestHelpers.py" />
@@ -46,6 +58,7 @@
   <ItemGroup>
     <Folder Include="src\" />
     <Folder Include="src\System" />
+    <Folder Include="src\TA_Indicators\" />
     <Folder Include="src\tests" />
   </ItemGroup>
   <ItemGroup>
