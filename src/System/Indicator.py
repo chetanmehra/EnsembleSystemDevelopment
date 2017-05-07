@@ -53,7 +53,7 @@ class Crossover(MeasureElement):
 
     @property
     def name(self):
-        return ".".join(["EMAx", str(self.fast), str(self.slow)])
+        return ".".join(["EMAx", str(self.fast_period), str(self.slow_period)])
 
 
     def fast(self, prices):

@@ -12,6 +12,7 @@ class Filter(PositionSelectionElement):
         self.bounds = filter_range
         self.left = min(filter_range)
         self.right = max(filter_range)
+        self.filter = values.name
         self.name = '{}:{}-{}'.format(values.name, *filter_range)
 
 
@@ -21,7 +22,7 @@ class Filter(PositionSelectionElement):
         '''
         trades = strategy.trades.as_list()
         trade_frame = strategy.trades.as_dataframe_with(self.values)
-        filtered_bools = (trade_frame[self.name] > self.left) & (trade_frame[self.name] <= self.right)
+        filtered_bools = (trade_frame[self.filter] > self.left) & (trade_frame[self.filter] <= self.right)
 
         accepted_trades = []
         eliminated_trades = []
@@ -36,6 +37,9 @@ class Filter(PositionSelectionElement):
         new_positions.remove(eliminated_trades)
 
         return FilteredPositions(strategy.positions, new_positions.data, accepted_trades, new_positions.tickers)
+
+    def plot(self, ticker, start, end, ax):
+        values = self.values.plot(ticker, start, end, ax)
 
 
 class FilterValues:
@@ -74,6 +78,13 @@ class FilterValues:
             result = relevant_values.iloc[-1].values
         return result
 
+    def plot(self, ticker, start = None, end = None, ax = None):
+        df = self.get_plot_frame()
+        df[ticker][start:end].plot(ax = ax)
+
+    def get_plot_frame(self):
+        return self.values
+
 
 class StackedFilterValues(FilterValues):
     '''
@@ -97,6 +108,9 @@ class StackedFilterValues(FilterValues):
         df = df.pivot(index = 'date', columns = 'ticker', values = type)
         df = df.fillna(method = 'ffill')
         return WideFilterValues(df, name = type)
+
+    def get_plot_frame(self):
+        return self.as_wide_values().values
 
 class WideFilterValues(FilterValues):
 

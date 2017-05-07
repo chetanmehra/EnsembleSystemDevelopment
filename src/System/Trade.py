@@ -271,6 +271,22 @@ class TradeCollection(object):
             self._daily_returns = returns.dropna()
         return self._daily_returns
 
+    def apply_trailing_stop(self, strat, stop):
+        return self.apply_stop(strat, stop, 'apply_trailing_stop')
+
+    def apply_stop_loss(self, strat, stop):
+        return self.apply_stop(strat, stop, 'apply_stop_loss')
+
+    def apply_stop(self, strat, stop, type):
+        entry_prices = strat.get_entry_prices()
+        exit_prices = strat.get_exit_prices()
+        stopped_trades = []
+        for T in self.as_list():
+            stopped_trades.append(T.__getattribute__(type)(stop, entry_prices, exit_prices))
+        return TradeCollection(stopped_trades, self.tickers)
+
+
+
 
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
@@ -534,8 +550,27 @@ class Trade(object):
         high_water = Series(0, index = norm.index, dtype = float)
         for i in range(1, len(norm)):
             high_water[i] = max(high_water[i - 1], norm[i])
-        dd = norm - high_water
+        dd = ((norm + 1) / (high_water + 1)) - 1
 
         return DataFrame({'Drawdown' : dd, 'Highwater' : high_water})
+
+    def apply_trailing_stop(self, stop, entry_prices, exit_prices):
+        dd = self.drawdowns()
+        return self.apply_stop(dd.Drawdown, stop, entry_prices, exit_prices)
+
+    def apply_stop_loss(self, stop, entry_prices, exit_prices):
+        return self.apply_stop(self.normalised, stop, entry_prices, exit_prices)
+
+    def apply_stop(self, stop_measure, stop, entry_prices, exit_prices):
+        stop = -1 * abs(stop)
+        limit_hits = stop_measure.index[stop_measure <= stop]
+        if len(limit_hits):
+            stopped_day = min(limit_hits)
+            stopped_date = exit_prices[self.entry:].index[stopped_day]
+            return Trade(self.ticker, self.entry, stopped_date, entry_prices[self.ticker], exit_prices[self.ticker])
+        else:
+            return self
+
+
 
 

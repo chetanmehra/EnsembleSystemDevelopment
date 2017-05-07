@@ -11,10 +11,13 @@ from System.Indicator import Crossover, KamaEmaCrossover
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
 from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues
+from System.Trade import TradeCollection
 from multiprocessing import Pool
 import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
+
+pd.set_option('display.width', 120)
 
 ASX20 = ["AMP", "ANZ", "BHP", "BXB", "CBA", "CSL", "IAG", "MQG", "NAB", "ORG", "QBE", 
          "RIO", "SCG", "SUN", "TLS", "WBC", "WES", "WFD", "WOW", "WPL"]
@@ -207,7 +210,7 @@ def getMarket():
 
     
 
-def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (70, 35)):
+def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
     market = getMarket()
     strategy = Strategy(trade_timing, ind_timing)
     strategy.market = market
@@ -276,3 +279,17 @@ def parallel_test_pars(short_pars, long_pars):
         sharpes.loc[R[0], R[1]] = R[2]["Sharpe annualised inc slippage"]
         summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))
+
+def test_trailing_stop(strat, stops):
+    result = pd.DataFrame(columns = [0] + stops)
+    result[0] = strat.trades.summary_report()
+    for s in stops:
+        result[s] = strat.trades.apply_trailing_stop(strat, s).summary_report()
+    return result
+
+def test_stop_loss(strat, stops):
+    result = pd.DataFrame(columns = [0] + stops)
+    result[0] = strat.trades.summary_report()
+    for s in stops:
+        result[s] = strat.trades.apply_stop_loss(strat, s).summary_report()
+    return result

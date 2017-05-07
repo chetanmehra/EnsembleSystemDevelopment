@@ -165,9 +165,11 @@ class Strategy(object):
         start = min(entries) - DateOffset(10)
         end = max(exits) + DateOffset(10)
         fig, ax = self.market.candlestick(ticker, start, end)
+        if self.filter is not None:
+            self.filter.plot(ticker, start, end, ax)
         self.indicator.plot_measures(ticker, start, end, ax)
-        lo_entry = self.market.low[ticker][entries] * 0.98
-        hi_exit = self.market.high[ticker][exits] * 1.02
+        lo_entry = self.market.low[ticker][entries] * 0.95
+        hi_exit = self.market.high[ticker][exits] * 1.05
         plt.scatter(entries, lo_entry, marker = '^', color = 'green')
         plt.scatter(exits, hi_exit, marker = 'v', color = 'red')
         plt.title(ticker)
