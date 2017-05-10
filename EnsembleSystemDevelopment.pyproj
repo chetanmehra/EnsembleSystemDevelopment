@@ -20,6 +20,12 @@
     <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="src\PerformanceMetrics\Returns.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\PerformanceMetrics\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="src\System\Data.py" />
     <Compile Include="src\System\Forecast.py" />
     <Compile Include="src\System\Indicator.py" />
@@ -57,6 +63,7 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="src\" />
+    <Folder Include="src\PerformanceMetrics\" />
     <Folder Include="src\System" />
     <Folder Include="src\TA_Indicators\" />
     <Folder Include="src\tests" />
