@@ -155,13 +155,13 @@ class Strategy(object):
                 print('No trades for {}'.format(key))
                 return
             entries, exits = zip(*[(T.entry, T.exit) for T in trades])
+            entries = list(entries)
+            exits = list(exits)
             ticker = key
         else:
-            entries = trades.entry
-            exits = trades.exit
+            entries = [trades.entry]
+            exits = [trades.exit]
             ticker = trades.ticker
-        entries = list(entries)
-        exits = list(exits)
         start = min(entries) - DateOffset(10)
         end = max(exits) + DateOffset(10)
         fig, ax = self.market.candlestick(ticker, start, end)

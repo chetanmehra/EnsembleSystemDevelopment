@@ -41,13 +41,10 @@ class TradeCollection(object):
         cols = filter.types
         for col in cols:
             df[col] = None
-
         if len(cols) == 1:
             cols = cols[0]
-
         for i in df.index:
             df.loc[i, cols] = filter.get(df, i)
-
         return df
 
     @property
@@ -162,70 +159,6 @@ class TradeCollection(object):
         return TradeCollection(trades, tickers)
         
 
-    def filter_summary(self, filter_values, bins = 5):
-        '''
-        filter_values is a FilterValue object. 
-        Note if filter_values contains more than one type, only the first is used.
-        bins is an iterable of boundary points e.g. (-1, 0, 0.5, 1, etc...), or an integer of 
-        the number of bins to produce (default 5). This is passed to pandas qcut.
-        '''
-        trade_df = self.as_dataframe_with(filter_values)
-        if isinstance(bins, int):
-            type_bins = qcut(trade_df[filter_values.types[0]], bins)
-        else:
-            type_bins = cut(trade_df[filter_values.types[0]], bins)
-        mu = trade_df.groupby(type_bins).base_return.mean()
-        sd = trade_df.groupby(type_bins).base_return.std()
-        N = trade_df.groupby(type_bins).base_return.count()
-        return {"mean" : mu, "std" : sd, "count" : N}
-        
-    def filter_grouping(self, filter, bins):
-        '''
-        Provides a summary of filter performance for provided bins. Bins must be a sequence of boundary
-        points e.g. (-1, 0, 0.25...). Each filter type will be provided as a column.
-        '''
-        if isinstance(bins, int):
-            raise ValueError("Bins must be a sequence for filter grouping")
-        trade_df = self.as_dataframe_with(filter)
-        mu = DataFrame()
-        sd = DataFrame()
-        N = DataFrame()
-        for type in filter.types:
-            type_bins = cut(trade_df[type], bins)
-            mu[type] = trade_df.groupby(type_bins).base_return.mean()
-            sd[type] = trade_df.groupby(type_bins).base_return.std()
-            N[type] = trade_df.groupby(type_bins).base_return.count()
-        return {"mean" : mu, "std" : sd, "count" : N}
-
-
-    def filter_comparison(self, filter1, filter2, bins1 = 5, bins2 = 5):
-        '''
-        Provides a matrix comparing mean, std dev, and count for each combination of filter
-        values. Note only the first type of each filter is considered.
-        '''
-        trade_df = self.as_dataframe_with(filter1, filter2)
-
-        f1_name = filter1.types[0]
-        f2_name = filter2.types[0]
-        
-        if isinstance(bins1, int):
-            f1_bins = qcut(trade_df[f1_name], bins1)
-        else:
-            f1_bins = cut(trade_df[f1_name], bins1)
-
-        if isinstance(bins2, int):
-            f2_bins = qcut(trade_df[f2_name], bins2)
-        else:
-            f2_bins = cut(trade_df[f2_name], bins2)
-
-        grouping = trade_df.groupby([f1_bins, f2_bins]).base_return
-
-        mu = DataFrame(grouping.mean()).unstack()
-        sd = DataFrame(grouping.std()).unstack()
-        N = DataFrame(grouping.count()).unstack()
-
-        return {"mean" : mu, "std" : sd, "count" : N}
-
     def trade_frame(self, compacted = True, cumulative = True):
         '''
         Returns a dataframe of daily cumulative return for each trade.
@@ -284,9 +217,6 @@ class TradeCollection(object):
         for T in self.as_list():
             stopped_trades.append(T.__getattribute__(type)(stop, entry_prices, exit_prices))
         return TradeCollection(stopped_trades, self.tickers)
-
-
-
 
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
@@ -472,7 +402,7 @@ class TradeCollection(object):
     def summary_by_period(self, periods = 5):
         exits = [T.exit for T in self.trades]
         exits.sort()
-        bin_size = (self.count / 5) + 1
+        bin_size = round(self.count / periods) + 1
         bin_size = max(bin_size, 25)
         start, end = (0, bin_size)
         period_summary = DataFrame(dtype = float)

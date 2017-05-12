@@ -7,7 +7,8 @@ Created on 15 Feb 2015
 from System.Market import Market
 from System.Strategy import Strategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
-from System.Indicator import Crossover, KamaEmaCrossover
+from System.Indicator import Crossover
+from Indicators.MovingAverages import EMA, KAMA
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
 from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues
@@ -214,7 +215,7 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
     market = getMarket()
     strategy = Strategy(trade_timing, ind_timing)
     strategy.market = market
-    strategy.measure = Crossover(*params)
+    strategy.measure = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
     strategy.model = NullForecaster(["True"])
     strategy.select_positions = DefaultPositions()
     return strategy

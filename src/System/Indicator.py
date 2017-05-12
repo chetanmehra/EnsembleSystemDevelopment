@@ -5,8 +5,7 @@ Created on 13 Dec 2014
 '''
 from numpy import isnan
 from pandas import notnull, Panel, DataFrame, Series
-from pandas.stats.moments import ewma
-from TA_Indicators.MovingAverages import KAMA
+from Indicators.MovingAverages import KAMA
 from System.Strategy import StrategyContainerElement, MeasureElement
 
 class Indicator(StrategyContainerElement):
@@ -48,20 +47,12 @@ class Indicator(StrategyContainerElement):
 class Crossover(MeasureElement):
     
     def __init__(self, slow, fast):
-        self.fast_period = fast
-        self.slow_period = slow
+        self.fast = fast
+        self.slow = slow
 
     @property
     def name(self):
-        return ".".join(["EMAx", str(self.fast_period), str(self.slow_period)])
-
-
-    def fast(self, prices):
-        return ewma(prices, span = self.fast_period)
-
-    def slow(self, prices):
-        return ewma(prices, span = self.slow_period)
-
+        return "x".join([self.fast.name, self.slow.name])
 
     def execute(self, strategy):
         prices = strategy.get_indicator_prices()
@@ -71,18 +62,9 @@ class Crossover(MeasureElement):
         return Indicator(levels.astype('str'), Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
-        self.slow_period = max(new_params)
-        self.fast_period = min(new_params)
+        self.slow.update_param(new_params[0])
+        self.fast.update_param(new_params[1])
 
-
-class KamaEmaCrossover(Crossover):
-
-    @property
-    def name(self):
-        return 'KAMA{}xEMA{}'.format(self.fast_period, self.slow_period)
-
-    def fast(self, prices):
-        return KAMA(prices, self.fast_period)
 
 
 class TripleCrossover(MeasureElement):
@@ -152,14 +134,14 @@ class TrendBenchmark(object):
         trend = DataFrame(None, index = prices.index, columns = prices.columns, dtype = float)
         last_SP = Series(None, index = prices.columns)
         current_trend = Series('-', index = prices.columns)
-        for i in bounds(prices.shape[0] - self.period):
+        for i in range(prices.shape[0] - self.period):
             # If there are not any new highs in the recent period then must have been 
             # a swing point high.
             SPH = ~(prices.iloc[(i + 1):(i + self.period)] > prices.iloc[i]).any()
             # NaN in series will produce false signals and need to be removed
             SPH = SPH[prices.iloc[i].notnull()]
             SPH = SPH[SPH]
-            # Only mark as swing point high if currently in uptrend or unidentified tred, otherwise ignore.
+            # Only mark as swing point high if currently in uptrend or unidentified trend, otherwise ignore.
             SPH = SPH[current_trend[SPH.index] != 'DOWN']
             if not SPH.empty:
                 current_trend[SPH.index] = 'DOWN'
