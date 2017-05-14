@@ -40,7 +40,7 @@ class Position(StrategyContainerElement):
                 else:
                     exit = exit[0]
                 trades.append(Trade(ticker, entry, exit, entry_prices[ticker], exit_prices[ticker]))
-        self.trades = TradeCollection(trades, self.tickers)
+        self.trades = TradeCollection(trades)
 
 
     @property
@@ -88,10 +88,10 @@ class Position(StrategyContainerElement):
 
 class FilteredPositions(Position):
 
-    def __init__(self, original_positions, new_positions, new_trades, new_tickers):
+    def __init__(self, original_positions, new_positions, new_trades):
         self.original_positions = original_positions
         self.data = new_positions
-        self.trades = TradeCollection(new_trades, new_tickers)
+        self.trades = TradeCollection(new_trades)
 
 
     def applied_to(self, returns):
@@ -149,10 +149,13 @@ class Returns(object):
         returns[returns <= -1.0] = -0.9999999999
         return (returns + 1).apply(log)
         
-    def plot(self, collapse_fun, start, **kwargs):
+    def plot(self, collapse_fun, start = None, **kwargs):
         returns = self.cumulative(collapse_fun)
         if start is not None:
-            returns = returns - returns[start]
+            start_value = returns[start]
+            if isinstance(start_value, Series):
+                start_value = start_value[0]
+            returns = returns - start_value
         returns[start:].plot(**kwargs)
         
     def annualised(self, collapse_fun):
@@ -172,7 +175,7 @@ class AggregateReturns(Returns):
         returns = self.collapse_by("sum")
         return (1 + returns) ** 260 - 1
 
-    def plot(self, start, **kwargs):
+    def plot(self, start = None, **kwargs):
         super(AggregateReturns, self).plot("sum", start, **kwargs)
     
     
@@ -182,7 +185,7 @@ class AverageReturns(Returns):
         returns = self.collapse_by("mean")
         return (1 + returns) ** 260 - 1
 
-    def plot(self, start, **kwargs):
+    def plot(self, start = None, **kwargs):
         return super(AverageReturns, self).plot("mean", start, **kwargs)
 
 
@@ -218,6 +221,8 @@ class DefaultPositions(PositionSelectionElement):
         return 'Default positions'
 
 
+
+
 class SingleLargestF(PositionSelectionElement):
     
     def execute(self, strategy):
@@ -243,7 +248,7 @@ class HighestRankedFs(PositionSelectionElement):
     
     def __init__(self, num_positions):
         self.num_positions = num_positions
-        self.name = str(num_positions) + ' Highest Ranked Fs'
+        self.name = '{} Highest Ranked Fs'.format(num_positions)
         
     def execute(self, strategy):
         optimal_size = strategy.forecasts.optF()

@@ -13,10 +13,12 @@ from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecast
 from System.Position import SingleLargestF, DefaultPositions
 from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues
 from System.Trade import TradeCollection
+from PerformanceAnalysis.Trades import summary_report
 from multiprocessing import Pool
 import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
+import numpy as np
 
 pd.set_option('display.width', 120)
 
@@ -244,7 +246,7 @@ def test_pars(short_pars, long_pars):
             strat.measure.update_param((long, short))
             strat.refresh()
             sharpes.loc[short, long] = strat.trades.Sharpe_annual
-            summaries.append(((short, long), strat.trades.summary_report()))
+            summaries.append(((short, long), summary_report(strat.trades)))
 
     return (sharpes, pd.Dataframe(dict(summaries)))
 
@@ -257,7 +259,7 @@ def strat_summary(pars):
             if attempts >= 2:
                 summary = pd.Series(index = ['Sharpe annualised inc slippage'])
             else:
-                summary = strat.trades.summary_report()
+                summary = summary_report(strat.trades)
         except ZeroDivisionError:
             strat.refresh()
             attempts += 1
@@ -283,14 +285,14 @@ def parallel_test_pars(short_pars, long_pars):
 
 def test_trailing_stop(strat, stops):
     result = pd.DataFrame(columns = [0] + stops)
-    result[0] = strat.trades.summary_report()
+    result[0] = summary_report(strat.trades)
     for s in stops:
-        result[s] = strat.trades.apply_trailing_stop(strat, s).summary_report()
+        result[s] = summary_report(strat.trades.apply_trailing_stop(strat, s))
     return result
 
 def test_stop_loss(strat, stops):
     result = pd.DataFrame(columns = [0] + stops)
-    result[0] = strat.trades.summary_report()
+    result[0] = summary_report(strat.trades)
     for s in stops:
-        result[s] = strat.trades.apply_stop_loss(strat, s).summary_report()
+        result[s] = summary_report(strat.trades.apply_stop_loss(strat, s))
     return result

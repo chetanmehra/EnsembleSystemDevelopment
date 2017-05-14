@@ -4,7 +4,7 @@ Created on 13 Dec 2014
 @author: Mark
 '''
 from numpy import isnan
-from pandas import notnull, Panel, DataFrame, Series
+from pandas import ewma, notnull, Panel, DataFrame, Series
 from Indicators.MovingAverages import KAMA
 from System.Strategy import StrategyContainerElement, MeasureElement
 

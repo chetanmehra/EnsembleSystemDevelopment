@@ -31,7 +31,7 @@ class Strategy(object):
 
     def __str__(self):
         if self.name is not None:
-            first_line = self.name
+            first_line = '{}\n'.format(self.name)
         else:
             first_line = ''
         second_line = 'Measure:\t{}\n'.format(self.measure.name)
@@ -101,6 +101,9 @@ class Strategy(object):
             return self.market.open
         else:
             return self.market.close
+
+    def get_empty_dataframe(self):
+        return self.market.get_empty_dataframe()
 
     
     @property
@@ -276,9 +279,9 @@ class Indexer(object):
             lag = 0
         else:
             lag = 1
-        trade_open = getattr(market, timing_map[self.trade_timing[0]])
+        #trade_open = getattr(market, timing_map[self.trade_timing[0]])
         trade_close = getattr(market, timing_map[self.trade_timing[1]])
-        return (trade_close / trade_open.shift(lag)) - 1
+        return (trade_close / trade_close.shift(lag)) - 1
 
         
 class StrategyException(Exception):

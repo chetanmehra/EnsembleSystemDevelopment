@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 
 class TradeCollection(object):
 
-    def __init__(self, data, tickers):
-        self.tickers = tickers
+    def __init__(self, data):
+        self.tickers = list(set([trade.ticker for trade in data]))
+        self.tickers.sort()
         self.trades = data
         self.slippage = 0.011
         self._returns = None
@@ -16,10 +17,11 @@ class TradeCollection(object):
         self._daily_returns = None
 
     def __getitem__(self, key):
-        if isinstance(key, int):
-            return self.trades[key]
-        else:
+        if isinstance(key, str):
             return [trade for trade in self.trades if trade.ticker == key]
+        else:
+            return self.trades[key]
+            
 
     def as_list(self):
         return self.trades
@@ -155,8 +157,7 @@ class TradeCollection(object):
         A TradeCollection of trades meeting the condition is returned.
         '''
         trades = [trade for trade in self.trades if condition(trade)]
-        tickers = list(set([trade.ticker for trade in trades]))
-        return TradeCollection(trades, tickers)
+        return TradeCollection(trades)
         
 
     def trade_frame(self, compacted = True, cumulative = True):
@@ -216,7 +217,19 @@ class TradeCollection(object):
         stopped_trades = []
         for T in self.as_list():
             stopped_trades.append(T.__getattribute__(type)(stop, entry_prices, exit_prices))
-        return TradeCollection(stopped_trades, self.tickers)
+        return TradeCollection(stopped_trades)
+
+
+    def apply_delay(self, strat, delay):
+        entry_prices = strat.get_entry_prices()
+        exit_prices = strat.get_exit_prices()
+        delayed_trades = []
+        for T in self.as_list():
+            new_T = T.apply_delay(delay, entry_prices, exit_prices)
+            if new_T is not None:
+                delayed_trades.append(new_T)
+        return TradeCollection(delayed_trades)
+
 
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
@@ -256,170 +269,6 @@ class TradeCollection(object):
         plt.ylim(y_range)
 
 
-    def prep_for_lm(self, x, y):
-        nulls = (x * y).isnull()
-        x = x[~nulls]
-        x = x.reshape(x.count(), 1)
-        y = y[~nulls]
-        return (x, y)
-
-    def tf_sum(self, tf, start, end):
-        tf_log = log(tf + 1)
-        X = tf_log.iloc[:, start:end].sum(axis = 1)
-        return X
-
-    def tf_sharpe(self, tf, start, end):
-        X_mean = tf.iloc[:, start:end].mean(axis = 1)
-        X_std = tf.iloc[:, start:end].std(axis = 1)
-        return X_mean / X_std
-
-
-    def calc_trends(self, dep_time, dep_method, indep_method):
-        allowable_timing = ['end', 'interim']
-        allowable_dep_methods = {
-            'sum' : self.tf_sum,
-            'sharpe' : self.tf_sharpe
-            }
-        allowable_indep_methods = {
-            'sum' : self.tf_sum
-            }
-        if dep_time not in allowable_timing:
-            raise ValueError('dep_timing must be one of: {}'.format(', '.join(allowable_timing)))
-        try:
-            dep_method = allowable_dep_methods[dep_method]
-        except KeyError:
-            raise ValueError('dep_method must be one of: {}'.format(', '.join(allowable_dep_methods.keys())))
-        try:
-            indep_method = allowable_indep_methods[indep_method]
-        except KeyError:
-            raise ValueError('indep_method must be one of: {}'.format(', '.join(allowable_indep_methods.keys())))
-
-        lm = LinearRegression()
-        tf = self.trade_frame(compacted = False, cumulative = False)
-        trends = DataFrame([-0.1, -0.01, 0, 0.01, 0.1])
-        result = DataFrame(None, None, trends[0], dtype = float)
-
-        if dep_time == 'end':
-            R = dep_method(tf, None, None)
-        
-        i = j = 1
-        while j < tf.shape[1] and tf[tf.columns[j]].count() >= 20:
-            X = indep_method(tf, None, (j + 1))
-            if dep_time == 'interim':
-                R = dep_method(tf, (j + 1), None)
-            X, R_i = self.prep_for_lm(X, R)
-            lm.fit(X, R_i)
-            result.loc[j, :] = lm.predict(trends)
-            k = j
-            j += i
-            i = k
-        return result
-
-
-    def plot_trends(self):
-        f, axarr = plt.subplots(2, 2, sharex = True)
-        sp00 = self.calc_trends(dep_time = 'interim', dep_method = 'sum', indep_method = 'sum')
-        sp10 = self.calc_trends(dep_time = 'interim', dep_method = 'sharpe', indep_method = 'sum')
-        sp01 = self.calc_trends(dep_time = 'end', dep_method = 'sum', indep_method = 'sum')
-        sp11 = self.calc_trends(dep_time = 'end', dep_method = 'sharpe', indep_method = 'sum')
-
-        sp00.plot(ax = axarr[0, 0])
-        sp10.plot(ax = axarr[1, 0])
-        sp01.plot(ax = axarr[0, 1])
-        sp11.plot(ax = axarr[1, 1])
-        
-        axarr[0, 0].set_xscale('log')
-        axarr[1, 0].set_xscale('log')
-        axarr[0, 1].set_xscale('log')
-        axarr[1, 1].set_xscale('log')
-
-        axarr[0, 0].set_title('Interim')
-        axarr[0, 0].set_ylabel('Sum')
-        axarr[1, 0].set_ylabel('Sharpe')
-        axarr[0, 1].set_title('End')
-
-
-    def summary_trade_volume(self):
-        winners = self.find(lambda trade: trade.base_return > 0)
-        losers = self.find(lambda trade: trade.base_return < 0)
-        evens = self.find(lambda trade: trade.base_return == 0)
-        
-        trade_volume = Series(dtype = float)
-        trade_volume['Number of trades'] = self.count
-        trade_volume['Percent winners'] = round(100 * (float(winners.count) / self.count), 1)
-        trade_volume['Number winners'] = winners.count 
-        trade_volume['Number losers'] = losers.count
-        trade_volume['Number even'] = evens.count
-        return trade_volume
-
-    def summary_returns(self):
-        winners = self.find(lambda trade: trade.base_return > 0)
-        losers = self.find(lambda trade: trade.base_return < 0)
-        evens = self.find(lambda trade: trade.base_return == 0)
-
-        returns = Series(dtype = float)
-        returns['Average return'] = round(100 * self.mean_return, 2)
-        returns['Average return inc slippage'] = round(100 * self.returns_slippage.mean(), 2)
-        returns['Median return'] = round(100 * self.returns.median(), 2)
-        returns['Average winning return'] = round(100 * winners.mean_return, 2)
-        returns['Average losing return'] = round(100 * losers.mean_return, 2)
-        returns['Ratio average win to loss'] = round(winners.mean_return / abs(losers.mean_return), 2)
-        returns['Largest winner'] = round(100 * max(self.returns), 2)
-        returns['Largest loser'] = round(100 * min(self.returns), 2) 
-        returns['Sharpe by trade'] = round(self.Sharpe, 2)
-        returns['Sharpe by trade inc slippage'] = round(self.returns_slippage.mean() / self.returns_slippage.std(), 2)
-        returns['Sharpe annualised'] = round(self.Sharpe_annual, 2)
-        returns['Sharpe annualised inc slippage'] = round(self.Sharpe_annual_slippage, 2)
-        returns['G by trade'] = round(self.G, 2)
-        returns['G annualised'] = round(self.G_annual, 2)
-        return returns
-
-    def summary_duration(self):
-        winners = self.find(lambda trade: trade.base_return > 0)
-        losers = self.find(lambda trade: trade.base_return < 0)
-        evens = self.find(lambda trade: trade.base_return == 0)
-        positive_runs, negative_runs = self.consecutive_wins_losses()
-
-        duration = Series(dtype = float)
-        duration['Average duration'] = round(self.durations.mean(), 2)
-        duration['Average duration winners'] = round(winners.durations.mean(), 2)
-        duration['Average duration losers'] = round(losers.durations.mean(), 2)
-        duration['Max consecutive winners'] = positive_runs.max()
-        duration['Max consecutive losers'] = negative_runs.max()
-        duration['Avg consecutive winners'] = round(positive_runs.mean(), 2)
-        duration['Avg consecutive losers'] = round(negative_runs.mean(), 2)
-        return duration
-
-    def summary_report(self):
-        '''
-        Provides a summary of the trade statistics
-        '''
-        trade_volume = self.summary_trade_volume()
-        returns = self.summary_returns()
-        duration = self.summary_duration()
-        return concat((trade_volume, returns, duration))
-
-    def summary_by_period(self, periods = 5):
-        exits = [T.exit for T in self.trades]
-        exits.sort()
-        bin_size = round(self.count / periods) + 1
-        bin_size = max(bin_size, 25)
-        start, end = (0, bin_size)
-        period_summary = DataFrame(dtype = float)
-        while start < self.count:
-            end = min(end, self.count)
-            start_date = exits[start]
-            end_date = exits[end - 1]
-            label = '{}:{}'.format(start_date.strftime('%b-%y'), end_date.strftime('%b-%y'))
-            subset = self.find(lambda trade: start_date <= trade.exit <= end_date)
-            period_summary[label] = subset.summary_report()
-            start = end + 1
-            end += bin_size
-        return period_summary
-            
-
-        
-
 
 class Trade(object):
 
@@ -429,6 +278,10 @@ class Trade(object):
         self.exit = exit_date
         self.entry_price = self.get_price(entry_date, entry_prices)
         self.exit_price = self.get_price(exit_date, exit_prices)
+
+        prices = exit_prices[self.entry:self.exit]
+        self.daily_returns = Series(prices / prices.shift(1)) - 1
+        self.daily_returns[0] = (prices[0] / self.entry_price) - 1
         self.normalised = Series((exit_prices[self.entry:self.exit] / self.entry_price).values) - 1
         # Note: duration is measured by days-in-market not calendar days
         self.duration = len(self.normalised)
@@ -500,6 +353,14 @@ class Trade(object):
             return Trade(self.ticker, self.entry, stopped_date, entry_prices[self.ticker], exit_prices[self.ticker])
         else:
             return self
+
+
+    def apply_delay(self, delay, entry_prices, exit_prices):
+        if self.duration > delay:
+            entry = entry_prices[self.entry:].index[delay]
+            return Trade(self.ticker, entry, self.exit, entry_prices[self.ticker], exit_prices[self.ticker])
+        else:
+            return None
 
 
 

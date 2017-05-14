@@ -36,7 +36,7 @@ class Filter(PositionSelectionElement):
         new_positions = strategy.positions.copy()
         new_positions.remove(eliminated_trades)
 
-        return FilteredPositions(strategy.positions, new_positions.data, accepted_trades, new_positions.tickers)
+        return FilteredPositions(strategy.positions, new_positions.data, accepted_trades)
 
     def plot(self, ticker, start, end, ax):
         values = self.values.plot(ticker, start, end, ax)

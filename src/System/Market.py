@@ -79,7 +79,10 @@ class Market(object):
                     possible_errors[start] = False
         return instrument
 
-    
+    def get_empty_dataframe(self):
+        return DataFrame(index = self.close.index, columns = self.tickers, dtype = float)
+
+
     @property
     def open(self):
         return self.get_series("Open")
