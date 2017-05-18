@@ -1,5 +1,6 @@
 
 from System.Position import PositionSelectionElement, FilteredPositions
+from System.Trade import TradeCollection
 
 class Filter(PositionSelectionElement):
 
@@ -20,23 +21,30 @@ class Filter(PositionSelectionElement):
         '''
         Removes position values where filter criteria is not met.
         '''
+        return strategy.apply_filter(self)
+
+    def trades(self, strategy):
         trades = strategy.trades.as_list()
         trade_frame = strategy.trades.as_dataframe_with(self.values)
         filtered_bools = (trade_frame[self.filter] > self.left) & (trade_frame[self.filter] <= self.right)
 
         accepted_trades = []
-        eliminated_trades = []
 
         for i, keep in enumerate(filtered_bools.values):
             if keep:
                 accepted_trades.append(trades[i])
-            else:
-                eliminated_trades.append(trades[i])
+        
+        return TradeCollection(accepted_trades)
+
+    def positions(self, strategy):
+        accepted_trades = self.trades(strategy)
+        eliminated_trades = [T for T in strategy.trades.as_list() if T not in accepted_trades.as_list()]
 
         new_positions = strategy.positions.copy()
         new_positions.remove(eliminated_trades)
 
         return FilteredPositions(strategy.positions, new_positions.data, accepted_trades)
+
 
     def plot(self, ticker, start, end, ax):
         values = self.values.plot(ticker, start, end, ax)

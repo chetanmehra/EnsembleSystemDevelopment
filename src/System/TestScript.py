@@ -5,9 +5,10 @@ Created on 15 Feb 2015
 '''
 
 from System.Market import Market
-from System.Strategy import Strategy, MeasureEnsembleStrategy,\
+from System.Strategy import ModelStrategy, SignalStrategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
 from System.Indicator import Crossover
+from Signals.Trend import Crossover as SignalCross
 from Indicators.MovingAverages import EMA, KAMA
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
@@ -37,7 +38,7 @@ def build_market(tickers = ASX20,
     
 
 def run_various_trade_timings(market):
-    strategyCOO = Strategy("OO", "C")
+    strategyCOO = ModelStrategy("OO", "C")
     strategyCOO.market = market
     strategyCOO.measure = Crossover(20, 10)
     strategyCOO.model = BlockForecaster(20)
@@ -46,7 +47,7 @@ def run_various_trade_timings(market):
     strategyCOO.market_returns.plot(collapse_fun = "mean", color = "black", label = "BandH")
     strategyCOO.plot_returns(color = "blue", label = "COO")
     
-    strategyOCO = Strategy("CO", "O")
+    strategyOCO = ModelStrategy("CO", "O")
     strategyOCO.market = market
     strategyOCO.measure = Crossover(20, 10)
     strategyOCO.model = BlockForecaster(20)
@@ -54,7 +55,7 @@ def run_various_trade_timings(market):
     strategyOCO.initialise()
     strategyOCO.plot_returns(color = "red", label = "OCO")
     
-    strategyOCC = Strategy("CC", "O")
+    strategyOCC = ModelStrategy("CC", "O")
     strategyOCC.market = market
     strategyOCC.measure = Crossover(20, 10)
     strategyOCC.model = BlockForecaster(20)
@@ -62,7 +63,7 @@ def run_various_trade_timings(market):
     strategyOCC.initialise()
     strategyOCC.plot_returns(color = "orange", label = "OCC")
     
-    strategyCOC = Strategy("OC", "C")
+    strategyCOC = ModelStrategy("OC", "C")
     strategyCOC.market = market
     strategyCOC.measure = Crossover(20, 10)
     strategyCOC.model = BlockForecaster(20)
@@ -113,7 +114,7 @@ def run_compound_ensemble(market, trade_timing = "CC", ind_timing = "O",
 
 
 def run_basic_crossover(market, trade_timing = "CC", ind_timing = "O", params = (20, 10)):
-    strategy = Strategy(trade_timing, ind_timing)
+    strategy = ModelStrategy(trade_timing, ind_timing)
     strategy.market = market
     strategy.measure = Crossover(*params)
     strategy.model = NullForecaster(["True"])
@@ -215,23 +216,27 @@ def getMarket():
 
 def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
     market = getMarket()
-    strategy = Strategy(trade_timing, ind_timing)
+    strategy = ModelStrategy(trade_timing, ind_timing)
     strategy.market = market
     strategy.measure = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
     strategy.model = NullForecaster(["True"])
     strategy.select_positions = DefaultPositions()
     return strategy
 
+def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
+    market = getMarket()
+    strategy = SignalStrategy(trade_timing, ind_timing)
+    strategy.market = market
+    strategy.signal = SignalCross(slow = EMA(params[0]), fast = EMA(params[1]))
+    return strategy
+
 
 # TODO
-# Filter on performance relative to market
 # Test breakout strategy
-# Create trade summary report
-# Plot trade against market data (ideally candles) and indicators
-# Plot performance vs stop loss levels
 # Calculate trend detection benchmark data (i.e. with perfect hindsight).
 # Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
 # Enter trade 10 days after signal (maybe if trade isn't underwater)
+# Refactor Filter to be a decorator of position_selection / signal
 
 short_pars = [1, 5, 10, 20, 35, 50]
 long_pars = [30, 50, 70, 90, 120, 150, 200]

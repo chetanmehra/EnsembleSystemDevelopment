@@ -4,7 +4,7 @@ Created on 21 Dec 2014
 @author: Mark
 '''
 import unittest
-from System.Strategy import Strategy, Indexer, StrategyException, MeasureEnsembleStrategy,\
+from System.Strategy import ModelStrategy, Indexer, StrategyException, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy, StrategyElement,\
     MeasureElement, ModelElement, PositionSelectionElement, StrategyContainerElement,\
     EnsembleStrategy
@@ -27,14 +27,14 @@ class TestStrategyConstruction(unittest.TestCase):
     def testStrategyRequiresTradeTypeOnCreation(self):
         self.assertRaisesRegex(StrategyException, 
                                "Trade timing must be one of: 'OO', 'CC', 'OC', 'CO'.", 
-                               Strategy, "XX", "C")
+                               ModelStrategy, "XX", "C")
         
     def testStrategyRequiresIndTiming(self):
         self.assertRaisesRegex(ValueError, 
-                               "Ind_timing must be one of: 'O', 'C'", Strategy, "OO", "X")
+                               "Ind_timing must be one of: 'O', 'C'", ModelStrategy, "OO", "X")
     
     def testStrategyChecksFieldsMarket(self):
-        strategy = Strategy("OO", "C")
+        strategy = ModelStrategy("OO", "C")
         strategy.measure = Mock()
         strategy.model = Mock()
         strategy.select_positions = Mock()
@@ -42,7 +42,7 @@ class TestStrategyConstruction(unittest.TestCase):
                           """Missing parameters: market""", strategy.initialise)
         
     def testStrategyChecksFieldsAllEmpty(self):
-        strategy = Strategy("OO", "C")
+        strategy = ModelStrategy("OO", "C")
         self.assertRaisesRegex(StrategyException,
                           """Missing parameters: market, measure, model, select_positions""",
                           strategy.initialise)
@@ -51,7 +51,7 @@ class TestStrategyConstruction(unittest.TestCase):
 class TestStrategyInitialisation(unittest.TestCase):
     
     def setUp(self):
-        self.strategy = Strategy("OO", "C")
+        self.strategy = ModelStrategy("OO", "C")
         self.indicator = Mock()
         self.forecasts = Mock()
         self.positions = Mock()
@@ -225,7 +225,7 @@ class TestStrategyElements(unittest.TestCase):
 class TestStrategyQueries(unittest.TestCase):
     
     def setUp(self):
-        self.strategy = Strategy("OO", "C")
+        self.strategy = ModelStrategy("OO", "C")
         self.position_series = buildNumericDataFrame(["ASX", "BHP", "CBA"], 20)
         self.positions = Position(self.position_series)
         self.returns = buildNumericDataFrame(["ASX", "BHP", "CBA"], 20) / 10
@@ -238,7 +238,7 @@ class TestStrategyQueries(unittest.TestCase):
     def testStrategyReturnsMarketPricesForIndicator(self):
         self.strategy.market.close = "close"
         self.assertEqual(self.strategy.get_indicator_prices(), "close")
-        self.strategy = Strategy("OO", "O")
+        self.strategy = ModelStrategy("OO", "O")
         self.strategy.market = Mock()
         self.strategy.market.open = "open"
         self.assertEqual(self.strategy.get_indicator_prices(), "open")
@@ -264,7 +264,7 @@ class TestTradeIndexing(unittest.TestCase):
     def setUp(self):
         self.trade_timing = "OO"
         self.ind_timing = "C"
-        self.strategy = Strategy(self.trade_timing, self.ind_timing)
+        self.strategy = ModelStrategy(self.trade_timing, self.ind_timing)
         self.dummy_timeSeries = buildNumericDataFrame(["ASX", "BHP", "CBA"], 10)
         
     def testIndexerInstantiatedOnConstruction(self):
@@ -310,13 +310,13 @@ class TestEnsembleStrategyQueries(unittest.TestCase):
         lagged_positions = Mock(spec = Position)
         lagged_positions.applied_to.return_value = ensemble_returns
         self.strategy.indexer.positions.return_value = lagged_positions
-        sub_strat1 = Mock(spec = Strategy)
+        sub_strat1 = Mock(spec = ModelStrategy)
         sub_strat1.returns = Mock(spec = Returns)
         sub_strat1.returns.collapse_by.return_value = returns1
-        sub_strat2 = Mock(spec = Strategy)
+        sub_strat2 = Mock(spec = ModelStrategy)
         sub_strat2.returns = Mock(spec = Returns)
         sub_strat2.returns.collapse_by.return_value = returns2
-        sub_strat3 = Mock(spec = Strategy)
+        sub_strat3 = Mock(spec = ModelStrategy)
         sub_strat3.returns = Mock(spec = Returns)
         sub_strat3.returns.collapse_by.return_value = returns3
         self.strategy.strategies = [sub_strat1, sub_strat2, sub_strat3]

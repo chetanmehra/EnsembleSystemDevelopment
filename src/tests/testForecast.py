@@ -11,7 +11,7 @@ from numpy import mean, std
 from math import isnan
 from tests.TestHelpers import buildNumericPanel, buildTextDataFrame, buildNumericDataFrame
 from System.Indicator import Indicator
-from System.Strategy import Strategy
+from System.Strategy import ModelStrategy
 from System.Position import AverageReturns
 
 
@@ -55,7 +55,7 @@ class TestForecastInterface(unittest.TestCase):
 class TestBlockForecasterConstruction(unittest.TestCase):
 
     def setUp(self):
-        self.strategy = Mock(spec = Strategy)
+        self.strategy = Mock(spec = ModelStrategy)
         self.model = BlockForecaster(window = 4)
         self.ticker = "ASX"
         self.inds = Series([str(B) for B in [True, True, False, True, True, False, False, False]])
@@ -132,7 +132,7 @@ class TestBlockForecasterConstruction(unittest.TestCase):
 class TestBlockMeanReturnsForecaster(unittest.TestCase):
     
     def setUp(self):
-        self.strategy = Mock(spec = Strategy)
+        self.strategy = Mock(spec = ModelStrategy)
         self.model = BlockMeanReturnsForecaster(window = 4)
         self.tickers = ["ASX", "BHP", "CBA"]
         self.returns = AverageReturns(buildNumericDataFrame(self.tickers, 10))

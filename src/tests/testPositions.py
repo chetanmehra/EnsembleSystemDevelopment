@@ -11,7 +11,7 @@ from numpy import sign, NaN
 from math import log
 from tests.TestHelpers import buildNumericDataFrame
 from System.Forecast import Forecast
-from System.Strategy import Strategy
+from System.Strategy import ModelStrategy
 
 
 class TestPositionHolder(unittest.TestCase):
@@ -85,7 +85,7 @@ class TestPositionModel(unittest.TestCase):
         self.forecast_data = buildNumericDataFrame(self.tickers, 10)
         self.forecasts = Mock(spec = Forecast)
         self.forecasts.optF.return_value = self.forecast_data
-        self.strategy = Strategy("OO", "C")
+        self.strategy = ModelStrategy("OO", "C")
         self.strategy.forecasts = self.forecasts
         self.model = SingleLargestF()
         self.model_results = self.model(self.strategy)
@@ -123,7 +123,7 @@ class TestHighestRankedFsSelector(unittest.TestCase):
         self.forecast_data = buildNumericDataFrame(self.tickers, 10)
         self.forecasts = Mock(spec = Forecast)
         self.forecasts.optF.return_value = self.forecast_data
-        self.strategy = Strategy("OO", "C")
+        self.strategy = ModelStrategy("OO", "C")
         self.strategy.forecasts = self.forecasts
         self.num_positions = 3
         self.select_positions = HighestRankedFs(self.num_positions)

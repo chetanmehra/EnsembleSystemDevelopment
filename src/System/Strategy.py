@@ -8,41 +8,16 @@ from copy import copy, deepcopy
 from pandas import DateOffset, Panel, DataFrame, Series
 
 
-class Strategy(object):
+class IStrategy(object):
     '''
-    Strategy holds the components of a trading strategy, including indicators, forecasts etc.
-    It manages the creation components as well as the resulting data. 
+    IStrategy defines the base interface for Strategy objects
     '''
-
     def __init__(self, trade_timing, ind_timing):
         self.indexer = Indexer(trade_timing, ind_timing)
-        self.required_fields = ["market", "measure", "model", "select_positions"]
+        self.required_fields = ["market"]
         self.name = None
-        # Container elements
-        self.indicator = None
-        self.forecasts = None
         self.positions = None
-        self.filtered_positions = None
-        # Strategy creation elements
-        self.measure = None
-        self.model = None
-        self.select_positions = None
-        self.filter = None
 
-    def __str__(self):
-        if self.name is not None:
-            first_line = '{}\n'.format(self.name)
-        else:
-            first_line = ''
-        second_line = 'Measure:\t{}\n'.format(self.measure.name)
-        third_line = 'Model:\t{}\n'.format(self.model.name)
-        fourth_line = 'Position:\t{}\n'.format(self.select_positions.name)
-        if self.filter is not None:
-            fifth_line = 'Filter:\t{}\n'.format(self.filter.name)
-        else:
-            fifth_line = 'No filter specified.\n'
-        return first_line + second_line + third_line + fourth_line + fifth_line
-        
     def check_fields(self):
         missing_fields = []
         for field in self.required_fields:
@@ -54,28 +29,24 @@ class Strategy(object):
         if len(missing_fields):
             missing_fields = ", ".join(missing_fields)
             raise StrategyException("Missing parameters: {0}".format(missing_fields))
+
+    def run(self):
+        self.check_fields()
+        self.initialise()
+        
+    def refresh(self):
+        self.reset()
+        self.run()
         
     def initialise(self):
-        self.check_fields()
-        self.name = self.measure.name
-        self.indicator = self.measure(self)
-        self.forecasts = self.model(self)
-        self.positions = self.select_positions(self)
-        if self.filter is not None:
-            self.apply_filter(self.filter)
-            
-            
-    def refresh(self):
-        self.indicator = None
-        self.forecasts = None
-        self.positions = None
-        self.initialise()
-
+        raise NotImplementedError("Strategy must override initialise")
+  
+    def reset(self):
+        raise NotImplementedError("Strategy must override reinitialise")
 
     def apply_filter(self, filter):
-        self.positions = filter(self)
+        raise NotImplementedError("Strategy must override apply_filter")
             
-                
     @property
     def trade_timing(self):
         return self.indexer.trade_timing
@@ -104,11 +75,6 @@ class Strategy(object):
 
     def get_empty_dataframe(self):
         return self.market.get_empty_dataframe()
-
-    
-    @property
-    def trades(self):
-        return self.positions.trades
             
     @property    
     def lagged_indicator(self):
@@ -132,11 +98,8 @@ class Strategy(object):
         positions = self.positions.short_only()
         return positions.applied_to(self.market_returns)
 
-    def filter_summary(self, filter_values, boundaries):
-        return self.positions.filter_summary(filter_values, boundaries)
-
-    def filter_comparison(self, filter_values, filter1_type, filter2_type, boundaries1, boundaries2):
-        return self.positions.filter_comparison(filter_values, filter1_type, filter2_type, boundaries1, boundaries2)
+    def plot_measures(self, ticker, start, end, ax):
+        raise NotImplementedError("Strategy must override plot_measures")
 
     def plot_returns(self, long_only = False, short_only = False, color = "blue", **kwargs):
 
@@ -170,13 +133,109 @@ class Strategy(object):
         fig, ax = self.market.candlestick(ticker, start, end)
         if self.filter is not None:
             self.filter.plot(ticker, start, end, ax)
-        self.indicator.plot_measures(ticker, start, end, ax)
+        self.plot_measures(ticker, start, end, ax)
         lo_entry = self.market.low[ticker][entries] * 0.95
         hi_exit = self.market.high[ticker][exits] * 1.05
         plt.scatter(entries, lo_entry, marker = '^', color = 'green')
         plt.scatter(exits, hi_exit, marker = 'v', color = 'red')
         plt.title(ticker)
 
+
+class SignalStrategy(IStrategy):
+    '''
+    A SignalStrategy is the more fundamental strategy type involving entry and exit signals derived from
+    one or more indicators and signal generators.
+    '''
+    def __init__(self, trade_timing, ind_timing):
+        super(SignalStrategy, self).__init__(trade_timing, ind_timing)
+        self.required_fields += ["signal"]
+        self.name = 'Signal Strategy'
+        # Container elements
+        self.trades = None
+        # Strategy creation elements
+        self.signal = None
+        self.filter = None
+
+    def initialise(self):
+        self.trades = self.signal(self)
+        if self.filter is not None:
+            self.trades = self.filter(self)
+
+    def reset(self):
+        self.trades = None
+
+    def apply_filter(self, filter):
+        self.filter = filter
+        self.trades = filter.trades(self)
+
+    def plot_measures(self, ticker, start, end, ax):
+        self.signal.plot_measures(ticker, start, end, ax)
+
+
+
+class ModelStrategy(IStrategy):
+    '''
+    ModelStrategy holds the components of a trading strategy based on forecasting, including indicators, forecasts etc.
+    It manages the creation components as well as the resulting data. 
+    '''
+
+    def __init__(self, trade_timing, ind_timing):
+        super(ModelStrategy, self).__init__(trade_timing, ind_timing)
+        self.required_fields += ["measure", "model", "select_positions"]
+        self.name = 'Model Strategy'
+        # Container elements
+        self.indicator = None
+        self.forecasts = None
+        self.positions = None
+        self.filtered_positions = None
+        # Strategy creation elements
+        self.measure = None
+        self.model = None
+        self.select_positions = None
+        self.filter = None
+
+    @property
+    def trades(self):
+        return self.positions.trades
+
+    def __str__(self):
+        if self.name is not None:
+            first_line = '{}\n'.format(self.name)
+        else:
+            first_line = ''
+        second_line = 'Measure:\t{}\n'.format(self.measure.name)
+        third_line = 'Model:\t{}\n'.format(self.model.name)
+        fourth_line = 'Position:\t{}\n'.format(self.select_positions.name)
+        if self.filter is not None:
+            fifth_line = 'Filter:\t{}\n'.format(self.filter.name)
+        else:
+            fifth_line = 'No filter specified.\n'
+        return first_line + second_line + third_line + fourth_line + fifth_line
+        
+        
+    def initialise(self):
+        self.indicator = self.measure(self)
+        self.forecasts = self.model(self)
+        self.positions = self.select_positions(self)
+        if self.filter is not None:
+            self.apply_filter(self.filter)
+            
+    def reset(self):
+        self.indicator = None
+        self.forecasts = None
+        self.positions = None
+
+    def apply_filter(self, filter):
+        self.filter = filter
+        self.positions = filter.positions(self)
+    
+    @property
+    def trades(self):
+        return self.positions.trades
+
+    def plot_measures(self, ticker, start, end, ax):
+        self.indicator.plot_measures(ticker, start, end, ax)
+            
 
 class StrategyElement(object):
     
@@ -288,7 +347,7 @@ class StrategyException(Exception):
     pass
 
 
-class EnsembleStrategy(Strategy):
+class EnsembleStrategy(ModelStrategy):
     
     def __init__(self, trade_timing, ind_timing, parameter_set):
         super(EnsembleStrategy, self).__init__(trade_timing, ind_timing)
@@ -306,7 +365,7 @@ class EnsembleStrategy(Strategy):
         pass
     
     def build_substrat(self, *args):
-        strategy = Strategy(self.trade_timing, self.ind_timing)
+        strategy = ModelStrategy(self.trade_timing, self.ind_timing)
         strategy.market = self.market
         strategy.measure = self.measure
         strategy.model = self.model
