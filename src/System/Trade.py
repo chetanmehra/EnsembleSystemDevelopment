@@ -5,6 +5,35 @@ from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
 
+def createTrades(signal_data, strategy):
+    entry_prices = strategy.get_entry_prices()
+    exit_prices = strategy.get_exit_prices()
+    trades = []
+    flags = signal_data - signal_data.shift(1)
+    # clear missing values from first rows
+    for row in range(4):
+        if all(flags.ix[row].isnull()):
+            flags.ix[row] = 0
+    for ticker in flags:
+        ticker_flags = flags[ticker]
+        entries = ticker_flags.index[ticker_flags > 0]
+        i = 0
+        while i < len(entries):
+            entry = entries[i]
+            i += 1
+            if i < len(entries):
+                next = entries[i]
+            else:
+                next = None
+            exit = ticker_flags[entry:next].index[ticker_flags[entry:next] < 0]
+            if len(exit) == 0:
+                exit = ticker_flags.index[-1]
+            else:
+                exit = exit[0]
+            trades.append(Trade(ticker, entry, exit, entry_prices[ticker], exit_prices[ticker]))
+    return TradeCollection(trades)
+
+
 class TradeCollection(object):
 
     def __init__(self, data):

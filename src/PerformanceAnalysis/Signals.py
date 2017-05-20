@@ -188,3 +188,42 @@ def plot_trends(trades):
     axarr[0, 0].set_ylabel('Sum')
     axarr[1, 0].set_ylabel('Sharpe')
     axarr[0, 1].set_title('End')
+
+
+
+# TODO Test signal performance against TrendBenchmark
+class TrendBenchmark(object):
+    '''
+    The TrendBenchmark is not intended for use in a strategy, but for testing the performance
+    of an indicator against ideal, perfect hindsight identification of trends.
+    '''
+    def __init__(self, period):
+        self.period = period
+        
+    def __call__(self, strategy):
+        prices = strategy.get_indicator_prices()
+        trend = DataFrame(None, index = prices.index, columns = prices.columns, dtype = float)
+        last_SP = Series(None, index = prices.columns)
+        current_trend = Series('-', index = prices.columns)
+        for i in range(prices.shape[0] - self.period):
+            # If there are not any new highs in the recent period then must have been 
+            # a swing point high.
+            SPH = ~(prices.iloc[(i + 1):(i + self.period)] > prices.iloc[i]).any()
+            # NaN in series will produce false signals and need to be removed
+            SPH = SPH[prices.iloc[i].notnull()]
+            SPH = SPH[SPH]
+            # Only mark as swing point high if currently in uptrend or unidentified trend, otherwise ignore.
+            SPH = SPH[current_trend[SPH.index] != 'DOWN']
+            if not SPH.empty:
+                current_trend[SPH.index] = 'DOWN'
+                trend.loc[trend.index[i], SPH.index] = prices.iloc[i][SPH.index]
+            # Repeat for swing point lows.
+            SPL = ~(prices.iloc[(i + 1):(i + self.period)] < prices.iloc[i]).any()
+            SPL = SPL[prices.iloc[i].notnull()]
+            SPL = SPL[SPL]
+            SPL = SPL[current_trend[SPL.index] != 'UP']
+            if not SPL.empty:
+                current_trend[SPL.index] = 'UP'
+                trend.loc[trend.index[i], SPL.index] = prices.iloc[i][SPL.index]
+        self.trend = trend.interpolate()
+

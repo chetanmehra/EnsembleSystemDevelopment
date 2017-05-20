@@ -1,53 +1,12 @@
 
-from System.Position import PositionSelectionElement, FilteredPositions
-from System.Trade import TradeCollection
 
-class Filter(PositionSelectionElement):
+class FilterInterface():
 
-    def __init__(self, values, filter_range):
-        '''
-        Requires that values is a DataFrame with first column 'ticker' and next column filter values.
-        filter_range should be a tuple representing the acceptable filter range.
-        '''
-        self.values = values
-        self.bounds = filter_range
-        self.left = min(filter_range)
-        self.right = max(filter_range)
-        self.filter = values.name
-        self.name = '{}:{}-{}'.format(values.name, *filter_range)
-
-
-    def execute(self, strategy):
-        '''
-        Removes position values where filter criteria is not met.
-        '''
-        return strategy.apply_filter(self)
-
-    def trades(self, strategy):
-        trades = strategy.trades.as_list()
-        trade_frame = strategy.trades.as_dataframe_with(self.values)
-        filtered_bools = (trade_frame[self.filter] > self.left) & (trade_frame[self.filter] <= self.right)
-
-        accepted_trades = []
-
-        for i, keep in enumerate(filtered_bools.values):
-            if keep:
-                accepted_trades.append(trades[i])
-        
-        return TradeCollection(accepted_trades)
-
-    def positions(self, strategy):
-        accepted_trades = self.trades(strategy)
-        eliminated_trades = [T for T in strategy.trades.as_list() if T not in accepted_trades.as_list()]
-
-        new_positions = strategy.positions.copy()
-        new_positions.remove(eliminated_trades)
-
-        return FilteredPositions(strategy.positions, new_positions.data, accepted_trades)
-
+    def __call__(self, strategy):
+        raise NotImplementedError("Filter must be callable")
 
     def plot(self, ticker, start, end, ax):
-        values = self.values.plot(ticker, start, end, ax)
+        raise NotImplementedError("Filter must implement 'plot' method")
 
 
 class FilterValues:

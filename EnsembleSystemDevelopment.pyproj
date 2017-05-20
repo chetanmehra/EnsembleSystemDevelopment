@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <InterpreterId>Global|VisualStudio|Anaconda3</InterpreterId>
+    <InterpreterId>Global|ContinuumAnalytics|Anaconda36-64</InterpreterId>
     <InterpreterVersion />
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
@@ -20,11 +20,29 @@
     <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="src\Indicators\MovingAverages.py" />
-    <Compile Include="src\Indicators\Oscillators.py" />
-    <Compile Include="src\Indicators\Volatility.py" />
-    <Compile Include="src\Indicators\__init__.py" />
+    <Compile Include="src\Filters\Entry.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\Filters\Value.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\Filters\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\Measures\MovingAverages.py" />
+    <Compile Include="src\Measures\Oscillators.py" />
+    <Compile Include="src\Measures\Volatility.py" />
+    <Compile Include="src\Measures\__init__.py" />
+    <Compile Include="src\LevelMeasures\Trend.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\LevelMeasures\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="src\PerformanceAnalysis\Metrics.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\PerformanceAnalysis\Rules.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="src\PerformanceAnalysis\Signals.py">
@@ -70,14 +88,16 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="src\" />
+    <Folder Include="src\Filters\" />
+    <Folder Include="src\LevelMeasures\" />
     <Folder Include="src\PerformanceAnalysis\" />
     <Folder Include="src\Signals\" />
     <Folder Include="src\System" />
-    <Folder Include="src\Indicators\" />
+    <Folder Include="src\Measures\" />
     <Folder Include="src\tests" />
   </ItemGroup>
   <ItemGroup>
-    <InterpreterReference Include="Global|VisualStudio|Anaconda3" />
+    <InterpreterReference Include="Global|ContinuumAnalytics|Anaconda36-64" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
 </Project>

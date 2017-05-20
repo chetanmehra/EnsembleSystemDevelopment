@@ -7,12 +7,13 @@ Created on 15 Feb 2015
 from System.Market import Market
 from System.Strategy import ModelStrategy, SignalStrategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
-from System.Indicator import Crossover
-from Signals.Trend import Crossover as SignalCross
+from Signals.Trend import Crossover
+from LevelMeasures.Trend import TrueFalseCross
 from Indicators.MovingAverages import EMA, KAMA
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
-from System.Filter import Filter, StackedFilterValues, WideFilterValues, ValueFilterValues
+from Filters.Value import ValueRangeFilter
+from System.Filter import StackedFilterValues, WideFilterValues, ValueFilterValues
 from System.Trade import TradeCollection
 from PerformanceAnalysis.Trades import summary_report
 from multiprocessing import Pool
@@ -40,7 +41,7 @@ def build_market(tickers = ASX20,
 def run_various_trade_timings(market):
     strategyCOO = ModelStrategy("OO", "C")
     strategyCOO.market = market
-    strategyCOO.measure = Crossover(20, 10)
+    strategyCOO.measure = TrueFalseCross(Crossover(20, 10))
     strategyCOO.model = BlockForecaster(20)
     strategyCOO.select_positions = SingleLargestF()
     strategyCOO.initialise()
@@ -49,7 +50,7 @@ def run_various_trade_timings(market):
     
     strategyOCO = ModelStrategy("CO", "O")
     strategyOCO.market = market
-    strategyOCO.measure = Crossover(20, 10)
+    strategyOCO.measure = TrueFalseCross(Crossover(20, 10))
     strategyOCO.model = BlockForecaster(20)
     strategyOCO.select_positions = SingleLargestF()
     strategyOCO.initialise()
@@ -57,7 +58,7 @@ def run_various_trade_timings(market):
     
     strategyOCC = ModelStrategy("CC", "O")
     strategyOCC.market = market
-    strategyOCC.measure = Crossover(20, 10)
+    strategyOCC.measure = TrueFalseCross(Crossover(20, 10))
     strategyOCC.model = BlockForecaster(20)
     strategyOCC.select_positions = SingleLargestF()
     strategyOCC.initialise()
@@ -65,7 +66,7 @@ def run_various_trade_timings(market):
     
     strategyCOC = ModelStrategy("OC", "C")
     strategyCOC.market = market
-    strategyCOC.measure = Crossover(20, 10)
+    strategyCOC.measure = TrueFalseCross(Crossover(20, 10))
     strategyCOC.model = BlockForecaster(20)
     strategyCOC.select_positions = SingleLargestF()
     strategyCOC.initialise()
@@ -78,7 +79,7 @@ def run_ensemble_crossover(market, trade_timing = "CC", ind_timing = "O"):
     params = [(25, 15), (20, 10), (15, 10), (12, 8), (8, 5)]
     strategy = MeasureEnsembleStrategy(trade_timing, ind_timing, params)
     strategy.market = market
-    strategy.measure = Crossover(1, 1)
+    strategy.measure = TrueFalseCross(Crossover(1, 1))
     strategy.model = BlockForecaster(20)
     strategy.select_positions = SingleLargestF()
     strategy.forecast_weight = MeanForecastWeighting()
@@ -92,7 +93,7 @@ def run_ensemble_model(market, trade_timing = "CC", ind_timing = "O",
     params = [20, 30, 40, 50]
     strategy = ModelEnsembleStrategy(trade_timing, ind_timing, params)
     strategy.market = market
-    strategy.measure = Crossover(25, 10)
+    strategy.measure = TrueFalseCross(Crossover(25, 10))
     strategy.model = model
     strategy.select_positions = positions
     strategy.forecast_weight = MeanForecastWeighting()
@@ -105,7 +106,7 @@ def run_compound_ensemble(market, trade_timing = "CC", ind_timing = "O",
                           select_positions = SingleLargestF()):
     strategy = CompoundEnsembleStrategy(trade_timing, ind_timing, [model_params, measure_params])
     strategy.market = market
-    strategy.measure = Crossover(0, 0)
+    strategy.measure = TrueFalseCross(Crossover(0, 0))
     strategy.model = BlockForecaster(0)
     strategy.select_positions = select_positions
     strategy.forecast_weight = MeanForecastWeighting()
@@ -116,17 +117,10 @@ def run_compound_ensemble(market, trade_timing = "CC", ind_timing = "O",
 def run_basic_crossover(market, trade_timing = "CC", ind_timing = "O", params = (20, 10)):
     strategy = ModelStrategy(trade_timing, ind_timing)
     strategy.market = market
-    strategy.measure = Crossover(*params)
+    strategy.measure = TrueFalseCross(Crossover(*params))
     strategy.model = NullForecaster(["True"])
     strategy.select_positions = DefaultPositions()
     strategy.initialise()
-    return strategy
-
-
-def buildTradeCollection(tickers = triplet):
-    market = build_market(tickers)
-    strategy = run_basic_crossover(market)
-    strategy.trades = TradeCollection(strategy)
     return strategy
 
 
@@ -218,7 +212,7 @@ def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
     market = getMarket()
     strategy = ModelStrategy(trade_timing, ind_timing)
     strategy.market = market
-    strategy.measure = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
+    strategy.measure = TrueFalseCross(Crossover(slow = EMA(params[0]), fast = EMA(params[1])))
     strategy.model = NullForecaster(["True"])
     strategy.select_positions = DefaultPositions()
     return strategy
@@ -227,16 +221,14 @@ def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
     market = getMarket()
     strategy = SignalStrategy(trade_timing, ind_timing)
     strategy.market = market
-    strategy.signal = SignalCross(slow = EMA(params[0]), fast = EMA(params[1]))
+    strategy.signal = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
     return strategy
 
 
-# TODO
-# Test breakout strategy
-# Calculate trend detection benchmark data (i.e. with perfect hindsight).
-# Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
-# Enter trade 10 days after signal (maybe if trade isn't underwater)
-# Refactor Filter to be a decorator of position_selection / signal
+
+# TODO Calculate trend detection benchmark data (i.e. with perfect hindsight).
+# TODO Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
+
 
 short_pars = [1, 5, 10, 20, 35, 50]
 long_pars = [30, 50, 70, 90, 120, 150, 200]
@@ -287,17 +279,3 @@ def parallel_test_pars(short_pars, long_pars):
         sharpes.loc[R[0], R[1]] = R[2]["Sharpe annualised inc slippage"]
         summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))
-
-def test_trailing_stop(strat, stops):
-    result = pd.DataFrame(columns = [0] + stops)
-    result[0] = summary_report(strat.trades)
-    for s in stops:
-        result[s] = summary_report(strat.trades.apply_trailing_stop(strat, s))
-    return result
-
-def test_stop_loss(strat, stops):
-    result = pd.DataFrame(columns = [0] + stops)
-    result[0] = summary_report(strat.trades)
-    for s in stops:
-        result[s] = summary_report(strat.trades.apply_stop_loss(strat, s))
-    return result

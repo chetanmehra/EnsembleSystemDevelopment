@@ -8,7 +8,7 @@ from numpy import sign
 from math import log
 
 from System.Strategy import StrategyContainerElement, PositionSelectionElement
-from System.Trade import TradeCollection, Trade
+from System.Indicator import Indicator
 
 
 class Position(StrategyContainerElement):
@@ -17,30 +17,6 @@ class Position(StrategyContainerElement):
         if type(data) is not DataFrame:
             raise TypeError
         self.data = data
-        self.trades = None
-
-
-    def create_trades(self, entry_prices, exit_prices):
-        trades = []
-        flags = self.data - self.shift(1).data
-        for ticker in self.tickers:
-            ticker_flags = flags[ticker]
-            entries = ticker_flags.index[ticker_flags > 0]
-            i = 0
-            while i < len(entries):
-                entry = entries[i]
-                i += 1
-                if i < len(entries):
-                    next = entries[i]
-                else:
-                    next = None
-                exit = ticker_flags[entry:next].index[ticker_flags[entry:next] < 0]
-                if len(exit) == 0:
-                    exit = ticker_flags.index[-1]
-                else:
-                    exit = exit[0]
-                trades.append(Trade(ticker, entry, exit, entry_prices[ticker], exit_prices[ticker]))
-        self.trades = TradeCollection(trades)
 
 
     @property
@@ -77,44 +53,6 @@ class Position(StrategyContainerElement):
         data = deepcopy(self.data)
         data = data.div(self.num_concurrent(), axis = 0)
         return Position(data)
-
-    def filter_summary(self, filter_values, boundaries):
-        return self.trades.filter_summary(filter_values, boundaries)
-
-    def filter_comparison(self, filter_values, filter1_type, filter2_type, boundaries1, boundaries2):
-        return self.trades.filter_comparison(filter_values, filter1_type, filter2_type, boundaries1, boundaries2)
-
-
-
-class FilteredPositions(Position):
-
-    def __init__(self, original_positions, new_positions, new_trades):
-        self.original_positions = original_positions
-        self.data = new_positions
-        self.trades = TradeCollection(new_trades)
-
-
-    def applied_to(self, returns):
-        return FilteredReturns(self.normalised().applied_to(returns), 
-                               self.original_positions.normalised().applied_to(returns))
-
-
-    def long_only(self):
-        long_positions = self.copy()
-        long_positions.data[long_positions.data < 0] = 0
-        long_positions.original_positions = long_positions.original_positions.long_only()
-        return long_positions
-
-    def short_only(self):
-        short_positions = self.copy()
-        short_positions.data[short_positions.data > 0] = 0
-        short_positions.original_positions = short_positions.original_positions.short_only()
-        return short_positions
-
-
-    def filter_summary(self, filter_values, boundaries):
-        return self.original_positions.filter_summary(filter_values, boundaries)
-
 
 
 
@@ -187,26 +125,6 @@ class AverageReturns(Returns):
 
     def plot(self, start = None, **kwargs):
         return super(AverageReturns, self).plot("mean", start, **kwargs)
-
-
-class FilteredReturns(Returns):
-
-    def __init__(self, main, other):
-        self.main_returns = main
-        self.comparison_returns = other
-
-
-    def plot(self, **kwargs):
-        self.main_returns.plot(label = "Filtered", **kwargs)
-        if "color" in kwargs:
-            specified_color = kwargs.pop("color")
-            if specified_color == "red":
-                color = "purple"
-        self.comparison_returns.plot(color = "red", label = "Base", **kwargs)
-
-    def annualised(self):
-        return self.main_returns.annualised()
-        
 
         
 

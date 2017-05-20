@@ -1,5 +1,4 @@
 from Indicators.Volatility import EfficiencyRatio
-from pandas.stats.moments import ewma
 from pandas import DataFrame
 
 class MovingAverage(object):
@@ -11,21 +10,21 @@ class MovingAverage(object):
         raise NotImplementedError()
 
 
-class EMA(object):
+class EMA(MovingAverage):
 
     def __init__(self, period):
         self.period = period
         self.name = 'EMA{}'.format(period)
     
     def __call__(self, prices):
-        return ewma(prices, span = self.period)
+        return prices.ewm(span = self.period).mean()
 
     def update_param(self, new_params):
         self.period = new_params
 
 
 
-class KAMA(object):
+class KAMA(MovingAverage):
 
     def __init__(self, period, fast = 2, slow = 30):
         self.fast = fast
