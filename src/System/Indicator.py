@@ -4,7 +4,6 @@ Created on 13 Dec 2014
 @author: Mark
 '''
 from System.Strategy import StrategyContainerElement
-from System.Trade import TradeCollection, Trade
 
 class Indicator(StrategyContainerElement):
     '''
@@ -30,33 +29,6 @@ class Indicator(StrategyContainerElement):
     
     def __len__(self):
         return len(self.data)
-
-    def create_trades(self, strategy):
-        ind = strategy.lagged_indicator
-        entry_prices = strategy.get_entry_prices()
-        exit_prices = strategy.get_exit_prices()
-        trades = []
-        flags = ind.data - ind.data.shift(1)
-        flags.ix[0] = 0
-        flags.ix[0][ind.data.ix[0] != 0] = 1
-        for ticker in flags:
-            ticker_flags = flags[ticker]
-            entries = ticker_flags.index[ticker_flags > 0]
-            i = 0
-            while i < len(entries):
-                entry = entries[i]
-                i += 1
-                if i < len(entries):
-                    next = entries[i]
-                else:
-                    next = None
-                exit = ticker_flags[entry:next].index[ticker_flags[entry:next] < 0]
-                if len(exit) == 0:
-                    exit = ticker_flags.index[-1]
-                else:
-                    exit = exit[0]
-                trades.append(Trade(ticker, entry, exit, entry_prices[ticker], exit_prices[ticker]))
-        return TradeCollection(trades)
 
     def plot_measures(self, ticker, start = None, end = None, ax = None):
         self.measures.minor_xs(ticker)[start:end].plot(ax = ax)

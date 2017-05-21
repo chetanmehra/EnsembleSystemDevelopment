@@ -76,6 +76,11 @@ class Strategy(object):
 
     def get_empty_dataframe(self):
         return self.market.get_empty_dataframe()
+
+    def buy_and_hold_trades(self):
+        signal_data = self.get_empty_dataframe()
+        signal_data[:] = 1
+        return createTrades(signal_data, self)
             
     @property    
     def lagged_indicator(self):
@@ -114,6 +119,7 @@ class Strategy(object):
         returns.plot(start = start, color = color, **kwargs)
         self.market_returns.plot(start = start, color = "black", label = "Market")
         plt.legend(loc = "upper left")
+
 
     def plot_trade(self, key):
         trades = self.trades[key]
@@ -317,7 +323,6 @@ class Indexer(object):
             lag = 0
         else:
             lag = 1
-        #trade_open = getattr(market, timing_map[self.trade_timing[0]])
         trade_close = getattr(market, timing_map[self.trade_timing[1]])
         return (trade_close / trade_close.shift(lag)) - 1
 
@@ -373,22 +378,6 @@ class EnsembleStrategy(ModelStrategy):
             sub_returns = strategy.returns.collapse_by(collapse_fun)
             returns.append(sub_returns)
         return returns
-
-    def filter_summary(self, filter_values, boundaries):
-
-        mu = {}
-        sd = {}
-        N = {}
-
-        for strategy in self.strategies:
-            print("Calculating strat: " + strategy.name)
-            summary = strategy.filter_summary(filter_values, boundaries)
-            mu[strategy.name] = summary["mean"]
-            sd[strategy.name] = summary["std"]
-            N[strategy.name] = summary["count"]
-            
-
-        return {"mean" : Panel(mu), "std" : Panel(sd), "count" : Panel(N)}
 
     
     def plot_returns(self, long_only = False, short_only = False, color = "blue", **kwargs):

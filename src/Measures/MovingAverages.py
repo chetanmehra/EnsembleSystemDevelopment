@@ -1,4 +1,4 @@
-from Indicators.Volatility import EfficiencyRatio
+from .Volatility import EfficiencyRatio
 from pandas import DataFrame
 
 class MovingAverage(object):

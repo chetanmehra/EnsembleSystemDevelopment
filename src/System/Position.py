@@ -11,6 +11,19 @@ from System.Strategy import StrategyContainerElement, PositionSelectionElement
 from System.Indicator import Indicator
 
 
+
+def createPositionFromTrades(trades, strategy, pos_size = 1):
+
+    pos_data = strategy.get_empty_dataframe()
+    pos_data[:] = 0
+    for t in trades.as_list():
+        if isinstance(pos_size, Position):
+            pos_data.loc[t.entry:t.exit, t.ticker] = pos_size.data.loc[t.entry:t.exit, t.ticker]
+        else:
+            pos_data.loc[t.entry:t.exit, t.ticker] = pos_size
+    return Position(pos_data)
+
+
 class Position(StrategyContainerElement):
     
     def __init__(self, data):

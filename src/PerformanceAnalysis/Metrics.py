@@ -3,6 +3,7 @@
 # Each of these methods expect a pandas Series.
 
 from pandas import Series
+from numpy import sign
 from sklearn.linear_model import LinearRegression
 
 def Sharpe(returns):
@@ -14,6 +15,11 @@ def OptF(returns):
 def G(returns):
     S_sqd = Sharpe(returns) ** 2
     return ((1 + S_sqd) ** 2 - S_sqd) ** 0.5 - 1
+
+def GeometricGrowth(returns, N = 1):
+    G_base = ((1 + returns.mean()) ** 2 - (returns.std() ** 2))
+    G = (abs(G_base) ** 0.5)
+    return sign(G_base) * (G ** N) - 1
 
 def K_Ratio(returns):
     lm = LinearRegression(fit_intercept = False)

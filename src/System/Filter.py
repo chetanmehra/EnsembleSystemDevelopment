@@ -25,16 +25,19 @@ class FilterValues:
     def __getitem__(self, key):
         raise NotImplementedError
 
-    def get(self, df, row):
-        relevant_values = self.find_relevant_values(df, row)
+
+    def get(self, ticker, date):
+        relevant_values = self.find_relevant_values(ticker, date)
         return self.most_recent(relevant_values)
 
-    def find_relevant_values(self, df, row):
+    def get_for_df(self, df, row):
         ticker = df.ticker[row]
         date = df.entry[row]
+        return self.get(ticker, date)
+
+    def find_relevant_values(self, ticker, date):
         tick_values = self[ticker]
         return tick_values[tick_values.index < date]
-
 
     def most_recent(self, relevant_values):
         if relevant_values.empty:
@@ -79,12 +82,12 @@ class StackedFilterValues(FilterValues):
     def get_plot_frame(self):
         return self.as_wide_values().values
 
+
 class WideFilterValues(FilterValues):
 
     '''
     Wide filters contain one type of filter with a column for each ticker.
     '''
-
     def __getitem__(self, key):
         return self.values[[key]]
 
@@ -92,17 +95,3 @@ class WideFilterValues(FilterValues):
     def types(self):
         return [self.name]
 
-
-class ValueFilterValues(StackedFilterValues):
-    '''
-    Returns the ratio of the calculated value to the price at time of entry.
-    '''
-
-    def get(self, df, row):
-        relevant_values = self.find_relevant_values(df, row)
-        price = df.entry_price[row]
-        recent = self.most_recent(relevant_values)
-        if recent is not None:
-            return recent / price
-        else:
-            return recent

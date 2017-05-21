@@ -4,16 +4,19 @@ from numpy import sign, log, hstack
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
-
+# Factory methods
 def createTrades(signal_data, strategy):
     entry_prices = strategy.get_entry_prices()
     exit_prices = strategy.get_exit_prices()
     trades = []
     flags = signal_data - signal_data.shift(1)
     # clear missing values from first rows
-    for row in range(4):
-        if all(flags.ix[row].isnull()):
-            flags.ix[row] = 0
+    start_row = 0
+    while all(flags.ix[start_row].isnull()):
+        flags.ix[start_row] = 0
+        start_row += 1
+    # Add trade entries occuring on first day
+    flags.ix[start_row][signal_data._ix[start_row] != 0] = signal_data.ix[start_row][signal_data._ix[start_row] != 0]
     for ticker in flags:
         ticker_flags = flags[ticker]
         entries = ticker_flags.index[ticker_flags > 0]
@@ -75,7 +78,7 @@ class TradeCollection(object):
         if len(cols) == 1:
             cols = cols[0]
         for i in df.index:
-            df.loc[i, cols] = filter.get(df, i)
+            df.loc[i, cols] = filter.get_for_df(df, i)
         return df
 
     @property

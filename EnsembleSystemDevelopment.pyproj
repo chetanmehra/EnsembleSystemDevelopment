@@ -33,7 +33,7 @@
     <Compile Include="src\Measures\Oscillators.py" />
     <Compile Include="src\Measures\Volatility.py" />
     <Compile Include="src\Measures\__init__.py" />
-    <Compile Include="src\LevelMeasures\Trend.py">
+    <Compile Include="src\LevelMeasures\TrendLevels.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="src\LevelMeasures\__init__.py">

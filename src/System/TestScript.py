@@ -8,12 +8,12 @@ from System.Market import Market
 from System.Strategy import ModelStrategy, SignalStrategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
 from Signals.Trend import Crossover
-from LevelMeasures.Trend import TrueFalseCross
-from Indicators.MovingAverages import EMA, KAMA
+from LevelMeasures.TrendLevels import TrueFalseCross
+from Measures.MovingAverages import EMA, KAMA
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from System.Position import SingleLargestF, DefaultPositions
-from Filters.Value import ValueRangeFilter
-from System.Filter import StackedFilterValues, WideFilterValues, ValueFilterValues
+from Filters.Value import ValueRangeFilter, ValueFilterValues
+from System.Filter import StackedFilterValues, WideFilterValues
 from System.Trade import TradeCollection
 from PerformanceAnalysis.Trades import summary_report
 from multiprocessing import Pool
@@ -21,6 +21,11 @@ import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+
+
+# TODO Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
+
+
 
 pd.set_option('display.width', 120)
 
@@ -225,9 +230,6 @@ def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
     return strategy
 
 
-
-# TODO Calculate trend detection benchmark data (i.e. with perfect hindsight).
-# TODO Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
 
 
 short_pars = [1, 5, 10, 20, 35, 50]

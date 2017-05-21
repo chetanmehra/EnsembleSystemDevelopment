@@ -1,6 +1,7 @@
 
 from pandas import qcut, cut, concat, Series, DataFrame
 from numpy import random
+from .Metrics import GeometricGrowth, OptF
 
 # Analysis of Filter performance with trades
 
@@ -130,8 +131,11 @@ def summary_returns(trades):
     returns['Sharpe by trade inc slippage'] = round(trades.returns_slippage.mean() / trades.returns_slippage.std(), 2)
     returns['Sharpe annualised'] = round(trades.Sharpe_annual, 2)
     returns['Sharpe annualised inc slippage'] = round(trades.Sharpe_annual_slippage, 2)
+    returns['Opt F'] = round(OptF(trades.returns), 2)
     returns['G by trade'] = round(trades.G, 2)
     returns['G annualised'] = round(trades.G_annual, 2)
+    # HACK geometric growth rate has assumed in the market 100%
+    returns['Geom. growth rate'] = round(GeometricGrowth(trades.returns, 250 / trades.durations.mean()), 2)
     return returns
 
 def summary_duration(trades):
@@ -219,7 +223,7 @@ def cross_validate_positions(strategy, positionSelector, N = 20, subset_fraction
     for n in range(N):
         sample_tickers = list(random.choice(tickers, sample_size, replace = False))
         trade_subset = trades.find(lambda T: T.ticker in sample_tickers)
-        strategy.positions.trades = trade_subset    
+        strategy.trades = trade_subset    
         strategy.positions = positionSelector(strategy)
         sub_returns = strategy.returns.plot(start = start_date, color = 'grey')
 

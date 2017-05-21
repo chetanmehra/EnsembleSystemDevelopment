@@ -1,16 +1,32 @@
 
-from System.Filter import FilterInterface
+from System.Filter import FilterInterface, StackedFilterValues
 from System.Trade import Trade, TradeCollection
+
+
+
+class ValueFilterValues(StackedFilterValues):
+    '''
+    Returns the ratio of the calculated value to the price at time of entry.
+    '''
+
+    def get_for_df(self, df, row):
+        ticker = df.ticker[row]
+        date = df.entry[row]
+        recent = self.get(ticker, date)
+        price = df.entry_price[row]
+        if recent is not None:
+            return recent / price
+        else:
+            return recent
 
 
 class ValueRangeFilter(FilterInterface):
 
-    def __init__(self, signal, values, filter_range):
+    def __init__(self, values, filter_range):
         '''
         Requires that values is a DataFrame with first column 'ticker' and next column filter values.
         filter_range should be a tuple representing the acceptable filter range.
         '''
-        super().__init__(signal)
         self.values = values
         self.left = min(filter_range)
         self.right = max(filter_range)
@@ -18,19 +34,21 @@ class ValueRangeFilter(FilterInterface):
         self.name = '{}:{}-{}'.format(values.name, *filter_range)
 
 
-    # HACK trade filtering is clunky; should use TradeCollection.find()
+    def accepted_trade(self, trade):
+        '''
+        Returns True if the trade meets the filter criterion, else False.
+        '''
+        value = self.values.get(trade.ticker, trade.entry)
+        try:
+            ratio = value / trade.entry_price
+        except TypeError:
+            return False
+        else:
+            return (ratio > self.left) and (ratio <= self.right)
+
+
     def __call__(self, strategy):
-        trades = strategy.trades.as_list()
-        trade_frame = strategy.trades.as_dataframe_with(self.values)
-        filtered_bools = (trade_frame[self.filter_name] > self.left) & (trade_frame[self.filter_name] <= self.right)
-
-        accepted_trades = []
-
-        for i, keep in enumerate(filtered_bools.values):
-            if keep:
-                accepted_trades.append(trades[i])
-        
-        return TradeCollection(accepted_trades)
+        return strategy.trades.find(self.accepted_trade)
 
 
     def plot(self, ticker, start, end, ax):
