@@ -18,8 +18,8 @@ class FilterPerformance():
                 self.trade_df[col] = None
             if len(cols) == 1:
                 cols = cols[0]
-            for i in df.index:
-                self.trade_df.loc[i, cols] = filter.get(df, i)
+            for i in self.trade_df.index:
+                self.trade_df.loc[i, cols] = filter.get(self.trade_df, i)
 
     def filter_summary(self, filter_values, bins = 5):
         '''

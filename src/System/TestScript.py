@@ -188,29 +188,43 @@ dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT',
 good_tickers = list(valued_tickers)
 [good_tickers.remove(tick) for tick in dodgy_tickers]
 
+
 def getValues(type = None):
-    import pandas
-    vals = pandas.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
+    vals = pd.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
+    if type is not None:
+        vals = vals[["ticker", type]]
+    return ValueFilterValues(vals, type)
+
+def getNyseValues(type = None):
+    vals = pd.read_excel(r'D:\Investing\Workspace\NYSEvaluations20170527.xlsx', index_col = 0)
     if type is not None:
         vals = vals[["ticker", type]]
     return ValueFilterValues(vals, type)
 
 
 def getValueMetrics(type = None):
-    import pandas
-    vals = pandas.read_excel(r'D:\Investing\Workspace\ValueMetrics20170329.xlsx', index_col = 0)
+    vals = pd.read_excel(r'D:\Investing\Workspace\ValueMetrics20170329.xlsx', index_col = 0)
     if type is not None:
         vals = vals[["ticker", type]]
     return StackedFilterValues(vals, type)
 
 
 def getMarket():
-    market = Market(good_tickers, "start", "end")
-    import pandas
-    instruments = pandas.read_pickle(r'D:\Investing\Workspace\market_instruments.pkl')
+    instruments = pd.read_pickle(r'D:\Investing\Workspace\market_instruments.pkl')
+    start = instruments.iloc[0].index.min().to_pydatetime().date()
+    end = instruments.iloc[0].index.max().to_pydatetime().date()
+    market = Market(good_tickers, start, end)
     market.instruments = instruments.loc[good_tickers, :, :]
     return market
 
+def getNyseMarket():
+    instruments = pd.load_pickle(r'D:\Investing\Workspace\nyse_instruments.pkl')
+    tickers = list(instruments.items)
+    start = instruments.iloc[0].index.min().to_pydatetime().date()
+    end = instruments.iloc[0].index.max().to_pydatetime().date()
+    market = Market(tickers, start, end)
+    market.instruments = instruments
+    return market
     
 
 def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
@@ -281,3 +295,4 @@ def parallel_test_pars(short_pars, long_pars):
         sharpes.loc[R[0], R[1]] = R[2]["Sharpe annualised inc slippage"]
         summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))
+

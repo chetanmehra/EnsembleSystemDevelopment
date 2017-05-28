@@ -6,7 +6,7 @@
     <ProjectGuid>{feda7fc8-f9bd-4587-bae3-d0ab29e83788}</ProjectGuid>
     <ProjectHome />
     <StartupFile>src\System\TestScript.py</StartupFile>
-    <SearchPath>src\System\;src\</SearchPath>
+    <SearchPath>src\System\;src\;..\Investing\Investing</SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
