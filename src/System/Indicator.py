@@ -44,10 +44,10 @@ class LevelIndicator(Indicator):
     @property
     def levels(self):
         if self._levels is None:
-            for ticker in self.data:
-                data = self.data[ticker]
-                data = data[notnull(data)]
-                self._levels = set(data)
+            # HACK levels are determined from the first column only
+            data = self.data.iloc[:, 0]
+            data = data[data.notnull()]
+            self._levels = set(data)
             self._levels = sorted(self._levels)
         return self._levels
 
