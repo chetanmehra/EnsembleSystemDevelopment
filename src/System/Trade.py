@@ -9,14 +9,16 @@ def createTrades(signal_data, strategy):
     entry_prices = strategy.get_entry_prices()
     exit_prices = strategy.get_exit_prices()
     trades = []
-    flags = signal_data - signal_data.shift(1)
+    signal_sign = (signal_data > 0) * 1
+    signal_sign[signal_data < 0] = -1
+    flags = signal_sign - signal_sign.shift(1)
     # clear missing values from first rows
     start_row = 0
     while all(flags.ix[start_row].isnull()):
         flags.ix[start_row] = 0
         start_row += 1
     # Add trade entries occuring on first day
-    flags.ix[start_row][signal_data._ix[start_row] != 0] = signal_data.ix[start_row][signal_data._ix[start_row] != 0]
+    flags.ix[start_row][signal_sign.ix[start_row] != 0] = signal_sign.ix[start_row][signal_sign.ix[start_row] != 0]
     for ticker in flags:
         ticker_flags = flags[ticker]
         entries = ticker_flags.index[ticker_flags > 0]
@@ -33,7 +35,7 @@ def createTrades(signal_data, strategy):
                 exit = ticker_flags.index[-1]
             else:
                 exit = exit[0]
-            trades.append(Trade(ticker, entry, exit, entry_prices[ticker], exit_prices[ticker]))
+            trades.append(Trade(ticker, entry, exit, entry_prices[ticker], exit_prices[ticker], signal_data[ticker]))
     return TradeCollection(trades)
 
 
@@ -304,7 +306,7 @@ class TradeCollection(object):
 
 class Trade(object):
 
-    def __init__(self, ticker, entry_date, exit_date, entry_prices, exit_prices):
+    def __init__(self, ticker, entry_date, exit_date, entry_prices, exit_prices, position_size = 1):
         self.ticker = ticker
         self.entry = entry_date
         self.exit = exit_date
@@ -312,9 +314,10 @@ class Trade(object):
         self.exit_price = self.get_price(exit_date, exit_prices)
 
         prices = exit_prices[self.entry:self.exit]
-        self.daily_returns = Series(prices / prices.shift(1)) - 1
-        self.daily_returns[0] = (prices[0] / self.entry_price) - 1
-        self.normalised = Series((exit_prices[self.entry:self.exit] / self.entry_price).values) - 1
+        daily_returns = Series(prices / prices.shift(1)) - 1
+        daily_returns[0] = (prices[0] / self.entry_price) - 1
+        self.daily_returns = daily_returns * position_size[self.entry:self.exit]
+        self.normalised = Series(log(1 + self.daily_returns).cumsum()) - 1
         # Note: duration is measured by days-in-market not calendar days
         self.duration = len(self.normalised)
         self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]

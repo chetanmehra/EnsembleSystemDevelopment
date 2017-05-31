@@ -46,7 +46,7 @@ class LevelIndicator(Indicator):
         if self._levels is None:
             for ticker in self.data:
                 data = self.data[ticker]
-                data = data[notnull(data)]
+                data = data[data.notnull()]
                 self._levels = set(data)
             self._levels = sorted(self._levels)
         return self._levels

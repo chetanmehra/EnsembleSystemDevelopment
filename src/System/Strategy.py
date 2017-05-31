@@ -166,7 +166,7 @@ class SignalStrategy(Strategy):
 
     def initialise(self):
         self.indicator = self.signal(self)
-        self.trades = createTrades(self.lagged_indicator.data, self)
+        self.trades = createTrades(self.lagged_indicator.data.astype(float), self)
         for filter in self.filters:
             self.trades = filter(self)
 
