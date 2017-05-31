@@ -5,7 +5,7 @@ Created on 20 Dec 2014
 '''
 import pandas as pd
 import numpy as np
-from numpy import NaN, mean, std, empty, isinf
+from numpy import NaN, empty, isinf
 from copy import deepcopy
 from pandas.core.panel import Panel
 from System.Strategy import StrategyContainerElement, ModelElement
@@ -108,7 +108,7 @@ class BlockForecaster(ModelElement):
         self.window = window   
     
     def execute(self, strategy):
-        indicator = strategy.lagged_indicator
+        indicator = strategy.indicator
         returns = strategy.market_returns
         mean_fcst, sd_fcst = self.forecast_mean_sd(indicator, returns)
         return Forecast(mean_fcst, sd_fcst)
@@ -119,30 +119,31 @@ class BlockForecaster(ModelElement):
         levels = indicator.levels
         headings = ["Forecast"] + levels
         
-        template = empty([len(headings), len(indicator), len(tickers)])
-        template[:] = NaN
-        mean_fcst = pd.Panel(template.copy(), 
-                             items = headings, 
-                             major_axis = indicator.index, 
-                             minor_axis = tickers)
-        sd_fcst = deepcopy(mean_fcst)
+        mean_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+        sd_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
         
         for ticker in tickers:
-            inds = indicator[ticker]
+            # HACK indicator and return lags are hard coded in BlockForecaster
+            # indicator for decision is available at the same time of forecasting, no lag
+            decision_inds = indicator[ticker]
+            # indicator aligned with returns needs to be return lag + 1 (2 total)
+            # however, when indexing into dataframe the current day is not returned so 
+            # is in effect one day lag built in already. Therefore only shift 1.
+            aligned_inds = indicator[ticker].shift(1)
+            # returns need to be lagged one day for "CC", "O" timings
+            # As above, indexing into dataframe effectively already includes lag of 1.
             rtns = returns[ticker]
-            for i, lvl in enumerate(inds):
-                j = i + 1
-                if j < self.window:
-                    pass
-                else:
-                    ind = inds[(j - self.window):j]
-                    rtn = rtns[(j - self.window):j]
-                    for level in levels:
-                        level_returns = rtn[[ind_val == level for ind_val in ind]]
-                        mean_fcst[level][ticker][i] = mean(level_returns)
-                        sd_fcst[level][ticker][i] = std(level_returns)
-                    mean_fcst["Forecast"][ticker][i] = mean_fcst[lvl][ticker][i]
-                    sd_fcst["Forecast"][ticker][i] = sd_fcst[lvl][ticker][i]
+            for i, lvl in enumerate(decision_inds):
+                if i < self.window:
+                    continue
+                ind = aligned_inds[(i - self.window):i]
+                rtn = rtns[(i - self.window):i]
+                for level in levels:
+                    level_returns = rtn[ind == level]
+                    mean_fcst[level][ticker][i] = level_returns.mean()
+                    sd_fcst[level][ticker][i] = level_returns.std()
+                mean_fcst["Forecast"][ticker][i] = mean_fcst[lvl][ticker][i]
+                sd_fcst["Forecast"][ticker][i] = sd_fcst[lvl][ticker][i]
         
         return (mean_fcst, sd_fcst)
     

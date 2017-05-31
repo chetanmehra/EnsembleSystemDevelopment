@@ -239,6 +239,7 @@ class StrategyElement(object):
         if not self.created(result):
             result = self.execute(strategy)
             result.creator = self.ID
+            result.indexer = strategy.indexer
         return result
 
     
@@ -277,6 +278,27 @@ class StrategyContainerElement(object):
         lagged = self.copy()
         lagged.data = lagged.data.shift(lag)
         return lagged
+
+    def at(self, timing, align_with = None):
+        '''
+        'at' returns a lagged version of the data appropriate for the timing, and alignment.
+        The indexer is relied on to calculate the appropriate lag values.
+        timing and align_with may be one of: "decision", "entry", "exit"
+        align_with may also be "returns" which is effectively the same as "exit" but provided for clarity.
+        '''
+        lag = self.get_lag(timing)
+        if align_with is not None:
+            lag += self.get_lag(align_with)
+        return self.shift(lag)
+
+    def get_lag(self, timing):
+        if timing == "decision":
+            timing_lag = 0
+        elif timing == "entry":
+            timing_lag = 1 * ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
+        elif timing in ["exit", "returns"]:
+            timing_lag = 1 + ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
+        return timing_lag
 
     @property
     def index(self):
@@ -323,8 +345,9 @@ class Indexer(object):
             lag = 0
         else:
             lag = 1
+        trade_open = getattr(market, timing_map[self.trade_timing[0]])
         trade_close = getattr(market, timing_map[self.trade_timing[1]])
-        return (trade_close / trade_close.shift(lag)) - 1
+        return (trade_open / trade_close.shift(lag)) - 1
 
         
 class StrategyException(Exception):
