@@ -100,9 +100,11 @@ class NullForecaster(ModelElement):
 
 class BlockForecaster(ModelElement):
     
-    def __init__(self, window):
+    def __init__(self, window, pooled = False, average = "mean"):
         self.window = window
         self.name = 'Block Forecast (window: {})'.format(window)
+        self.pooled = pooled
+        self.average = average
      
     def update_param(self, window):
         self.window = window   
@@ -110,10 +112,13 @@ class BlockForecaster(ModelElement):
     def execute(self, strategy):
         indicator = strategy.indicator
         returns = strategy.market_returns
-        mean_fcst, sd_fcst = self.forecast_mean_sd(indicator, returns)
+        if self.pooled:
+            mean_fcst, sd_fcst = self.pooled_forecast_mean_sd(indicator, returns, self.average)
+        else:
+            mean_fcst, sd_fcst = self.forecast_mean_sd(indicator, returns, self.average)
         return Forecast(mean_fcst, sd_fcst)
     
-    def forecast_mean_sd(self, indicator, returns):
+    def forecast_mean_sd(self, indicator, returns, average):
         
         tickers = returns.columns
         levels = indicator.levels
@@ -140,13 +145,49 @@ class BlockForecaster(ModelElement):
                 rtn = rtns[(i - self.window):i]
                 for level in levels:
                     level_returns = rtn[ind == level]
-                    mean_fcst[level][ticker][i] = level_returns.mean()
+                    if average == "mean":
+                        mean_fcst[level][ticker][i] = level_returns.mean()
+                    else:
+                        mean_fcst[level][ticker][i] = level_returns.median()
                     sd_fcst[level][ticker][i] = level_returns.std()
                 mean_fcst["Forecast"][ticker][i] = mean_fcst[lvl][ticker][i]
                 sd_fcst["Forecast"][ticker][i] = sd_fcst[lvl][ticker][i]
         
         return (mean_fcst, sd_fcst)
+ 
     
+    def pooled_forecast_mean_sd(self, indicator, returns, average):
+        
+        tickers = returns.columns
+        levels = indicator.levels
+        headings = ["Forecast"] + levels
+        
+        mean_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+        sd_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+        
+        decision_inds = indicator.data
+        aligned_inds = indicator.data.shift(1)
+        rtns = returns.data
+        for i in range(len(decision_inds)):
+            if i < self.window:
+                continue
+            ind = aligned_inds[(i - self.window):i]
+            rtn = rtns[(i - self.window):i]
+            for level in levels:
+                level_returns = rtn[ind == level].unstack()
+                if average == "mean":
+                    mean_fcst[level][:][i] = level_returns.mean()
+                else:
+                    mean_fcst[level][:][i] = level_returns.median()
+                sd_fcst[level][:][i] = level_returns.std()
+            ticker_levels = decision_inds.ix[i]
+            for ticker in tickers:
+                lvl = ticker_levels[ticker]
+                mean_fcst["Forecast"][ticker][i] = mean_fcst[lvl][ticker][i]
+                sd_fcst["Forecast"][ticker][i] = sd_fcst[lvl][ticker][i]
+        
+        return (mean_fcst, sd_fcst)    
+
 
 class BlockMeanReturnsForecaster(ModelElement):
     

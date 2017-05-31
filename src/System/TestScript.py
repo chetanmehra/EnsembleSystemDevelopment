@@ -296,3 +296,9 @@ def parallel_test_pars(short_pars, long_pars):
         summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))
 
+
+
+def compareBlockForecastMethods():
+
+    strat = baseStratSetup()
+    strat.model = BlockForecaster(100)

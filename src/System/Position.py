@@ -152,6 +152,14 @@ class DefaultPositions(PositionSelectionElement):
         return 'Default positions'
 
 
+class OptimalPositions(PositionSelectionElement):
+
+    def execute(self, strategy):
+        return Position(strategy.forecasts.optF())
+
+    @property
+    def name(self):
+        return 'Optimal F positions'
 
 
 class SingleLargestF(PositionSelectionElement):
