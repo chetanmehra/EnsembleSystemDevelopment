@@ -317,7 +317,7 @@ class Trade(object):
         daily_returns = Series(prices / prices.shift(1)) - 1
         daily_returns[0] = (prices[0] / self.entry_price) - 1
         self.daily_returns = daily_returns * position_size[self.entry:self.exit]
-        self.normalised = Series(log(1 + self.daily_returns).cumsum()) - 1
+        self.normalised = Series((log(1 + self.daily_returns).cumsum()).values)
         # Note: duration is measured by days-in-market not calendar days
         self.duration = len(self.normalised)
         self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]

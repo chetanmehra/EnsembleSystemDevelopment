@@ -11,7 +11,7 @@ from Signals.Trend import Crossover
 from LevelMeasures.TrendLevels import TrueFalseCross
 from Measures.MovingAverages import EMA, KAMA
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
-from System.Position import SingleLargestF, DefaultPositions
+from System.Position import SingleLargestF, DefaultPositions, OptimalPositions
 from Filters.Value import ValueRangeFilter, ValueFilterValues
 from System.Filter import StackedFilterValues, WideFilterValues
 from System.Trade import TradeCollection
@@ -300,5 +300,58 @@ def parallel_test_pars(short_pars, long_pars):
 
 def compareBlockForecastMethods():
 
+    results = pd.DataFrame()
+
+    signal_strat = signalStratSetup()
+    signal_strat.run()
+
+    trades = {}
+
+    results['Base'] = summary_report(signal_strat.trades)
+    trades['base'] = signal_strat.trades
+
+
     strat = baseStratSetup()
+    print("Base fcst...")
     strat.model = BlockForecaster(100)
+    strat.select_positions = OptimalPositions()
+    strat.run()
+    try:
+        results['Base forecast'] = summary_report(strat.trades)
+    except Exception:
+        pass
+    trades['unpooled mean fcst'] = strat.trades
+
+    print("Pooled mean fcst...")
+    strat.reset()
+    strat.model = BlockForecaster(100, pooled = True)
+    strat.run()
+    try:
+        results['Pooled mean fcst'] = summary_report(strat.trades)
+    except Exception:
+        pass
+    trades['pooled mean fcst'] = strat.trades
+
+    print("Unpooled median fcst...")
+    strat.reset()
+    strat.model = BlockForecaster(100, average = 'median')
+    strat.run()
+    try:
+        results['Unpooled median fcst'] = summary_report(strat.trades)
+    except Exception:
+        pass
+    trades['unpooled median fcst'] = strat.trades
+
+    print("Pooled median fcst...")
+    strat.reset()
+    strat.model = BlockForecaster(100, pooled = True, average = 'median')
+    strat.run()
+    try:
+        results['Pooled median fcst'] = summary_report(strat.trades)
+    except Exception:
+        pass
+    trades['pooled median fcst'] = strat.trades
+
+    return (results, trades)
+
+

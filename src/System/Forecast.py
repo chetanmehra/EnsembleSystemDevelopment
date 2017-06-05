@@ -7,9 +7,10 @@ import pandas as pd
 import numpy as np
 from numpy import NaN, empty, isinf
 from copy import deepcopy
-from pandas.core.panel import Panel
-from System.Strategy import StrategyContainerElement, ModelElement
+from pandas import Panel
 from pandas.stats.moments import rolling_mean, rolling_std
+from System.Strategy import StrategyContainerElement, ModelElement
+
 
 
 class Forecast(StrategyContainerElement):
@@ -168,7 +169,8 @@ class BlockForecaster(ModelElement):
         decision_inds = indicator.data
         aligned_inds = indicator.data.shift(1)
         rtns = returns.data
-        for i in range(len(decision_inds)):
+        i = self.window
+        while i < len(decision_inds):
             if i < self.window:
                 continue
             ind = aligned_inds[(i - self.window):i]
@@ -176,13 +178,16 @@ class BlockForecaster(ModelElement):
             for level in levels:
                 level_returns = rtn[ind == level].unstack()
                 if average == "mean":
-                    mean_fcst[level][:][i] = level_returns.mean()
+                    mean_fcst[level].iloc[i, :] = level_returns.mean()
                 else:
-                    mean_fcst[level][:][i] = level_returns.median()
-                sd_fcst[level][:][i] = level_returns.std()
-            ticker_levels = decision_inds.ix[i]
-            for ticker in tickers:
-                lvl = ticker_levels[ticker]
+                    mean_fcst[level].iloc[i, :] = level_returns.median()
+                sd_fcst[level].iloc[i, :] = level_returns.std()
+            i += 1
+        mean_fcst = mean_fcst.fillna(method = 'ffill')
+        sd_fcst = sd_fcst.fillna(method = 'ffill')
+        for ticker in tickers:
+            decision_ind = decision_inds[ticker]
+            for i, lvl in enumerate(decision_ind):
                 mean_fcst["Forecast"][ticker][i] = mean_fcst[lvl][ticker][i]
                 sd_fcst["Forecast"][ticker][i] = sd_fcst[lvl][ticker][i]
         
@@ -209,6 +214,72 @@ class BlockMeanReturnsForecaster(ModelElement):
         
         return (mean_fcst, sd_fcst)
 
-    
+class SmoothDetrendedForecaster(ModelElement):
+
+    def __init__(self, span):
+        self.span = span
+        self.name = 'Smooth Detrended Fcst (span: {})'.format(span)
+
+    def update_param(self, span):
+        self.smooth = EMA(span)
+
+    def execute(self, strategy):
+        returns = strategy.market_returns
+        indicator = strategy.indicator
+        mean_fcst, sd_fcst = self.forecast_mean_sd(indicator, returns)
+        return Forecast(mean_fcst, sd_fcst)
+
+    def forecast_mean_sd(self, indicator, returns):
+
+        tickers = returns.columns
+        levels = indicator.levels
+        headings = ["Forecast"] + levels + ['trend'] + [L + "_detrend" for L in levels]
+        
+        measures = {}
+        for level in levels:
+            measures[level] = pd.DataFrame(NaN, index = indicator.index, columns = tickers)
+
+        mean_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+        sd_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+
+        # HACK indicator and return lags are hard coded in SmoothDetrendedForecaster
+        # indicator for decision is available at the same time of forecasting, no lag
+        decision_inds = indicator.data
+        # indicator aligned with returns needs to be return lag + 1 (2 total)
+        # however, when indexing into dataframe the current day is not returned so 
+        # is in effect one day lag built in already. Therefore only shift 1.
+        aligned_inds = indicator.data.shift(2)
+        # returns need to be lagged one day for "CC", "O" timings
+        # As above, indexing into dataframe effectively already includes lag of 1.
+        returns = returns.data.shift(1)
+
+        for day in decision_inds.index:
+            for level in levels:
+                level_index = aligned_inds.ix[day] == level
+                measures[level].loc[day, level_index] = returns.loc[day, level_index]
+
+        mean_fcst["trend"] = returns.ewm(span = self.span).mean()
+        sd_fcst["trend"] = returns.ewm(span = self.span).std()
+
+        for level in levels:
+            measures[level] = measures[level].fillna(method = 'ffill')
+            mean_fcst[level] = measures[level].ewm(span = self.span).mean()
+            mean_fcst[level + "_detrend"] = mean_fcst[level] - mean_fcst["trend"]
+            sd_fcst[level] = measures[level].ewm(span = self.span).std()
+            sd_fcst[level + "_detrend"] = sd_fcst[level] - sd_fcst["trend"]
+
+        for day in decision_inds.index:
+            for level in levels:
+                level_index = decision_inds.ix[day] == level
+                mean_fcst["Forecast"].loc[day, level_index] = mean_fcst[level + "_detrend"].loc[day, level_index]
+                sd_fcst["Forecast"].loc[day, level_index] = sd_fcst[level + "_detrend"].loc[day, level_index]
+
+        mean_fcst["Forecast"] = mean_fcst["Forecast"].fillna(method = 'ffill')
+        sd_fcst["Forecast"] = sd_fcst["Forecast"].fillna(method = 'ffill')
+        return (mean_fcst, sd_fcst)
+
+        
+
+
     
     

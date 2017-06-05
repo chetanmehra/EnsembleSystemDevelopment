@@ -42,7 +42,7 @@ class Strategy(object):
         raise NotImplementedError("Strategy must override initialise")
   
     def reset(self):
-        raise NotImplementedError("Strategy must override reinitialise")
+        raise NotImplementedError("Strategy must override reset")
 
     def apply_filter(self, filter):
         self.filters += [filter]
