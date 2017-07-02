@@ -6,7 +6,7 @@ Created on 6 Dec 2014
 
 import pandas_datareader
 import pickle
-#import quandl
+import quandl
 import os
 import re
 from datetime import date

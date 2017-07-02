@@ -25,6 +25,14 @@ import numpy as np
 
 # TODO Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
 
+# TODO Strategy idea
+# Conditions - Entry
+#   - Market index EMA(50-200) must be long
+#   - Individual ticker EMA(25-100) must be long
+#   - Ticker value ratio (Adjusted) > 3
+#   - Select top ranked stocks (e.g. 5 positions)
+# Conditions - Exit
+#   - Individual ticker EMA(25-100) goes short
 
 
 pd.set_option('display.width', 120)
@@ -218,7 +226,7 @@ def getMarket():
     return market
 
 def getNyseMarket():
-    instruments = pd.load_pickle(r'D:\Investing\Workspace\nyse_instruments.pkl')
+    instruments = pd.read_pickle(r'D:\Investing\Workspace\nyse_instruments.pkl')
     tickers = list(instruments.items)
     start = instruments.iloc[0].index.min().to_pydatetime().date()
     end = instruments.iloc[0].index.max().to_pydatetime().date()
