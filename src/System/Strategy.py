@@ -34,7 +34,7 @@ class Strategy(object):
         self.check_fields()
         self.initialise()
         
-    def refresh(self):
+    def rerun(self):
         self.reset()
         self.run()
         

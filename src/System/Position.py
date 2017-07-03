@@ -184,7 +184,9 @@ class SingleLargestF(PositionSelectionElement):
         return 'Single Largest F'
     
 class HighestRankedFs(PositionSelectionElement):
-    
+    '''
+    Provides equal weighted positions of the 'n' highest ranked opt F forecasts.
+    '''
     def __init__(self, num_positions):
         self.num_positions = num_positions
         self.name = '{} Highest Ranked Fs'.format(num_positions)
