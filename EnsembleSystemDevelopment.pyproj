@@ -54,6 +54,12 @@
     <Compile Include="src\PerformanceAnalysis\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="src\Rules\PositionRules.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\Rules\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="src\Signals\Trend.py">
       <SubType>Code</SubType>
     </Compile>
@@ -67,7 +73,7 @@
     <Compile Include="src\System\Filter.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="src\System\Rules.py">
+    <Compile Include="src\System\RulesOld.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="src\System\Trade.py">
@@ -91,6 +97,7 @@
     <Folder Include="src\Filters\" />
     <Folder Include="src\LevelMeasures\" />
     <Folder Include="src\PerformanceAnalysis\" />
+    <Folder Include="src\Rules\" />
     <Folder Include="src\Signals\" />
     <Folder Include="src\System" />
     <Folder Include="src\Measures\" />

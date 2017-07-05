@@ -9,6 +9,7 @@ from pandas import DateOffset, Panel, DataFrame, Series
 from System.Trade import Trade, TradeCollection, createTrades
 
 
+
 class Strategy(object):
     '''
     Strategy defines the base interface for Strategy objects
@@ -175,6 +176,34 @@ class SignalStrategy(Strategy):
         self.trades = None
 
 
+class AltStrategy(Strategy):
+    '''
+    Provides the interface for collating and testing trading hypotheses
+    '''
+    def __init__(self, trade_timing, ind_timing):
+        super().__init__(trade_timing, ind_timing)
+        self.name = "Strategy"
+        self.signal = None
+        self.positions = None
+        self.filters = []
+
+    def run(self):
+        self.generateSignals()
+        self.applyRules()
+        self.applyFilters()
+
+    def generateSignals(self):
+        self.signal = self.signal_generator(self)
+        
+    def applyRules(self):
+        self.positions = self.position_rules(self)
+        self.trades = createTrades(self.positions.data, self)
+
+    def applyFilters(self):
+        for filter in self.filters:
+            self.trades = filter(self)
+        self.positions.updateFromTrades(self.trades)
+
 
 class ModelStrategy(Strategy):
     '''
@@ -292,12 +321,13 @@ class StrategyContainerElement(object):
         return self.shift(lag)
 
     def get_lag(self, timing):
+        timing = timing.lower()
         if timing == "decision":
             timing_lag = 0
         elif timing == "entry":
-            timing_lag = 1 * ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
+            timing_lag = 1 #* ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
         elif timing in ["exit", "returns"]:
-            timing_lag = 1 + ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
+            timing_lag = 1 #+ ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
         return timing_lag
 
     @property
