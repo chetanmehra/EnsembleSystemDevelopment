@@ -269,6 +269,7 @@ class StrategyElement(object):
             result = self.execute(strategy)
             result.creator = self.ID
             result.indexer = strategy.indexer
+            result.calculation_timing = self.get_calculation_timing(strategy)
         return result
 
     
@@ -287,16 +288,33 @@ class MeasureElement(StrategyElement):
     def get_result(self, strategy):
         return strategy.indicator
 
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.ind_timing
+
 class ModelElement(StrategyElement):
     
     def get_result(self, strategy):
         return strategy.forecasts
+
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.ind_timing
     
 class PositionSelectionElement(StrategyElement):
     
     def get_result(self, strategy):
         return strategy.positions
 
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.trade_timing[0]
+
+
+class ReturnsElement(StrategyElement):
+
+    def get_result(self, strategy):
+        return None
+
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.trade_timing
 
 class StrategyContainerElement(object):
     '''
