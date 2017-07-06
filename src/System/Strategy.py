@@ -303,23 +303,43 @@ class StrategyContainerElement(object):
     StrategyContainerElements represent the data objects used by Strategy.
     Each StrategyContainerElement is assumed to have a (DataFrame) field called data.
     '''
+    def __init__(self):
+        self.lag = 0
+        self.calculation_start_timing = None # These need to be set based on strategy timing, and type of data object.
+        self.calculation_end_timing = None
+
     def shift(self, lag):
         lagged = self.copy()
         lagged.data = lagged.data.shift(lag)
+        lagged.lag += lag
         return lagged
 
-    def at(self, timing, align_with = None):
+    def at(self, timing):
         '''
-        'at' returns a lagged version of the data appropriate for the timing, and alignment.
-        The indexer is relied on to calculate the appropriate lag values.
-        timing and align_with may be one of: "decision", "entry", "exit"
-        align_with may also be "returns" which is effectively the same as "exit" but provided for clarity.
+        'at' returns a lagged version of the data appropriate for the timing.
+        Timing may be one of: "decision", "entry", "exit"
         '''
         lag = self.get_lag(timing)
-        if align_with is not None:
-            lag += self.get_lag(align_with)
         return self.shift(lag)
 
+    def alignWith(self, other):
+        '''
+        'alignWith' returns a lagged version of the data so that it is aligned with the 
+        timing of the supplied other data object. This ensures that this data will be available at the 
+        time creation of the other data object would have started.
+        The logic for the overall lag calculated in alignWith is as follows:
+        - total lag = alignment lag + other lag
+            - alignment lag = lag between this data calc end to the other data calc start
+            - other lag = the lag already applied to the other data.
+        '''
+        # TODO set calculation_start_timing and calculation_end_timing for strategy container objects
+        # TODO set lag 
+
+        alignment_lag = self.get_lag(other.calculation_start_timing)
+        total_lag = alignment_lag + other.lag
+        return self.shift(total_lag)
+
+    # TODO Fix get_lag for strategy container objects, should be calculated based on self.calculation_end_timing and target timing.
     def get_lag(self, timing):
         timing = timing.lower()
         if timing == "decision":
