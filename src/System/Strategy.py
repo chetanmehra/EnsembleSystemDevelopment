@@ -270,6 +270,7 @@ class StrategyElement(object):
             result.creator = self.ID
             result.indexer = strategy.indexer
             result.calculation_timing = self.get_calculation_timing(strategy)
+            result.lag = self.starting_lag()
         return result
 
     
@@ -308,13 +309,14 @@ class PositionSelectionElement(StrategyElement):
         return strategy.indexer.trade_timing[0]
 
 
-class ReturnsElement(StrategyElement):
+class ReturnCalculationElement(StrategyElement):
 
     def get_result(self, strategy):
         return None
 
     def get_calculation_timing(self, strategy):
         return strategy.indexer.trade_timing
+
 
 class StrategyContainerElement(object):
     '''
@@ -323,8 +325,7 @@ class StrategyContainerElement(object):
     '''
     def __init__(self):
         self.lag = 0
-        self.calculation_start_timing = None # These need to be set based on strategy timing, and type of data object.
-        self.calculation_end_timing = None
+        self.calculation_timing = None # May be single character (e.g. 'O'), or double (e.g. 'CC' for entry-exit)
 
     def shift(self, lag):
         lagged = self.copy()
@@ -335,7 +336,7 @@ class StrategyContainerElement(object):
     def at(self, timing):
         '''
         'at' returns a lagged version of the data appropriate for the timing.
-        Timing may be one of: "decision", "entry", "exit"
+        Timing may be one of: "O" or "C"
         '''
         lag = self.get_lag(timing)
         return self.shift(lag)
@@ -353,20 +354,20 @@ class StrategyContainerElement(object):
         # TODO set calculation_start_timing and calculation_end_timing for strategy container objects
         # TODO set lag 
 
-        alignment_lag = self.get_lag(other.calculation_start_timing)
+        alignment_lag = self.get_lag(other.calculation_timing[0])
         total_lag = alignment_lag + other.lag
         return self.shift(total_lag)
 
-    # TODO Fix get_lag for strategy container objects, should be calculated based on self.calculation_end_timing and target timing.
-    def get_lag(self, timing):
-        timing = timing.lower()
-        if timing == "decision":
-            timing_lag = 0
-        elif timing == "entry":
-            timing_lag = 1 #* ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
-        elif timing in ["exit", "returns"]:
-            timing_lag = 1 #+ ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
-        return timing_lag
+    def get_lag(self, target_timing):
+        '''
+        Calculate the lag between the completion of calculating this data object and the requested timing.
+        '''
+        if "OC" in self.calculation_timing[-1] + target_timing:
+            lag = 0
+        else:
+            lag = 1
+
+        return lag
 
     @property
     def index(self):
@@ -382,7 +383,7 @@ class StrategyContainerElement(object):
     def copy(self):
         return deepcopy(self)
 
-
+# TODO Indexer is most likely now reduntant once market returns calculations are sorted out.
 class Indexer(object):
     
     def __init__(self, trade_timing, ind_timing):
