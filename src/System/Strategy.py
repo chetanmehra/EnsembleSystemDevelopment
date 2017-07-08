@@ -9,6 +9,7 @@ from pandas import DateOffset, Panel, DataFrame, Series
 from System.Trade import Trade, TradeCollection, createTrades
 
 
+
 class Strategy(object):
     '''
     Strategy defines the base interface for Strategy objects
@@ -34,7 +35,7 @@ class Strategy(object):
         self.check_fields()
         self.initialise()
         
-    def refresh(self):
+    def rerun(self):
         self.reset()
         self.run()
         
@@ -175,6 +176,34 @@ class SignalStrategy(Strategy):
         self.trades = None
 
 
+class AltStrategy(Strategy):
+    '''
+    Provides the interface for collating and testing trading hypotheses
+    '''
+    def __init__(self, trade_timing, ind_timing):
+        super().__init__(trade_timing, ind_timing)
+        self.name = "Strategy"
+        self.signal = None
+        self.positions = None
+        self.filters = []
+
+    def run(self):
+        self.generateSignals()
+        self.applyRules()
+        self.applyFilters()
+
+    def generateSignals(self):
+        self.signal = self.signal_generator(self)
+        
+    def applyRules(self):
+        self.positions = self.position_rules(self)
+        self.trades = createTrades(self.positions.data, self)
+
+    def applyFilters(self):
+        for filter in self.filters:
+            self.trades = filter(self)
+        self.positions.updateFromTrades(self.trades)
+
 
 class ModelStrategy(Strategy):
     '''
@@ -240,6 +269,8 @@ class StrategyElement(object):
             result = self.execute(strategy)
             result.creator = self.ID
             result.indexer = strategy.indexer
+            result.calculation_timing = self.get_calculation_timing(strategy)
+            result.lag = self.starting_lag()
         return result
 
     
@@ -258,15 +289,33 @@ class MeasureElement(StrategyElement):
     def get_result(self, strategy):
         return strategy.indicator
 
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.ind_timing
+
 class ModelElement(StrategyElement):
     
     def get_result(self, strategy):
         return strategy.forecasts
+
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.ind_timing
     
 class PositionSelectionElement(StrategyElement):
     
     def get_result(self, strategy):
         return strategy.positions
+
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.trade_timing[0]
+
+
+class ReturnCalculationElement(StrategyElement):
+
+    def get_result(self, strategy):
+        return None
+
+    def get_calculation_timing(self, strategy):
+        return strategy.indexer.trade_timing
 
 
 class StrategyContainerElement(object):
@@ -274,31 +323,51 @@ class StrategyContainerElement(object):
     StrategyContainerElements represent the data objects used by Strategy.
     Each StrategyContainerElement is assumed to have a (DataFrame) field called data.
     '''
+    def __init__(self):
+        self.lag = 0
+        self.calculation_timing = None # May be single character (e.g. 'O'), or double (e.g. 'CC' for entry-exit)
+
     def shift(self, lag):
         lagged = self.copy()
         lagged.data = lagged.data.shift(lag)
+        lagged.lag += lag
         return lagged
 
-    def at(self, timing, align_with = None):
+    def at(self, timing):
         '''
-        'at' returns a lagged version of the data appropriate for the timing, and alignment.
-        The indexer is relied on to calculate the appropriate lag values.
-        timing and align_with may be one of: "decision", "entry", "exit"
-        align_with may also be "returns" which is effectively the same as "exit" but provided for clarity.
+        'at' returns a lagged version of the data appropriate for the timing.
+        Timing may be one of: "O" or "C"
         '''
         lag = self.get_lag(timing)
-        if align_with is not None:
-            lag += self.get_lag(align_with)
         return self.shift(lag)
 
-    def get_lag(self, timing):
-        if timing == "decision":
-            timing_lag = 0
-        elif timing == "entry":
-            timing_lag = 1 * ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
-        elif timing in ["exit", "returns"]:
-            timing_lag = 1 + ("OC" in self.indexer.ind_timing + self.indexer.trade_timing)
-        return timing_lag
+    def alignWith(self, other):
+        '''
+        'alignWith' returns a lagged version of the data so that it is aligned with the 
+        timing of the supplied other data object. This ensures that this data will be available at the 
+        time creation of the other data object would have started.
+        The logic for the overall lag calculated in alignWith is as follows:
+        - total lag = alignment lag + other lag
+            - alignment lag = lag between this data calc end to the other data calc start
+            - other lag = the lag already applied to the other data.
+        '''
+        # TODO set calculation_start_timing and calculation_end_timing for strategy container objects
+        # TODO set lag 
+
+        alignment_lag = self.get_lag(other.calculation_timing[0])
+        total_lag = alignment_lag + other.lag
+        return self.shift(total_lag)
+
+    def get_lag(self, target_timing):
+        '''
+        Calculate the lag between the completion of calculating this data object and the requested timing.
+        '''
+        if "OC" in self.calculation_timing[-1] + target_timing:
+            lag = 0
+        else:
+            lag = 1
+
+        return lag
 
     @property
     def index(self):
@@ -314,7 +383,7 @@ class StrategyContainerElement(object):
     def copy(self):
         return deepcopy(self)
 
-
+# TODO Indexer is most likely now reduntant once market returns calculations are sorted out.
 class Indexer(object):
     
     def __init__(self, trade_timing, ind_timing):

@@ -32,6 +32,14 @@ class Position(StrategyContainerElement):
         self.data = data
 
 
+    def updateFromTrades(self, trades):
+        new_pos_data = deepcopy(self.data)
+        new_pos_data[:] = 0
+        for trade in trades.as_list():
+            new_pos_data.loc[trade.entry:trade.exit, trade.ticker] = self.data.loc[trade.entry:trade.exit, trade.ticker]
+        return Position(new_pos_data)
+
+
     @property
     def start(self):
         num = self.num_concurrent()
@@ -184,7 +192,9 @@ class SingleLargestF(PositionSelectionElement):
         return 'Single Largest F'
     
 class HighestRankedFs(PositionSelectionElement):
-    
+    '''
+    Provides equal weighted positions of the 'n' highest ranked opt F forecasts.
+    '''
     def __init__(self, num_positions):
         self.num_positions = num_positions
         self.name = '{} Highest Ranked Fs'.format(num_positions)

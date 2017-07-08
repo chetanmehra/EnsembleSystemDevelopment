@@ -34,6 +34,11 @@ import numpy as np
 # Conditions - Exit
 #   - Individual ticker EMA(25-100) goes short
 
+# TODO Refactoring
+#   - Inherit strategy data element from dataframe
+#   - Fix indexer
+#   - 
+
 
 pd.set_option('display.width', 120)
 

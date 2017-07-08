@@ -17,7 +17,6 @@ class Handler(object):
     Handler uses the Pandas data functionality to download data and handle local storage.
     '''
 
-
     def __init__(self, location, exchange = "ASX"):
         '''
         Constructor
