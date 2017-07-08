@@ -306,7 +306,7 @@ class TradeCollection(object):
 
 class Trade(object):
 
-    def __init__(self, ticker, entry_date, exit_date, entry_prices, exit_prices, position_size = 1):
+    def __init__(self, ticker, entry_date, exit_date, entry_prices, exit_prices, position_size = 1.0):
         self.ticker = ticker
         self.entry = entry_date
         self.exit = exit_date
@@ -316,7 +316,10 @@ class Trade(object):
         prices = exit_prices[self.entry:self.exit]
         daily_returns = Series(prices / prices.shift(1)) - 1
         daily_returns[0] = (prices[0] / self.entry_price) - 1
-        self.daily_returns = daily_returns * position_size[self.entry:self.exit]
+        if isinstance(position_size, int) or isinstance(position_size, float):
+            self.daily_returns = daily_returns * position_size
+        else:
+            self.daily_returns = daily_returns * position_size[self.entry:self.exit]
         self.normalised = Series((log(1 + self.daily_returns).cumsum()).values)
         # Note: duration is measured by days-in-market not calendar days
         self.duration = len(self.normalised)

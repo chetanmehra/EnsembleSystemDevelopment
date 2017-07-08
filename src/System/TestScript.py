@@ -252,8 +252,6 @@ def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
     return strategy
 
 
-
-
 short_pars = [1, 5, 10, 20, 35, 50]
 long_pars = [30, 50, 70, 90, 120, 150, 200]
 

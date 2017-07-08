@@ -1,6 +1,6 @@
 
 from pandas import DataFrame
-from PerformanceAnalysis.Metrics import summary_report
+from PerformanceAnalysis.Trades import summary_report
 
 def test_trailing_stop(strat, stops):
     result = DataFrame(columns = [0] + stops)

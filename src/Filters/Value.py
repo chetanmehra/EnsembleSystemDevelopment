@@ -24,7 +24,7 @@ class ValueRangeFilter(FilterInterface):
 
     def __init__(self, values, filter_range):
         '''
-        Requires that values is a DataFrame with first column 'ticker' and next column filter values.
+        Requires that values is a ValueFilterValues object.
         filter_range should be a tuple representing the acceptable filter range.
         '''
         self.values = values
@@ -53,4 +53,22 @@ class ValueRangeFilter(FilterInterface):
 
     def plot(self, ticker, start, end, ax):
         values = self.values.plot(ticker, start, end, ax)
+
+
+class ValueRankFilter(FilterInterface):
+
+    def __init__(self, values, market, max_rank):
+        self.ranks = values.value_rank(market)
+        self.max_rank = max_rank
+
+    def accepted_trade(self, trade):
+        rank = self.ranks.loc[trade.entry, trade.ticker]
+        return rank <= self.max_rank
+
+    def __call__(self, strategy):
+        return strategy.trades.find(self.accepted_trade)
+
+
+
+
 
