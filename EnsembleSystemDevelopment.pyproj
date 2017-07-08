@@ -33,12 +33,6 @@
     <Compile Include="src\Measures\Oscillators.py" />
     <Compile Include="src\Measures\Volatility.py" />
     <Compile Include="src\Measures\__init__.py" />
-    <Compile Include="src\LevelMeasures\TrendLevels.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="src\LevelMeasures\__init__.py">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="src\PerformanceAnalysis\Metrics.py">
       <SubType>Code</SubType>
     </Compile>
@@ -68,12 +62,9 @@
     </Compile>
     <Compile Include="src\System\Data.py" />
     <Compile Include="src\System\Forecast.py" />
-    <Compile Include="src\System\Indicator.py" />
+    <Compile Include="src\System\Signal.py" />
     <Compile Include="src\System\Market.py" />
     <Compile Include="src\System\Filter.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="src\System\RulesOld.py">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="src\System\Trade.py">
@@ -95,7 +86,6 @@
   <ItemGroup>
     <Folder Include="src\" />
     <Folder Include="src\Filters\" />
-    <Folder Include="src\LevelMeasures\" />
     <Folder Include="src\PerformanceAnalysis\" />
     <Folder Include="src\Rules\" />
     <Folder Include="src\Signals\" />

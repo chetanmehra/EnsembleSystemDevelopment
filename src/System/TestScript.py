@@ -8,10 +8,9 @@ from System.Market import Market
 from System.Strategy import ModelStrategy, SignalStrategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
 from Signals.Trend import Crossover
-from LevelMeasures.TrendLevels import TrueFalseCross
 from Measures.MovingAverages import EMA, KAMA
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
-from System.Position import SingleLargestF, DefaultPositions, OptimalPositions
+from Rules.PositionRules import PositionFromDiscreteSignal, SingleLargestF, OptimalFSign, OptimalPositions
 from Filters.Value import ValueRangeFilter, ValueFilterValues
 from System.Filter import StackedFilterValues, WideFilterValues
 from System.Trade import TradeCollection
@@ -46,100 +45,6 @@ ASX20 = ["AMP", "ANZ", "BHP", "BXB", "CBA", "CSL", "IAG", "MQG", "NAB", "ORG", "
          "RIO", "SCG", "SUN", "TLS", "WBC", "WES", "WFD", "WOW", "WPL"]
 
 triplet = ["MLD", "CCP", "BHP"]
-
-def build_market(tickers = ASX20, 
-                 start = datetime.datetime(2008, 1, 1), 
-                 end = datetime.datetime(2016, 1, 1)):
-    
-    market = Market(tickers, start, end)
-    market.download_data()
-    return market
-    
-
-def run_various_trade_timings(market):
-    strategyCOO = ModelStrategy("OO", "C")
-    strategyCOO.market = market
-    strategyCOO.measure = TrueFalseCross(Crossover(20, 10))
-    strategyCOO.model = BlockForecaster(20)
-    strategyCOO.select_positions = SingleLargestF()
-    strategyCOO.initialise()
-    strategyCOO.market_returns.plot(collapse_fun = "mean", color = "black", label = "BandH")
-    strategyCOO.plot_returns(color = "blue", label = "COO")
-    
-    strategyOCO = ModelStrategy("CO", "O")
-    strategyOCO.market = market
-    strategyOCO.measure = TrueFalseCross(Crossover(20, 10))
-    strategyOCO.model = BlockForecaster(20)
-    strategyOCO.select_positions = SingleLargestF()
-    strategyOCO.initialise()
-    strategyOCO.plot_returns(color = "red", label = "OCO")
-    
-    strategyOCC = ModelStrategy("CC", "O")
-    strategyOCC.market = market
-    strategyOCC.measure = TrueFalseCross(Crossover(20, 10))
-    strategyOCC.model = BlockForecaster(20)
-    strategyOCC.select_positions = SingleLargestF()
-    strategyOCC.initialise()
-    strategyOCC.plot_returns(color = "orange", label = "OCC")
-    
-    strategyCOC = ModelStrategy("OC", "C")
-    strategyCOC.market = market
-    strategyCOC.measure = TrueFalseCross(Crossover(20, 10))
-    strategyCOC.model = BlockForecaster(20)
-    strategyCOC.select_positions = SingleLargestF()
-    strategyCOC.initialise()
-    strategyCOC.plot_returns(color = "cyan", label = "COC")
-    
-    plt.legend()
-
-
-def run_ensemble_crossover(market, trade_timing = "CC", ind_timing = "O"):
-    params = [(25, 15), (20, 10), (15, 10), (12, 8), (8, 5)]
-    strategy = MeasureEnsembleStrategy(trade_timing, ind_timing, params)
-    strategy.market = market
-    strategy.measure = TrueFalseCross(Crossover(1, 1))
-    strategy.model = BlockForecaster(20)
-    strategy.select_positions = SingleLargestF()
-    strategy.forecast_weight = MeanForecastWeighting()
-    strategy.initialise()
-    return strategy
-
-
-def run_ensemble_model(market, trade_timing = "CC", ind_timing = "O", 
-                       model = BlockForecaster(0), 
-                       positions = SingleLargestF()):
-    params = [20, 30, 40, 50]
-    strategy = ModelEnsembleStrategy(trade_timing, ind_timing, params)
-    strategy.market = market
-    strategy.measure = TrueFalseCross(Crossover(25, 10))
-    strategy.model = model
-    strategy.select_positions = positions
-    strategy.forecast_weight = MeanForecastWeighting()
-    strategy.initialise()
-    return strategy
-
-def run_compound_ensemble(market, trade_timing = "CC", ind_timing = "O", 
-                          model_params = [20, 30, 40, 50], 
-                          measure_params = [(25, 15), (20, 10), (15, 10), (12, 8), (8, 5)], 
-                          select_positions = SingleLargestF()):
-    strategy = CompoundEnsembleStrategy(trade_timing, ind_timing, [model_params, measure_params])
-    strategy.market = market
-    strategy.measure = TrueFalseCross(Crossover(0, 0))
-    strategy.model = BlockForecaster(0)
-    strategy.select_positions = select_positions
-    strategy.forecast_weight = MeanForecastWeighting()
-    strategy.initialise()
-    return strategy
-
-
-def run_basic_crossover(market, trade_timing = "CC", ind_timing = "O", params = (20, 10)):
-    strategy = ModelStrategy(trade_timing, ind_timing)
-    strategy.market = market
-    strategy.measure = TrueFalseCross(Crossover(*params))
-    strategy.model = NullForecaster(["True"])
-    strategy.select_positions = DefaultPositions()
-    strategy.initialise()
-    return strategy
 
 
 valued_tickers = [u'ONT', u'TGP', u'TIX', u'TOF', u'3PL', u'ABP', u'ALR', u'ACR',
@@ -240,20 +145,15 @@ def getNyseMarket():
     return market
     
 
-def baseStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
-    market = getMarket()
-    strategy = ModelStrategy(trade_timing, ind_timing)
-    strategy.market = market
-    strategy.measure = TrueFalseCross(Crossover(slow = EMA(params[0]), fast = EMA(params[1])))
-    strategy.model = NullForecaster(["True"])
-    strategy.select_positions = DefaultPositions()
-    return strategy
-
-def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50)):
-    market = getMarket()
+def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50), exchange = "NYSE"):
+    if exchange == "NYSE":
+        market = getNyseMarket()
+    else:
+        market = getMarket()
     strategy = SignalStrategy(trade_timing, ind_timing)
     strategy.market = market
-    strategy.signal = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
+    strategy.signal_generator = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
+    strategy.position_rules = PositionFromDiscreteSignal(Up = 1)
     return strategy
 
 

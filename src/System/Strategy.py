@@ -18,6 +18,7 @@ class Strategy(object):
         self.indexer = Indexer(trade_timing, ind_timing)
         self.required_fields = ["market"]
         self.name = None
+        self.filters = []
 
     def check_fields(self):
         missing_fields = []
@@ -31,24 +32,34 @@ class Strategy(object):
             missing_fields = ", ".join(missing_fields)
             raise StrategyException("Missing parameters: {0}".format(missing_fields))
 
-    def run(self):
-        self.check_fields()
-        self.initialise()
         
     def rerun(self):
         self.reset()
         self.run()
         
-    def initialise(self):
+    def run(self):
         raise NotImplementedError("Strategy must override initialise")
   
     def reset(self):
         raise NotImplementedError("Strategy must override reset")
 
+            
+    def applyRules(self):
+        self.positions = self.position_rules(self)
+        self.trades = createTrades(self.positions.data, self)
+
+    def applyFilters(self):
+        if len(self.filters) == 0:
+            return
+        for filter in self.filters:
+            self.trades = filter(self)
+        self.positions.updateFromTrades(self.trades)
+
     def apply_filter(self, filter):
         self.filters += [filter]
         self.trades = filter(self)
-
+        self.positions.updateFromTrades(self.trades)
+    
     @property
     def trade_timing(self):
         return self.indexer.trade_timing
@@ -75,17 +86,13 @@ class Strategy(object):
         else:
             return self.market.close
 
-    def get_empty_dataframe(self):
-        return self.market.get_empty_dataframe()
+    def get_empty_dataframe(self, fill_data = None):
+        return self.market.get_empty_dataframe(fill_data)
 
     def buy_and_hold_trades(self):
         signal_data = self.get_empty_dataframe()
         signal_data[:] = 1
         return createTrades(signal_data, self)
-            
-    @property    
-    def lagged_indicator(self):
-        return self.indexer.indicator(self.indicator)
 
     @property
     def market_returns(self):
@@ -93,17 +100,17 @@ class Strategy(object):
     
     @property
     def returns(self):
-        return self.positions.applied_to(self.market_returns)
+        return self.positions.appliedTo(self.market_returns)
     
     @property
     def long_returns(self):
         positions = self.positions.long_only()
-        return positions.applied_to(self.market_returns)
+        return positions(self)
     
     @property
     def short_returns(self):
         positions = self.positions.short_only()
-        return positions.applied_to(self.market_returns)
+        return positions(self)
 
     def plot_measures(self, ticker, start, end, ax):
         raise NotImplementedError("Strategy must override plot_measures")
@@ -149,60 +156,33 @@ class Strategy(object):
         plt.title(ticker)
 
 
+
 class SignalStrategy(Strategy):
-    '''
-    A SignalStrategy is the more fundamental strategy type involving entry and exit signals derived from
-    one or more indicators and signal generators.
-    '''
-    def __init__(self, trade_timing, ind_timing):
-        super(SignalStrategy, self).__init__(trade_timing, ind_timing)
-        self.required_fields += ["signal"]
-        self.name = 'Signal Strategy'
-        # Container elements
-        self.indicator = None
-        self.trades = None
-        # Strategy creation elements
-        self.signal = None
-        self.filters = []
-
-    def initialise(self):
-        self.indicator = self.signal(self)
-        self.trades = createTrades(self.lagged_indicator.data.astype(float), self)
-        for filter in self.filters:
-            self.trades = filter(self)
-
-    def reset(self):
-        self.indicator = None
-        self.trades = None
-
-
-class AltStrategy(Strategy):
     '''
     Provides the interface for collating and testing trading hypotheses
     '''
     def __init__(self, trade_timing, ind_timing):
         super().__init__(trade_timing, ind_timing)
         self.name = "Strategy"
+        self.required_fields += ["signal_generator", "position_rules"]
         self.signal = None
         self.positions = None
-        self.filters = []
+        self.signal_generator = None
+        self.position_rules = None
 
     def run(self):
         self.generateSignals()
         self.applyRules()
         self.applyFilters()
 
+    def reset(self):
+        self.signal = None
+        self.positions = None
+        self.trades = None
+
     def generateSignals(self):
         self.signal = self.signal_generator(self)
-        
-    def applyRules(self):
-        self.positions = self.position_rules(self)
-        self.trades = createTrades(self.positions.data, self)
 
-    def applyFilters(self):
-        for filter in self.filters:
-            self.trades = filter(self)
-        self.positions.updateFromTrades(self.trades)
 
 
 class ModelStrategy(Strategy):
@@ -213,7 +193,7 @@ class ModelStrategy(Strategy):
 
     def __init__(self, trade_timing, ind_timing):
         super().__init__(trade_timing, ind_timing)
-        self.required_fields += ["measure", "model", "select_positions"]
+        self.required_fields += ["measure", "model", "position_rules"]
         self.name = 'Model Strategy'
         # Container elements
         self.indicator = None
@@ -223,8 +203,7 @@ class ModelStrategy(Strategy):
         # Strategy creation elements
         self.measure = None
         self.model = None
-        self.select_positions = None
-        self.filters = []
+        self.position_rules = None
 
     def __str__(self):
         if self.name is not None:
@@ -241,13 +220,12 @@ class ModelStrategy(Strategy):
         return first_line + second_line + third_line + fourth_line + fifth_line
         
     # HACK ModelStrategy filters don't feed back into positions
-    def initialise(self):
+    def run(self):
+        self.check_fields()
         self.indicator = self.measure(self)
         self.forecasts = self.model(self)
-        self.positions = self.select_positions(self)
-        self.trades = createTrades(self.positions.data, self)
-        for filter in self.filters:
-            self.trades = filter(self)
+        self.applyRules()
+        self.applyFilters()
             
     def reset(self):
         self.indicator = None
@@ -269,66 +247,62 @@ class StrategyElement(object):
             result = self.execute(strategy)
             result.creator = self.ID
             result.indexer = strategy.indexer
-            result.calculation_timing = self.get_calculation_timing(strategy)
+            result.calculation_timing = self.calculation_timing
             result.lag = self.starting_lag()
         return result
 
     
     def execute(self, strategy):
-        raise StrategyException("Strategy Element must define 'execute'")
+        raise NotImplementedError("Strategy Element must define 'execute'")
     
     def created(self, result):
         return result is not None and result.creator == self.ID
     
     def get_result(self, strategy):
-        raise StrategyException("Strategy Element must define 'get_child'")
+        raise NotImplementedError("Strategy Element must define 'get_child'")
+
+    def starting_lag(self):
+        return 0
     
 
-class MeasureElement(StrategyElement):
-    
+class SignalElement(StrategyElement):
+
     def get_result(self, strategy):
-        return strategy.indicator
+        return strategy.signal
 
-    def get_calculation_timing(self, strategy):
-        return strategy.indexer.ind_timing
+    @property
+    def calculation_timing(self):
+        return ["decision"]
 
-class ModelElement(StrategyElement):
     
-    def get_result(self, strategy):
-        return strategy.forecasts
-
-    def get_calculation_timing(self, strategy):
-        return strategy.indexer.ind_timing
-    
-class PositionSelectionElement(StrategyElement):
+class PositionRuleElement(StrategyElement):
     
     def get_result(self, strategy):
         return strategy.positions
 
-    def get_calculation_timing(self, strategy):
-        return strategy.indexer.trade_timing[0]
+    @property
+    def calculation_timing(self):
+        return ["entry"]
 
 
-class ReturnCalculationElement(StrategyElement):
 
-    def get_result(self, strategy):
-        return None
-
-    def get_calculation_timing(self, strategy):
-        return strategy.indexer.trade_timing
-
-
-class StrategyContainerElement(object):
+class DataElement(object):
     '''
-    StrategyContainerElements represent the data objects used by Strategy.
-    Each StrategyContainerElement is assumed to have a (DataFrame) field called data.
+    DataElements represent the data objects used by Strategy.
+    Each DataElement is assumed to have a (DataFrame) field called data.
+    DataElements also control the appropriate lagging of data to align with other calculation periods.
+    When lagged the DataElement returns a copy of itself, and the current applied lag.
+    Calculation timing represents the timing for when the data is calculated and may be a single value, 
+    e.g. ["decision", "entry", "exit", "open", "close"], or a twin value which represents the calculations 
+    occur over some span of time, e.g. for returns which have timing ["entry", "exit"]
     '''
     def __init__(self):
         self.lag = 0
-        self.calculation_timing = None # May be single character (e.g. 'O'), or double (e.g. 'CC' for entry-exit)
+        self.calculation_timing = None
 
     def shift(self, lag):
         lagged = self.copy()
+        lagged.data = self.data.copy() # Note: deepcopy doesn't seem to copy the dataframe properly; hence this line.
         lagged.data = lagged.data.shift(lag)
         lagged.lag += lag
         return lagged
@@ -336,7 +310,7 @@ class StrategyContainerElement(object):
     def at(self, timing):
         '''
         'at' returns a lagged version of the data appropriate for the timing.
-        Timing may be one of: "O" or "C"
+        Timing may be one of: ["decision", "entry", "exit", "open", "close"]
         '''
         lag = self.get_lag(timing)
         return self.shift(lag)
@@ -351,9 +325,6 @@ class StrategyContainerElement(object):
             - alignment lag = lag between this data calc end to the other data calc start
             - other lag = the lag already applied to the other data.
         '''
-        # TODO set calculation_start_timing and calculation_end_timing for strategy container objects
-        # TODO set lag 
-
         alignment_lag = self.get_lag(other.calculation_timing[0])
         total_lag = alignment_lag + other.lag
         return self.shift(total_lag)
@@ -362,12 +333,7 @@ class StrategyContainerElement(object):
         '''
         Calculate the lag between the completion of calculating this data object and the requested timing.
         '''
-        if "OC" in self.calculation_timing[-1] + target_timing:
-            lag = 0
-        else:
-            lag = 1
-
-        return lag
+        return self.indexer.get_lag(self.calculation_timing[-1], target_timing)
 
     @property
     def index(self):
@@ -383,30 +349,37 @@ class StrategyContainerElement(object):
     def copy(self):
         return deepcopy(self)
 
-# TODO Indexer is most likely now reduntant once market returns calculations are sorted out.
+
 class Indexer(object):
     
     def __init__(self, trade_timing, ind_timing):
-        if trade_timing not in ["OO", "CC", "OC", "CO"]:
-            raise StrategyException("Trade timing must be one of: 'OO', 'CC', 'OC', 'CO'.")
+        if trade_timing not in ["OO", "CC"]:
+            raise ValueError("Trade timing must be one of: 'OO', 'CC'.")
         self.trade_timing = trade_timing
         if ind_timing not in ["O", "C"]:
             raise ValueError("Ind_timing must be one of: 'O', 'C'")
         self.ind_timing = ind_timing
+        self.timing_map = {"decision" : self.ind_timing, 
+                           "entry" : self.trade_timing[0], 
+                           "exit" : self.trade_timing[-1], 
+                           "open" : "O", 
+                           "close" : "C"}
 
-    def indicator(self, series):
-        if "OC" in self.ind_timing + self.trade_timing:
-            lag = 1
+
+    def get_lag(self, start, end):
+        start = self.check_timing(start)
+        end = self.check_timing(end)
+        if "OC" in start + end:
+            lag = 0
         else:
-            lag = 2
-        return series.shift(lag)
-        
-    def positions(self, series):
-        if "OC" in self.ind_timing + self.trade_timing:
             lag = 1
-        else:
-            lag = 2
-        return series.shift(lag)
+        return lag
+
+    def check_timing(self, timing):
+        timing = timing.lower()
+        if timing not in self.timing_map.keys():
+            raise ValueError("Timing must be one of: " + ",".join(self.timing_map.keys()))
+        return self.timing_map[timing]
     
     def market_returns(self, market):
         timing_map = {"O":"open", "C":"close"}
@@ -419,10 +392,6 @@ class Indexer(object):
         return (trade_open / trade_close.shift(lag)) - 1
 
         
-class StrategyException(Exception):
-    pass
-
-
 class EnsembleStrategy(ModelStrategy):
     
     def __init__(self, trade_timing, ind_timing, parameter_set):

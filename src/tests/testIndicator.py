@@ -4,7 +4,7 @@ Created on 13 Dec 2014
 @author: Mark
 '''
 import unittest
-from System.Indicator import Indicator, Crossover
+from System.Indicator import Signal, Crossover
 from pandas import DataFrame
 from numpy import NaN, isnan
 from tests.TestHelpers import buildTextDataFrame, buildNumericDataFrame
@@ -18,14 +18,14 @@ class TestIndicatorInterface(unittest.TestCase):
         tickers = ["ASX", "BHP"]
         self.factors = ["False", "True"]
         self.data = buildTextDataFrame(tickers, 10, factors = self.factors)
-        self.indicator = Indicator(self.data)
+        self.indicator = Signal(self.data)
         
     def testIndicatorReturnsLevels(self):
         self.assertEqual(self.indicator.levels, self.factors)
         
     def testIndicatorReturnsLevelsWhenMissingValues(self):
         self.data.iloc[0] = NaN
-        indicator = Indicator(self.data)
+        indicator = Signal(self.data)
         self.assertEqual(indicator.levels, self.factors)
         
     def testIndicatorCachesLevels(self):
@@ -65,7 +65,7 @@ class TestMeasure(unittest.TestCase):
         self.assertFalse(any(isnan(ema["CBA"][3:5])))
         
     def testCrossoverReturnsIndicator(self):
-        self.assertIsInstance(self.indicator, Indicator)
+        self.assertIsInstance(self.indicator, Signal)
         
     def testCrossoverDataIsStringType(self):
         self.assertIsInstance(self.indicator.data, DataFrame)

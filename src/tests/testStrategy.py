@@ -11,7 +11,7 @@ from System.Strategy import ModelStrategy, Indexer, StrategyException, MeasureEn
 from mock import Mock, call
 from tests.TestHelpers import buildTextDataFrame, buildNumericDataFrame,\
     buildNumericPanel
-from System.Indicator import Indicator, Crossover
+from System.Indicator import Signal, Crossover
 from System.Forecast import BlockForecaster, Forecast, MeanForecastWeighting
 from System.Position import SingleLargestF, Position, Returns
 from System.Market import Market
@@ -88,12 +88,12 @@ class TestStrategyInitialisation(unittest.TestCase):
         
     def testStrategyCallsIndexerForIndicator(self):
         indicator_series = buildTextDataFrame(["ASX", "BHP"], 10)
-        indicator = Indicator(indicator_series)
+        indicator = Signal(indicator_series)
         self.strategy.indexer.indicator = Mock()
         self.strategy.indexer.indicator.return_value = indicator
         self.strategy.indicator = indicator
         result = self.strategy.lagged_indicator
-        self.assertIsInstance(result, Indicator)
+        self.assertIsInstance(result, Signal)
         expected_calls = [call(indicator)]
         self.strategy.indexer.indicator.assert_has_calls(expected_calls)
         
@@ -186,7 +186,7 @@ class TestStrategyElements(unittest.TestCase):
     def testMeasureElementChecksIndicator(self):
         self.measure = MeasureElement()
         self.measure.execute = Mock()
-        indicator = Mock(spec = Indicator)
+        indicator = Mock(spec = Signal)
         indicator.parent = self.measure.ID
         self.strategy.indicator = indicator
         returned = self.measure(self.strategy)
@@ -354,7 +354,7 @@ class TestStrategyMeasureEnsembleInitialisation(unittest.TestCase):
     def setUp(self):
         self.parameter_set = [1, 2, 3, 4, 5]
         self.strategy = MeasureEnsembleStrategy("OO", "C", self.parameter_set)
-        self.indicators = [Indicator(p) for p in self.parameter_set]
+        self.indicators = [Signal(p) for p in self.parameter_set]
         self.forecasts = [Forecast(p, 0) for p in self.parameter_set]
         self.positions = [Position(DataFrame([p])) for p in self.parameter_set]
         self.final_positions = Position(DataFrame(["final"]))
@@ -464,7 +464,7 @@ class TestStrategyModelEnsembleInitialisation(unittest.TestCase):
     def setUp(self):
         self.parameter_set = [10, 20, 30, 40, 50]
         self.strategy = ModelEnsembleStrategy("OO", "C", self.parameter_set)
-        self.indicator = Indicator(10)
+        self.indicator = Signal(10)
         self.forecasts = [Forecast(p, 0) for p in self.parameter_set]
         self.positions = [Position(DataFrame([p])) for p in self.parameter_set]
         self.final_positions = Position(DataFrame(["final"]))
@@ -543,7 +543,7 @@ class TestCompoundEnsembleCreation(unittest.TestCase):
         self.measure_parameters = [1, 2, 3, 4, 5]
         self.strategy = CompoundEnsembleStrategy("CC", "O", 
                                                  (self.model_parameters, self.measure_parameters))
-        self.indicators = [Indicator(p) for p in self.measure_parameters]
+        self.indicators = [Signal(p) for p in self.measure_parameters]
         self.forecasts = [Forecast(p, 0) for p in self.model_parameters]
         self.sub_positions = [Position(DataFrame([p])) for p in self.measure_parameters]
         self.super_positions = [Position(DataFrame([p])) for p in self.model_parameters]

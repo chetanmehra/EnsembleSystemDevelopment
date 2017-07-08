@@ -4,3 +4,5 @@
 
 /src/System/__pycache__
 /.vs
+*.pyc
+*.suo

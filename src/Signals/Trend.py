@@ -1,13 +1,13 @@
 
-from System.Strategy import MeasureElement
-from System.Trade import Trade, TradeCollection
-from System.Indicator import Indicator
+from System.Strategy import SignalElement
+from System.Signal import Signal
 from pandas import Panel
+
 
 
 # TODO Create breakout signal generator
 
-class Crossover(MeasureElement):
+class Crossover(SignalElement):
     
     def __init__(self, slow, fast):
         self.fast = fast
@@ -21,15 +21,18 @@ class Crossover(MeasureElement):
         prices = strategy.get_indicator_prices()
         fast_ema = self.fast(prices)
         slow_ema = self.slow(prices)
-        levels = fast_ema > slow_ema
-        return Indicator(levels, Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
+
+        ind_data = strategy.get_empty_dataframe(fill_data = 'Down')
+        ind_data[fast_ema > slow_ema] = 'Up'
+
+        return Signal(ind_data, ['Up', 'Down'], Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
         self.slow.update_param(new_params[0])
         self.fast.update_param(new_params[1])
 
 
-class TripleCrossover(MeasureElement):
+class TripleCrossover(SignalElement):
     
     def __init__(self, slow, mid, fast):
         self.fast = fast
@@ -46,7 +49,10 @@ class TripleCrossover(MeasureElement):
         mid_ema = self.mid(prices)
         slow_ema = self.slow(prices)
         levels = (fast_ema > mid_ema) & (mid_ema > slow_ema)
-        return Indicator(levels, Panel.from_dict({'Fast':fast_ema, 'Mid':mid_ema, 'Slow':slow_ema}))
+
+        ind_data = strategy.get_empty_dataframe(fill_data = 'Down')
+        ind_data[levels] = 'Up'
+        return Signal(ind_data, ['Up', 'Down'], Panel.from_dict({'Fast':fast_ema, 'Mid':mid_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
         pars = list(new_params)
@@ -57,7 +63,7 @@ class TripleCrossover(MeasureElement):
 
 
 # TODO ValueWeightedEMA is not complete
-class ValueWeightedEMA(MeasureElement):
+class ValueWeightedEMA(SignalElement):
 
     def __init__(self, values, fast, slow):
         self.values = values

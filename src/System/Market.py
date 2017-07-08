@@ -43,8 +43,12 @@ class Market(object):
         return self.instruments[key]
 
 
-    def get_empty_dataframe(self):
-        return DataFrame(index = self.close.index, columns = self.tickers, dtype = float)
+    def get_empty_dataframe(self, fill_data = None):
+        if isinstance(fill_data, str):
+            data_type = object
+        else:
+            data_type = float
+        return DataFrame(fill_data, index = self.close.index, columns = self.tickers, dtype = data_type)
 
 
     @property
@@ -82,7 +86,7 @@ class Market(object):
             
     def returns(self, indexer):
         returns = indexer.market_returns(self)
-        return AverageReturns(returns)
+        return AverageReturns(returns, indexer)
 
     def volatility(self, window):
         vol = self.close.rolling(window).std()

@@ -9,12 +9,14 @@ from numpy import NaN, empty, isinf
 from copy import deepcopy
 from pandas import Panel
 from pandas.stats.moments import rolling_mean, rolling_std
-from System.Strategy import StrategyContainerElement, ModelElement
 
 
 
-class Forecast(StrategyContainerElement):
-    
+class Forecast:
+    '''
+    A Forecast element supports position calculations for certain position rules.
+    Given the mean and standard deviation forecasts over time, it calculates the optimal F.
+    '''
     def __init__(self, mean, sd):
         self.mean = mean
         self.sd = sd
@@ -41,7 +43,7 @@ class Forecast(StrategyContainerElement):
         return optimal_fraction
     
     
-class MeanForecastWeighting(object):
+class MeanForecastWeighting:
     
     def __call__(self, forecasts):
         items = list(bounds(len(forecasts)))
@@ -73,9 +75,9 @@ class MeanForecast(Forecast):
         self._sd = data
 
 
-class NullForecaster(ModelElement):
+class NullForecaster:
     '''
-    The NullForecaster returns 1 for mean where the indicator is equal to any of the
+    The NullForecaster returns 1 for mean where the signal is equal to any of the
     provided levels in 'in_trade_levels'.
     '''
 
@@ -85,21 +87,21 @@ class NullForecaster(ModelElement):
         self.in_trade_levels = in_trade_levels
         self.name = 'Null Forecaster (lvls: {})'.format(','.join(in_trade_levels))
 
-    def execute(self, strategy):
-        indicator = strategy.lagged_indicator
-        mean = deepcopy(indicator.data)
+    def __call__(self, strategy):
+        signal = strategy.lagged_signal
+        mean = deepcopy(signal.data)
         mean[:] = 0
         mean = mean.astype(float)
         sd = deepcopy(mean)
         sd[:] = 1
         
         for lvl in self.in_trade_levels:
-            mean[indicator.data == lvl] = 1
+            mean[signal.data == lvl] = 1
         
         return Forecast(pd.Panel({"Forecast":mean}), pd.Panel({"Forecast":sd}))
         
 
-class BlockForecaster(ModelElement):
+class BlockForecaster:
     
     def __init__(self, window, pooled = False, average = "mean"):
         self.window = window
@@ -110,32 +112,34 @@ class BlockForecaster(ModelElement):
     def update_param(self, window):
         self.window = window   
     
-    def execute(self, strategy):
-        indicator = strategy.indicator
-        returns = strategy.market_returns
+    def __call__(self, strategy):
+        returns = strategy.market_returns.at("decision")
+        signal = strategy.signal.at("decision")
         if self.pooled:
-            mean_fcst, sd_fcst = self.pooled_forecast_mean_sd(indicator, returns, self.average)
+            mean_fcst, sd_fcst = self.pooled_forecast_mean_sd(signal, returns, self.average)
         else:
-            mean_fcst, sd_fcst = self.forecast_mean_sd(indicator, returns, self.average)
+            mean_fcst, sd_fcst = self.forecast_mean_sd(signal, returns, self.average)
         return Forecast(mean_fcst, sd_fcst)
     
-    def forecast_mean_sd(self, indicator, returns, average):
+    def forecast_mean_sd(self, signal, returns, average):
         
         tickers = returns.columns
-        levels = indicator.levels
+        levels = signal.levels
         headings = ["Forecast"] + levels
         
-        mean_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
-        sd_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+        mean_fcst = pd.Panel(NaN, items = headings, major_axis = signal.index, minor_axis = tickers)
+        sd_fcst = pd.Panel(NaN, items = headings, major_axis = signal.index, minor_axis = tickers)
         
+        aligned_signal = signal.alignWith(returns)
+
         for ticker in tickers:
-            # HACK indicator and return lags are hard coded in BlockForecaster
-            # indicator for decision is available at the same time of forecasting, no lag
-            decision_inds = indicator[ticker]
-            # indicator aligned with returns needs to be return lag + 1 (2 total)
+            # TODO check lag logic is correct for calculation of BlockForecaster
+            # signal for decision is available at the same time of forecasting, no lag
+            decision_inds = signal[ticker]
+            # signal aligned with returns needs to be return lag + 1 (2 total)
             # however, when indexing into dataframe the current day is not returned so 
             # is in effect one day lag built in already. Therefore only shift 1.
-            aligned_inds = indicator[ticker].shift(1)
+            aligned_inds = aligned_signal[ticker]
             # returns need to be lagged one day for "CC", "O" timings
             # As above, indexing into dataframe effectively already includes lag of 1.
             rtns = returns[ticker]
@@ -157,17 +161,17 @@ class BlockForecaster(ModelElement):
         return (mean_fcst, sd_fcst)
  
     
-    def pooled_forecast_mean_sd(self, indicator, returns, average):
+    def pooled_forecast_mean_sd(self, signal, returns, average):
         
         tickers = returns.columns
-        levels = indicator.levels
+        levels = signal.levels
         headings = ["Forecast"] + levels
         
-        mean_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
-        sd_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+        mean_fcst = pd.Panel(NaN, items = headings, major_axis = signal.index, minor_axis = tickers)
+        sd_fcst = pd.Panel(NaN, items = headings, major_axis = signal.index, minor_axis = tickers)
         
-        decision_inds = indicator.data
-        aligned_inds = indicator.data.shift(1)
+        decision_inds = signal.data
+        aligned_inds = signal.data.shift(1)
         rtns = returns.data
         i = self.window
         while i < len(decision_inds):
@@ -194,7 +198,7 @@ class BlockForecaster(ModelElement):
         return (mean_fcst, sd_fcst)    
 
 
-class BlockMeanReturnsForecaster(ModelElement):
+class BlockMeanReturnsForecaster:
     
     def __init__(self, window):
         self.window = window
@@ -203,7 +207,7 @@ class BlockMeanReturnsForecaster(ModelElement):
     def update_param(self, window):
         self.window = window
                 
-    def execute(self, strategy):
+    def __call__(self, strategy):
         returns = strategy.market_returns
         mean_fcst, sd_fcst = self.forecast_mean_sd(returns)
         return Forecast(mean_fcst, sd_fcst)
@@ -214,7 +218,7 @@ class BlockMeanReturnsForecaster(ModelElement):
         
         return (mean_fcst, sd_fcst)
 
-class SmoothDetrendedForecaster(ModelElement):
+class SmoothDetrendedForecaster:
 
     def __init__(self, span):
         self.span = span
@@ -223,35 +227,33 @@ class SmoothDetrendedForecaster(ModelElement):
     def update_param(self, span):
         self.smooth = EMA(span)
 
-    def execute(self, strategy):
-        returns = strategy.market_returns
-        indicator = strategy.indicator
-        mean_fcst, sd_fcst = self.forecast_mean_sd(indicator, returns)
+    def __call__(self, strategy):
+        returns = strategy.market_returns.at("decision")
+        signal = strategy.signal.at("decision")
+        mean_fcst, sd_fcst = self.forecast_mean_sd(signal, returns)
         return Forecast(mean_fcst, sd_fcst)
 
-    def forecast_mean_sd(self, indicator, returns):
+    def forecast_mean_sd(self, signal, returns):
 
         tickers = returns.columns
-        levels = indicator.levels
+        levels = signal.levels
         headings = ["Forecast"] + levels + ['trend'] + [L + "_detrend" for L in levels]
         
         measures = {}
         for level in levels:
-            measures[level] = pd.DataFrame(NaN, index = indicator.index, columns = tickers)
+            measures[level] = pd.DataFrame(NaN, index = signal.index, columns = tickers)
 
-        mean_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
-        sd_fcst = pd.Panel(NaN, items = headings, major_axis = indicator.index, minor_axis = tickers)
+        mean_fcst = pd.Panel(NaN, items = headings, major_axis = signal.index, minor_axis = tickers)
+        sd_fcst = pd.Panel(NaN, items = headings, major_axis = signal.index, minor_axis = tickers)
 
-        # HACK indicator and return lags are hard coded in SmoothDetrendedForecaster
-        # indicator for decision is available at the same time of forecasting, no lag
-        decision_inds = indicator.data
-        # indicator aligned with returns needs to be return lag + 1 (2 total)
+        # TODO check logic of lagged data for SmoothDetrendedForecaster
+        # signal for decision is available at the same time of forecasting, no lag
+        decision_inds = signal.data
+        # signal aligned with returns needs to be return lag + 1 (2 total)
         # however, when indexing into dataframe the current day is not returned so 
-        # is in effect one day lag built in already. Therefore only shift 1.
-        aligned_inds = indicator.data.shift(2)
-        # returns need to be lagged one day for "CC", "O" timings
-        # As above, indexing into dataframe effectively already includes lag of 1.
-        returns = returns.data.shift(1)
+        # is in effect one day lag built in already.
+        aligned_inds = signal.alignWith(returns).data
+        returns = returns.data
 
         for day in decision_inds.index:
             for level in levels:

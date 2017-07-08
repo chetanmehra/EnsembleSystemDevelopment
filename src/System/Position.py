@@ -7,25 +7,15 @@ from copy import deepcopy
 from numpy import sign
 from math import log
 
-from System.Strategy import StrategyContainerElement, PositionSelectionElement
-from System.Indicator import Indicator
+from System.Strategy import DataElement
+from System.Signal import Signal
 
 
-
-def createPositionFromTrades(trades, strategy, pos_size = 1):
-
-    pos_data = strategy.get_empty_dataframe()
-    pos_data[:] = 0
-    for t in trades.as_list():
-        if isinstance(pos_size, Position):
-            pos_data.loc[t.entry:t.exit, t.ticker] = pos_size.data.loc[t.entry:t.exit, t.ticker]
-        else:
-            pos_data.loc[t.entry:t.exit, t.ticker] = pos_size
-    return Position(pos_data)
-
-
-class Position(StrategyContainerElement):
-    
+class Position(DataElement):
+    '''
+    Position objects hold the dual role of keeping the position data for the strategy, as well as 
+    calculating the returns from holding those positions.
+    '''
     def __init__(self, data):
         if type(data) is not DataFrame:
             raise TypeError
@@ -37,7 +27,11 @@ class Position(StrategyContainerElement):
         new_pos_data[:] = 0
         for trade in trades.as_list():
             new_pos_data.loc[trade.entry:trade.exit, trade.ticker] = self.data.loc[trade.entry:trade.exit, trade.ticker]
-        return Position(new_pos_data)
+        self.data = new_pos_data
+
+
+    def appliedTo(self, market_returns):
+        return AggregateReturns(self.data * market_returns.data, market_returns.indexer)
 
 
     @property
@@ -60,8 +54,6 @@ class Position(StrategyContainerElement):
         for trade in excluded:
             self.data[trade.ticker][trade.entry:trade.exit] = 0
         
-    def applied_to(self, returns):
-        return AggregateReturns(self.data * returns.data)
 
     def num_concurrent(self):
         '''
@@ -77,12 +69,15 @@ class Position(StrategyContainerElement):
 
 
 
-class Returns(object):
+class Returns(DataElement):
     
-    def __init__(self, data):
+    def __init__(self, data, indexer):
         data[isnull(data)] = 0
         self.data = data
         self.columns = data.columns
+        self.lag = 1
+        self.calculation_timing = ["entry", "exit"]
+        self.indexer = indexer
         
     def __getitem__(self, key):
         return self.data[key]
@@ -148,67 +143,6 @@ class AverageReturns(Returns):
         return super(AverageReturns, self).plot("mean", start, **kwargs)
 
         
-
-class DefaultPositions(PositionSelectionElement):
-
-    def execute(self, strategy):
-        optimal_size = strategy.forecasts.optF()
-        return Position(sign(optimal_size))
-
-    @property
-    def name(self):
-        return 'Default positions'
-
-
-class OptimalPositions(PositionSelectionElement):
-
-    def execute(self, strategy):
-        return Position(strategy.forecasts.optF())
-
-    @property
-    def name(self):
-        return 'Optimal F positions'
-
-
-class SingleLargestF(PositionSelectionElement):
-    
-    def execute(self, strategy):
-        optimal_size = strategy.forecasts.optF()
-        result = deepcopy(optimal_size)
-        result[:] = 0
-        maximum_locations = optimal_size.abs().idxmax(axis = 1)
-        directions = sign(optimal_size)
-        
-        for row, col in enumerate(maximum_locations):
-            if col not in result.columns:
-                pass
-            else:
-                result[col][row] = directions[col][row] 
-        
-        return Position(result)
-    
-    @property
-    def name(self):
-        return 'Single Largest F'
-    
-class HighestRankedFs(PositionSelectionElement):
-    '''
-    Provides equal weighted positions of the 'n' highest ranked opt F forecasts.
-    '''
-    def __init__(self, num_positions):
-        self.num_positions = num_positions
-        self.name = '{} Highest Ranked Fs'.format(num_positions)
-        
-    def execute(self, strategy):
-        optimal_size = strategy.forecasts.optF()
-        result = deepcopy(optimal_size)
-        result[:] = 0
-        ranks = abs(optimal_size).rank(axis = 1, ascending = False)
-        result[ranks <= self.num_positions] = 1
-        result *= sign(optimal_size)
-        result /= self.num_positions
-        return Position(result)
-  
 
 
 

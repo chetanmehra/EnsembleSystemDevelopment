@@ -1,7 +1,7 @@
 from .Volatility import EfficiencyRatio
 from pandas import DataFrame
 
-class MovingAverage(object):
+class MovingAverage:
 
     def __call__(self, prices):
         raise NotImplementedError()

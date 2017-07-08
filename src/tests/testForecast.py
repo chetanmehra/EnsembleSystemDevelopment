@@ -10,7 +10,7 @@ from pandas import Series, DataFrame
 from numpy import mean, std
 from math import isnan
 from tests.TestHelpers import buildNumericPanel, buildTextDataFrame, buildNumericDataFrame
-from System.Indicator import Indicator
+from System.Indicator import Signal
 from System.Strategy import ModelStrategy
 from System.Position import AverageReturns
 
@@ -60,7 +60,7 @@ class TestBlockForecasterConstruction(unittest.TestCase):
         self.ticker = "ASX"
         self.inds = Series([str(B) for B in [True, True, False, True, True, False, False, False]])
         self.rtns = Series([0.1, 0.15, 0.2, 0.3, 0.15, 0.22, 0.18, 0.16])
-        self.lagged_indicator = Indicator(DataFrame({self.ticker:self.inds}))
+        self.lagged_indicator = Signal(DataFrame({self.ticker:self.inds}))
         self.strategy.lagged_indicator = self.lagged_indicator
         self.returns = DataFrame({self.ticker:self.rtns})
         self.strategy.market_returns = self.returns
@@ -72,7 +72,7 @@ class TestBlockForecasterConstruction(unittest.TestCase):
     def testModelProducesResultsForAllData(self):
         tickers = ["ASX", "BHP", "CBA"]
         indicator_data = buildTextDataFrame(tickers, 10)
-        self.strategy.lagged_indicator = Indicator(indicator_data)
+        self.strategy.lagged_indicator = Signal(indicator_data)
         self.strategy.market_returns = buildNumericDataFrame(tickers, 10)
         forecast = self.model(self.strategy)
         self.assertEqual(indicator_data.shape, forecast.mean.shape)
