@@ -130,7 +130,7 @@ class Strategy(object):
         return positions(self)
 
     def plot_measures(self, ticker, start, end, ax):
-        raise NotImplementedError("Strategy must override plot_measures")
+        self.signal.plot_measures(ticker, start, end, ax)
 
     def plotReturns(self, long_only = False, short_only = False, color = "blue", **kwargs):
 
@@ -163,7 +163,7 @@ class Strategy(object):
         start = min(entries) - DateOffset(10)
         end = max(exits) + DateOffset(10)
         fig, ax = self.market.candlestick(ticker, start, end)
-        self.indicator.plot_measures(ticker, start, end, ax)
+        self.plot_measures(ticker, start, end, ax)
         for filter in self.filters:
             filter.plot(ticker, start, end, ax)
         lo_entry = self.market.low[ticker][entries] * 0.95

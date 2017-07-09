@@ -277,7 +277,7 @@ class TradeCollection(object):
         plt.plot(x_range, (0, 0), color = 'black')
         plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
         plt.xlabel('MAE')
-        plt.xlabel('Return')
+        plt.ylabel('Return')
         plt.xlim(x_range)
         plt.ylim(y_range)
 
@@ -291,7 +291,7 @@ class TradeCollection(object):
         plt.plot(x_range, (0, 0), color = 'black')
         plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
         plt.xlabel('MFE')
-        plt.xlabel('Return')
+        plt.ylabel('Return')
         plt.xlim(x_range)
         plt.ylim(y_range)
 
