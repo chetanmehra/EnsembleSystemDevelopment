@@ -5,7 +5,7 @@ Created on 15 Feb 2015
 '''
 
 from System.Market import Market
-from System.Strategy import ModelStrategy, SignalStrategy, MeasureEnsembleStrategy,\
+from System.Strategy import Strategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
 from Signals.Trend import Crossover
 from Measures.MovingAverages import EMA, KAMA
@@ -32,11 +32,12 @@ import numpy as np
 #   - Select top ranked stocks (e.g. 5 positions)
 # Conditions - Exit
 #   - Individual ticker EMA(25-100) goes short
+#   - 10% Stop loss
+#   - Apply 10% trailing stop when value ratio < 1
 
 # TODO Refactoring
 #   - Inherit strategy data element from dataframe
-#   - Fix indexer
-#   - 
+#   - Consider giving trades a reference to the market object.
 
 
 pd.set_option('display.width', 120)
@@ -150,7 +151,7 @@ def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50), 
         market = getNyseMarket()
     else:
         market = getMarket()
-    strategy = SignalStrategy(trade_timing, ind_timing)
+    strategy = Strategy(trade_timing, ind_timing)
     strategy.market = market
     strategy.signal_generator = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
     strategy.position_rules = PositionFromDiscreteSignal(Up = 1)

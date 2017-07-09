@@ -43,7 +43,7 @@ class Market(object):
         return self.instruments[key]
 
 
-    def get_empty_dataframe(self, fill_data = None):
+    def getEmptyDataFrame(self, fill_data = None):
         if isinstance(fill_data, str):
             data_type = object
         else:
@@ -53,47 +53,47 @@ class Market(object):
 
     @property
     def open(self):
-        return self.get_series("Open")
+        return self._get_series("Open")
     
     @property
     def high(self):
-        return self.get_series("High")
+        return self._get_series("High")
     
     @property
     def low(self):
-        return self.get_series("Low")
+        return self._get_series("Low")
     
     @property
     def close(self):
-        return self.get_series("Close")
+        return self._get_series("Close")
     
     @property
     def volume(self):
-        return self.get_series("Volume")
+        return self._get_series("Volume")
     
-    def get_series(self, name):
+    def _get_series(self, name):
         return self.instruments.minor_xs(name)
 
-    def download_data(self):
+    def downloadData(self):
         for ticker in self.tickers:
             raw = self.downloader.get(ticker, self.start, self.end)
             self[ticker] = self.downloader.adjust(raw)
 
-    def load_data(self):
+    def loadData(self):
         for ticker in self.tickers:
             self[ticker] = self.downloader.load(ticker, self.start, self.end)
 
             
     def returns(self, indexer):
-        returns = indexer.market_returns(self)
+        returns = indexer.marketReturns(self)
         return AverageReturns(returns, indexer)
 
     def volatility(self, window):
         vol = self.close.rolling(window).std()
         return WideFilterValues(vol, "volatility")
 
-    def relative_performance(self, indexer, period):
-        returns = indexer.market_returns(self)
+    def relativePerformance(self, indexer, period):
+        returns = indexer.marketReturns(self)
         relative = returns.subtract(returns.mean(axis = 'columns'), axis = 'rows')
         return WideFilterValues(ewma(relative, span = period), "relative_return")
 

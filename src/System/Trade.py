@@ -5,20 +5,19 @@ from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
 # Factory methods
-def createTrades(signal_data, strategy):
-    entry_prices = strategy.get_entry_prices()
-    exit_prices = strategy.get_exit_prices()
+def createTrades(position_data, strategy):
+    prices = strategy.get_trade_prices()
     trades = []
-    signal_sign = (signal_data > 0) * 1
-    signal_sign[signal_data < 0] = -1
-    flags = signal_sign - signal_sign.shift(1)
+    position_sign = (position_data > 0) * 1
+    position_sign[position_data < 0] = -1
+    flags = position_sign - position_sign.shift(1)
     # clear missing values from first rows
     start_row = 0
     while all(flags.ix[start_row].isnull()):
         flags.ix[start_row] = 0
         start_row += 1
     # Add trade entries occuring on first day
-    flags.ix[start_row][signal_sign.ix[start_row] != 0] = signal_sign.ix[start_row][signal_sign.ix[start_row] != 0]
+    flags.ix[start_row][position_sign.ix[start_row] != 0] = position_sign.ix[start_row][position_sign.ix[start_row] != 0]
     for ticker in flags:
         ticker_flags = flags[ticker]
         entries = ticker_flags.index[ticker_flags > 0]
@@ -35,7 +34,7 @@ def createTrades(signal_data, strategy):
                 exit = ticker_flags.index[-1]
             else:
                 exit = exit[0]
-            trades.append(Trade(ticker, entry, exit, entry_prices[ticker], exit_prices[ticker], signal_data[ticker]))
+            trades.append(Trade(ticker, entry, exit, prices[ticker], position_data[ticker]))
     return TradeCollection(trades)
 
 
@@ -184,7 +183,6 @@ class TradeCollection(object):
         negative_runs = neg_ends - neg_starts
         return (positive_runs, negative_runs)
 
-
     def find(self, condition):
         '''
         find accepts a lambda expression which must accept a Trade object as its input and return True/False.
@@ -193,7 +191,6 @@ class TradeCollection(object):
         trades = [trade for trade in self.trades if condition(trade)]
         return TradeCollection(trades)
         
-
     def trade_frame(self, compacted = True, cumulative = True):
         '''
         Returns a dataframe of daily cumulative return for each trade.
@@ -246,24 +243,20 @@ class TradeCollection(object):
         return self.apply_stop(strat, stop, 'apply_stop_loss')
 
     def apply_stop(self, strat, stop, type):
-        entry_prices = strat.get_entry_prices()
-        exit_prices = strat.get_exit_prices()
+        prices = strat.get_trade_prices()
         stopped_trades = []
         for T in self.as_list():
-            stopped_trades.append(T.__getattribute__(type)(stop, entry_prices, exit_prices))
+            stopped_trades.append(T.__getattribute__(type)(stop, prices))
         return TradeCollection(stopped_trades)
 
-
     def apply_delay(self, strat, delay):
-        entry_prices = strat.get_entry_prices()
-        exit_prices = strat.get_exit_prices()
+        prices = strat.get_trade_prices()
         delayed_trades = []
         for T in self.as_list():
-            new_T = T.apply_delay(delay, entry_prices, exit_prices)
+            new_T = T.apply_delay(delay, prices)
             if new_T is not None:
                 delayed_trades.append(new_T)
         return TradeCollection(delayed_trades)
-
 
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
@@ -303,17 +296,16 @@ class TradeCollection(object):
         plt.ylim(y_range)
 
 
-
 class Trade(object):
 
-    def __init__(self, ticker, entry_date, exit_date, entry_prices, exit_prices, position_size = 1.0):
+    def __init__(self, ticker, entry_date, exit_date, prices, position_size = 1.0):
         self.ticker = ticker
         self.entry = entry_date
         self.exit = exit_date
-        self.entry_price = self.get_price(entry_date, entry_prices)
-        self.exit_price = self.get_price(exit_date, exit_prices)
+        self.entry_price = self.get_price(entry_date, prices)
+        self.exit_price = self.get_price(exit_date, prices)
 
-        prices = exit_prices[self.entry:self.exit]
+        prices = prices[self.entry:self.exit]
         daily_returns = Series(prices / prices.shift(1)) - 1
         daily_returns[0] = (prices[0] / self.entry_price) - 1
         if isinstance(position_size, int) or isinstance(position_size, float):
@@ -375,28 +367,27 @@ class Trade(object):
 
         return DataFrame({'Drawdown' : dd, 'Highwater' : high_water})
 
-    def apply_trailing_stop(self, stop, entry_prices, exit_prices):
+    def apply_trailing_stop(self, stop, prices):
         dd = self.drawdowns()
-        return self.apply_stop(dd.Drawdown, stop, entry_prices, exit_prices)
+        return self.apply_stop(dd.Drawdown, stop, prices)
 
-    def apply_stop_loss(self, stop, entry_prices, exit_prices):
-        return self.apply_stop(self.normalised, stop, entry_prices, exit_prices)
+    def apply_stop_loss(self, stop, prices):
+        return self.apply_stop(self.normalised, stop, prices)
 
-    def apply_stop(self, stop_measure, stop, entry_prices, exit_prices):
+    def apply_stop(self, stop_measure, stop, prices):
         stop = -1 * abs(stop)
         limit_hits = stop_measure.index[stop_measure <= stop]
         if len(limit_hits):
             stopped_day = min(limit_hits)
-            stopped_date = exit_prices[self.entry:].index[stopped_day]
-            return Trade(self.ticker, self.entry, stopped_date, entry_prices[self.ticker], exit_prices[self.ticker])
+            stopped_date = prices[self.entry:].index[stopped_day]
+            return Trade(self.ticker, self.entry, stopped_date, prices[self.ticker])
         else:
             return self
 
-
-    def apply_delay(self, delay, entry_prices, exit_prices):
+    def apply_delay(self, delay, prices):
         if self.duration > delay:
-            entry = entry_prices[self.entry:].index[delay]
-            return Trade(self.ticker, entry, self.exit, entry_prices[self.ticker], exit_prices[self.ticker])
+            entry = prices[self.entry:].index[delay]
+            return Trade(self.ticker, entry, self.exit, prices[self.ticker])
         else:
             return None
 

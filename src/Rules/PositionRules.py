@@ -12,7 +12,7 @@ class PositionFromDiscreteSignal(PositionRuleElement):
         self.level_sizes = kwargs
 
     def execute(self, strategy):
-        pos_data = strategy.get_empty_dataframe(fill_data = 0)
+        pos_data = strategy.getEmptyDataFrame(fill_data = 0)
         signal = strategy.signal.at("entry")
         for level, position_size in self.level_sizes.items():
             pos_data[signal.data == level] = position_size
@@ -104,4 +104,5 @@ class HighestRankedFs(PositionRuleElement):
         positions = Position(result)
         positions.forecasts = forecasts
         return positions
+
   
