@@ -23,18 +23,18 @@ def createTrades(position_data, strategy):
         entries = ticker_flags.index[ticker_flags > 0]
         i = 0
         while i < len(entries):
-            entry = entries[i]
+            entry_day = entries[i]
             i += 1
             if i < len(entries):
-                next = entries[i]
+                next_entry = entries[i]
             else:
-                next = None
-            exit = ticker_flags[entry:next].index[ticker_flags[entry:next] < 0]
-            if len(exit) == 0:
-                exit = ticker_flags.index[-1]
+                next_entry = None
+            exit_day = ticker_flags[entry_day:next_entry].index[ticker_flags[entry_day:next_entry] < 0]
+            if len(exit_day) == 0:
+                exit_day = ticker_flags.index[-1]
             else:
-                exit = exit[0]
-            trades.append(Trade(ticker, entry, exit, prices[ticker], position_data[ticker]))
+                exit_day = exit_day[0]
+            trades.append(Trade(ticker, entry_day, exit_day, prices[ticker], position_data[ticker]))
     return TradeCollection(trades)
 
 

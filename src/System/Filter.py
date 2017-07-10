@@ -1,6 +1,6 @@
 
 
-class FilterInterface():
+class FilterInterface:
 
     def __call__(self, strategy):
         raise NotImplementedError("Filter must be callable")
@@ -95,10 +95,14 @@ class WideFilterValues(FilterValues):
     def types(self):
         return [self.name]
 
-    def value_rank(self, market):
+    def value_ratio(self, market):
         fullDF = market.get_empty_dataframe()
         values = self.values.reindex(fullDF.index, method = 'ffill')
-        ratio = values / market.close
-        ranks = ratio.rank(axis = 1, ascending = False)
+        ratios = values / market.close
+        return ratios
+
+    def value_rank(self, market):
+        ratios = self.value_ratio(market)
+        ranks = ratios.rank(axis = 1, ascending = False)
         return ranks
 

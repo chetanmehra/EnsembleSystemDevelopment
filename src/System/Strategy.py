@@ -233,10 +233,6 @@ class DataElement:
     e.g. ["decision", "entry", "exit", "open", "close"], or a twin value which represents the calculations 
     occur over some span of time, e.g. for returns which have timing ["entry", "exit"]
     '''
-    def __init__(self):
-        self.lag = 0
-        self.calculation_timing = None
-
     def shift(self, lag):
         lagged = self.copy()
         lagged.data = self.data.copy() # Note: deepcopy doesn't seem to copy the dataframe properly; hence this line.
@@ -304,15 +300,15 @@ class Indexer(object):
 
 
     def getLag(self, start, end):
-        start = self.check_timing(start)
-        end = self.check_timing(end)
+        start = self.convert_timing(start)
+        end = self.convert_timing(end)
         if "OC" in start + end:
             lag = 0
         else:
             lag = 1
         return lag
 
-    def check_timing(self, timing):
+    def convert_timing(self, timing):
         timing = timing.lower()
         if timing not in self.timing_map.keys():
             raise ValueError("Timing must be one of: " + ",".join(self.timing_map.keys()))

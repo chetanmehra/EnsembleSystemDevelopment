@@ -9,8 +9,7 @@ class EntryLagFilter(FilterInterface):
         self.lag = lag
 
     def __call__(self, strategy):
-        entry_prices = strategy.get_entry_prices()
-        exit_prices = strategy.get_exit_prices()
+        prices = strategy.get_trade_prices()
         new_trades = []
         for trade in strategy.trades.as_list():
             if trade.duration <= self.lag:
@@ -22,8 +21,8 @@ class EntryLagFilter(FilterInterface):
             new_entry_lag = min(new_possible_entries) + 1
             if new_entry_lag >= trade.duration:
                 continue
-            new_entry = entry_prices[trade.entry:].index[new_entry_lag]
-            new_trades.append(Trade(trade.ticker, new_entry, trade.exit, entry_prices[trade.ticker], exit_prices[trade.ticker]))
+            new_entry = prices[trade.entry:].index[new_entry_lag]
+            new_trades.append(Trade(trade.ticker, new_entry, trade.exit, prices[trade.ticker]))
         return TradeCollection(new_trades)
 
     def plot(self, ticker, start, end, ax):

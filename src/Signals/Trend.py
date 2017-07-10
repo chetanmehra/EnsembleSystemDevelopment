@@ -1,14 +1,17 @@
 
 from System.Strategy import SignalElement
 from System.Signal import Signal
-from pandas import Panel
+from pandas import Panel, DataFrame
 
 
 
 # TODO Create breakout signal generator
 
 class Crossover(SignalElement):
-    
+    '''
+    The Crossover signal compares two indicators (fast and slow) to determine whether
+    the prevailing trend is 'Up' (fast > slow) or 'Down' (fast <= slow).
+    '''
     def __init__(self, slow, fast):
         self.fast = fast
         self.slow = slow
@@ -33,7 +36,10 @@ class Crossover(SignalElement):
 
 
 class TripleCrossover(SignalElement):
-    
+    '''
+    The Triple Crossover signal is similar to the Crossover except it uses three indicators (fast, mid and slow).
+    The prevailing trend is 'Up' when (fast > mid) and (mid > slow), and 'Down' otherwise.
+    '''
     def __init__(self, slow, mid, fast):
         self.fast = fast
         self.mid = mid

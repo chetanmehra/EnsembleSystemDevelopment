@@ -1,7 +1,5 @@
 
 from System.Filter import FilterInterface, StackedFilterValues
-from System.Trade import Trade, TradeCollection
-
 
 
 class ValueFilterValues(StackedFilterValues):
@@ -21,7 +19,10 @@ class ValueFilterValues(StackedFilterValues):
 
 
 class ValueRangeFilter(FilterInterface):
-
+    '''
+    ValueRangeFilter filters strategy trades based on the valuation at the time of 
+    entry being within the specified range.
+    '''
     def __init__(self, values, filter_range):
         '''
         Requires that values is a ValueFilterValues object.
@@ -52,16 +53,22 @@ class ValueRangeFilter(FilterInterface):
 
 
     def plot(self, ticker, start, end, ax):
-        values = self.values.plot(ticker, start, end, ax)
+        self.values.plot(ticker, start, end, ax)
 
 
 class ValueRankFilter(FilterInterface):
-
+    '''
+    ValueRankFilter filters trades based on the rank of the valuation calculated at the 
+    time of trade entry.
+    '''
     def __init__(self, values, market, max_rank):
         self.ranks = values.value_rank(market)
         self.max_rank = max_rank
 
     def accepted_trade(self, trade):
+        '''
+        Returns True if the trade meets the filter criterion, else False.
+        '''
         rank = self.ranks.loc[trade.entry, trade.ticker]
         return rank <= self.max_rank
 
