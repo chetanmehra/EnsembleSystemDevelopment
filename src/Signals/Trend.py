@@ -25,7 +25,7 @@ class Crossover(SignalElement):
         fast_ema = self.fast(prices)
         slow_ema = self.slow(prices)
 
-        ind_data = strategy.getEmptyDataFrame(fill_data = 'Down')
+        ind_data = strategy.get_empty_dataframe(fill_data = 'Down')
         ind_data[fast_ema > slow_ema] = 'Up'
 
         return Signal(ind_data, ['Up', 'Down'], Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
@@ -56,7 +56,7 @@ class TripleCrossover(SignalElement):
         slow_ema = self.slow(prices)
         levels = (fast_ema > mid_ema) & (mid_ema > slow_ema)
 
-        ind_data = strategy.getEmptyDataFrame(fill_data = 'Down')
+        ind_data = strategy.get_empty_dataframe(fill_data = 'Down')
         ind_data[levels] = 'Up'
         return Signal(ind_data, ['Up', 'Down'], Panel.from_dict({'Fast':fast_ema, 'Mid':mid_ema, 'Slow':slow_ema}))
     

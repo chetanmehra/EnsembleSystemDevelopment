@@ -6,7 +6,7 @@ Created on 21 Dec 2014
 import matplotlib.pyplot as plt
 from copy import copy, deepcopy
 from pandas import DateOffset, Panel, DataFrame, Series
-from System.Trade import Trade, TradeCollection, createTrades
+from System.Trade import Trade, TradeCollection, create_trades
 
 
 
@@ -51,7 +51,6 @@ class Strategy(object):
         self.positions = None
         self.trades = None
 
-
     def check_fields(self):
         missing_fields = []
         for field in self.required_fields:
@@ -66,7 +65,7 @@ class Strategy(object):
             
     def apply_rules(self):
         self.positions = self.position_rules(self)
-        self.trades = createTrades(self.positions.data, self)
+        self.trades = create_trades(self.positions.data, self)
 
     def generate_signals(self):
         self.signal = self.signal_generator(self)
@@ -76,12 +75,12 @@ class Strategy(object):
             return
         for filter in self.filters:
             self.trades = filter(self)
-        self.positions.updateFromTrades(self.trades)
+        self.positions.update_from_trades(self.trades)
 
-    def applyFilter(self, filter):
+    def apply_filter(self, filter):
         self.filters += [filter]
         self.trades = filter(self)
-        self.positions.updateFromTrades(self.trades)
+        self.positions.update_from_trades(self.trades)
     
     @property
     def trade_timing(self):
@@ -103,50 +102,50 @@ class Strategy(object):
         else:
             return self.market.close
 
-    def getEmptyDataFrame(self, fill_data = None):
-        return self.market.getEmptyDataFrame(fill_data)
+    def get_empty_dataframe(self, fill_data = None):
+        return self.market.get_empty_dataframe(fill_data)
 
-    def buyAndHoldTrades(self):
-        signal_data = self.getEmptyDataFrame()
+    def buy_and_hold_trades(self):
+        signal_data = self.get_empty_dataframe()
         signal_data[:] = 1
         return createTrades(signal_data, self)
 
     @property
-    def marketReturns(self):
+    def market_returns(self):
         return self.market.returns(self.indexer)
     
     @property
     def returns(self):
-        return self.positions.appliedTo(self.marketReturns)
+        return self.positions.applied_to(self.market_returns)
     
     @property
-    def longReturns(self):
+    def long_returns(self):
         positions = self.positions.long_only()
         return positions(self)
     
     @property
-    def shortReturns(self):
+    def short_returns(self):
         positions = self.positions.short_only()
         return positions(self)
 
     def plot_measures(self, ticker, start, end, ax):
         self.signal.plot_measures(ticker, start, end, ax)
 
-    def plotReturns(self, long_only = False, short_only = False, color = "blue", **kwargs):
+    def plot_returns(self, long_only = False, short_only = False, color = "blue", **kwargs):
 
         if long_only:
-            returns = self.longReturns
+            returns = self.long_returns
         elif short_only:
-            returns = self.shortReturns
+            returns = self.short_returns
         else:
             returns = self.returns
         start = self.positions.start
         returns.plot(start = start, color = color, **kwargs)
-        self.marketReturns.plot(start = start, color = "black", label = "Market")
+        self.market_returns.plot(start = start, color = "black", label = "Market")
         plt.legend(loc = "upper left")
 
 
-    def plotTrade(self, key):
+    def plot_trade(self, key):
         trades = self.trades[key]
         if isinstance(trades, list):
             if len(trades) == 0:

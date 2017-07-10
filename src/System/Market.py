@@ -42,14 +42,12 @@ class Market(object):
     def __getitem__(self, key):
         return self.instruments[key]
 
-
-    def getEmptyDataFrame(self, fill_data = None):
+    def get_empty_dataframe(self, fill_data = None):
         if isinstance(fill_data, str):
             data_type = object
         else:
             data_type = float
         return DataFrame(fill_data, index = self.close.index, columns = self.tickers, dtype = data_type)
-
 
     @property
     def open(self):
@@ -74,15 +72,14 @@ class Market(object):
     def _get_series(self, name):
         return self.instruments.minor_xs(name)
 
-    def downloadData(self):
+    def download_data(self):
         for ticker in self.tickers:
             raw = self.downloader.get(ticker, self.start, self.end)
             self[ticker] = self.downloader.adjust(raw)
 
-    def loadData(self):
+    def load_data(self):
         for ticker in self.tickers:
             self[ticker] = self.downloader.load(ticker, self.start, self.end)
-
             
     def returns(self, indexer):
         returns = indexer.marketReturns(self)
@@ -92,8 +89,8 @@ class Market(object):
         vol = self.close.rolling(window).std()
         return WideFilterValues(vol, "volatility")
 
-    def relativePerformance(self, indexer, period):
-        returns = indexer.marketReturns(self)
+    def relative_performance(self, indexer, period):
+        returns = indexer.market_returns(self)
         relative = returns.subtract(returns.mean(axis = 'columns'), axis = 'rows')
         return WideFilterValues(ewma(relative, span = period), "relative_return")
 

@@ -22,7 +22,7 @@ class Position(DataElement):
         self.data = data
 
 
-    def updateFromTrades(self, trades):
+    def update_from_trades(self, trades):
         new_pos_data = deepcopy(self.data)
         new_pos_data[:] = 0
         for trade in trades.as_list():
@@ -30,7 +30,7 @@ class Position(DataElement):
         self.data = new_pos_data
 
 
-    def appliedTo(self, market_returns):
+    def applied_to(self, market_returns):
         return AggregateReturns(self.data * market_returns.data, market_returns.indexer)
 
 

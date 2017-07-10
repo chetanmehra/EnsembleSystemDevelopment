@@ -48,6 +48,12 @@
     <Compile Include="src\PerformanceAnalysis\__init__.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="src\Portfolio\Portfolio.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="src\Portfolio\__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="src\Rules\PositionRules.py">
       <SubType>Code</SubType>
     </Compile>
@@ -87,6 +93,7 @@
     <Folder Include="src\" />
     <Folder Include="src\Filters\" />
     <Folder Include="src\PerformanceAnalysis\" />
+    <Folder Include="src\Portfolio\" />
     <Folder Include="src\Rules\" />
     <Folder Include="src\Signals\" />
     <Folder Include="src\System" />

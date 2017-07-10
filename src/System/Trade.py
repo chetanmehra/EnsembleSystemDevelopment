@@ -5,7 +5,7 @@ from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
 # Factory methods
-def createTrades(position_data, strategy):
+def create_trades(position_data, strategy):
     prices = strategy.get_trade_prices()
     trades = []
     position_sign = (position_data > 0) * 1
