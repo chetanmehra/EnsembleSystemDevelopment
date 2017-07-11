@@ -38,11 +38,21 @@ class Strategy(object):
         return first_line + second_line + third_line + fourth_line
 
     def run(self):
+        '''
+        Run the strategy with the current settings.
+        This will create the signals, trades, and base positions.
+        Any filters specified will be applied also.
+        '''
         self.generate_signals()
         self.apply_rules()
         self.apply_filters()
         
     def rerun(self):
+        '''
+        Run the strategy by first clearing any previous calculated data.
+        Typically used when the strategy has already been run, but changes have been
+        made to the settings
+        '''
         self.reset()
         self.run()
 
@@ -58,17 +68,16 @@ class Strategy(object):
                 self.__getattribute__(field)
             except AttributeError:
                 missing_fields += [field]
-        
         if len(missing_fields):
             missing_fields = ", ".join(missing_fields)
             raise StrategyException("Missing parameters: {0}".format(missing_fields))
-            
+           
+    def generate_signals(self):
+        self.signal = self.signal_generator(self)
+
     def apply_rules(self):
         self.positions = self.position_rules(self)
         self.trades = create_trades(self.positions.data, self)
-
-    def generate_signals(self):
-        self.signal = self.signal_generator(self)
 
     def apply_filters(self):
         if len(self.filters) == 0:
@@ -78,61 +87,102 @@ class Strategy(object):
         self.positions.update_from_trades(self.trades)
 
     def apply_filter(self, filter):
+        '''
+        Add a filter to a strategy which has already been run.
+        This will run the filter, and add it to the list of 
+        existing filters for the strategy.
+        '''
         self.filters += [filter]
         self.trades = filter(self)
         self.positions.update_from_trades(self.trades)
     
     @property
     def trade_timing(self):
+        '''
+        Return the timing (open, close) for when trades occur.
+        '''
         return self.indexer.trade_timing
     
     @property
     def ind_timing(self):
+        '''
+        Return the timing (open, close) for when calculations to determine
+        actions are performed.
+        '''
         return self.indexer.ind_timing
     
     def get_indicator_prices(self):
+        '''
+        Returns the prices dataframe relevant to the calculation of indicators.
+        '''
         if self.ind_timing == "C":
             return self.market.close
         if self.ind_timing == "O":
             return self.market.open
 
     def get_trade_prices(self):
+        '''
+        Returns the dataframe of prices for trade timing.
+        '''
         if self.trade_timing[0] == "O":
             return self.market.open
         else:
             return self.market.close
 
     def get_empty_dataframe(self, fill_data = None):
+        '''
+        Returns a dataframe with the same index as the market, and with
+        columns equal to the tickers in the market.
+        '''
         return self.market.get_empty_dataframe(fill_data)
 
     def buy_and_hold_trades(self):
+        '''
+        Return the TradeCollection assuming all tickers are bought and held
+        for the duration of the test period.
+        '''
         signal_data = self.get_empty_dataframe()
         signal_data[:] = 1
         return createTrades(signal_data, self)
 
     @property
     def market_returns(self):
+        '''
+        Gets the dataframe of market returns relevant for the trade timing.
+        '''
         return self.market.returns(self.indexer)
     
     @property
     def returns(self):
+        '''
+        Gets the dataframe of strategy returns, i.e. positions applied to the market
+        returns.
+        '''
         return self.positions.applied_to(self.market_returns)
     
     @property
     def long_returns(self):
+        '''
+        Gets the strategy returns for long trades only.
+        '''
         positions = self.positions.long_only()
-        return positions(self)
+        return positions.applied_to(self.market_returns)
     
     @property
     def short_returns(self):
+        '''
+        Gets the strategy returns for short trades only.
+        '''
         positions = self.positions.short_only()
-        return positions(self)
+        return positions.applied_to(self.market_returns)
 
     def plot_measures(self, ticker, start, end, ax):
         self.signal.plot_measures(ticker, start, end, ax)
 
     def plot_returns(self, long_only = False, short_only = False, color = "blue", **kwargs):
-
+        '''
+        Plots the returns of the strategy vs the market returns.
+        '''
         if long_only:
             returns = self.long_returns
         elif short_only:
@@ -146,6 +196,10 @@ class Strategy(object):
 
 
     def plot_trade(self, key):
+        '''
+        Given the key of a trade (trade number, or ticker), this will produce a candlestick plt, 
+        along with the measures for the trade, entry, and exit.
+        '''
         trades = self.trades[key]
         if isinstance(trades, list):
             if len(trades) == 0:
@@ -173,7 +227,12 @@ class Strategy(object):
 
 
 class StrategyElement:
-    
+    '''
+    The StrategyElement class provides the basic interface for those objects which
+    perform calculations based on the strategy data. e.g. to create signals.
+    It defines the base functionality required, as well as handling the details of
+    assigning the indexer and lag values.
+    '''
     @property
     def ID(self): 
         return id(self)

@@ -1,14 +1,12 @@
 
-from pandas import Panel, DataFrame, Series
-from pandas.core.common import isnull
-from pandas.tseries.offsets import DateOffset
-import matplotlib.pyplot as plt
 from copy import deepcopy
-from numpy import sign
 from math import log
+from pandas import DataFrame, Series
+from pandas.core.common import isnull
+from numpy import sign
 
 from System.Strategy import DataElement
-from System.Signal import Signal
+
 
 
 class Position(DataElement):
@@ -17,7 +15,7 @@ class Position(DataElement):
     calculating the returns from holding those positions.
     '''
     def __init__(self, data):
-        if type(data) is not DataFrame:
+        if not isinstance(data, DataFrame):
             raise TypeError
         self.data = data
 
@@ -39,12 +37,11 @@ class Position(DataElement):
         num = self.num_concurrent()
         return num[num != 0].index[0]
 
-    
     def long_only(self):
         data = deepcopy(self.data)
         data[data < 0] = 0
         return Position(data)
-        
+
     def short_only(self):
         data = deepcopy(self.data)
         data[data > 0] = 0
@@ -53,7 +50,6 @@ class Position(DataElement):
     def remove(self, excluded):
         for trade in excluded:
             self.data[trade.ticker][trade.entry:trade.exit] = 0
-        
 
     def num_concurrent(self):
         '''

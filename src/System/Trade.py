@@ -30,7 +30,7 @@ def create_trades(position_data, strategy):
             else:
                 next_entry = None
             exit_day = ticker_flags[entry_day:next_entry].index[ticker_flags[entry_day:next_entry] < 0]
-            if len(exit_day) == 0:
+            if not exit_day:
                 exit_day = ticker_flags.index[-1]
             else:
                 exit_day = exit_day[0]
@@ -53,8 +53,7 @@ class TradeCollection(object):
         if isinstance(key, str):
             return [trade for trade in self.trades if trade.ticker == key]
         else:
-            return self.trades[key]
-            
+            return self.trades[key]            
 
     def as_list(self):
         return self.trades
@@ -206,7 +205,7 @@ class TradeCollection(object):
             trade_df = df.loc[:, 1:10]
             trade_df.columns = trade_df.columns.astype(str)
             for bounds in cols:
-                if (df.shape[1] <= bounds[1]):
+                if df.shape[1] <= bounds[1]:
                     label = '{}+'.format(bounds[0])
                     trade_df[label] = df.loc[:, bounds[0]:].mean(axis = 1)
                     break
@@ -374,7 +373,6 @@ class Trade(object):
     def apply_stop_loss(self, stop, prices):
         return self.apply_stop(self.normalised, stop, prices)
 
-    
     def apply_stop(self, stop_measure, stop, prices):
         stop = -1 * abs(stop)
         limit_hits = stop_measure.index[stop_measure <= stop]
@@ -401,7 +399,7 @@ class Trade(object):
 
     def revise_entry(self, entry_day, prices):
         '''
-        revise_entry accepts an entry_day (integer), and readjusts the trade to 
+        revise_entry accepts an entry_day (integer), and readjusts the trade to
         start on the new (later) entry day.
         '''
         if self.duration > entry_day:
@@ -412,7 +410,7 @@ class Trade(object):
 
     def revise_exit(self, exit_day, prices):
         '''
-        revise_exit accepts an exit_day (integer), and readjusts the trade to 
+        revise_exit accepts an exit_day (integer), and readjusts the trade to
         end on the new exit day.
         '''
         if exit_day > 0:
