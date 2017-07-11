@@ -374,23 +374,76 @@ class Trade(object):
     def apply_stop_loss(self, stop, prices):
         return self.apply_stop(self.normalised, stop, prices)
 
+    
     def apply_stop(self, stop_measure, stop, prices):
         stop = -1 * abs(stop)
         limit_hits = stop_measure.index[stop_measure <= stop]
         if len(limit_hits):
             stopped_day = min(limit_hits)
-            stopped_date = prices[self.entry:].index[stopped_day]
-            return Trade(self.ticker, self.entry, stopped_date, prices[self.ticker])
+            return self.revise_exit(stopped_day, prices)
+
+    # apply_exit_condition is a further generalised form of apply_stop.
+    # TODO apply_exit_condition needs to be tested, and replace apply_stop if successful.
+    def apply_exit_condition(self, condition, prices):
+        '''
+        apply_exit_condition takes a condition, which is a callable object.
+        The condition receives the trade and calculates the new exit day.
+        The new exit day and prices are used to return a new trade object.
+        '''
+        new_exit_day = condition(self)
+        if new_exit_day is not None:
+            return self.revise_exit(new_exit_day, prices)
         else:
             return self
 
     def apply_delay(self, delay, prices):
-        if self.duration > delay:
-            entry = prices[self.entry:].index[delay]
-            return Trade(self.ticker, entry, self.exit, prices[self.ticker])
+        return revise_entry(delay, prices)
+
+    def revise_entry(self, entry_day, prices):
+        '''
+        revise_entry accepts an entry_day (integer), and readjusts the trade to 
+        start on the new (later) entry day.
+        '''
+        if self.duration > entry_day:
+            new_entry = prices[self.entry:].index[entry_day]
+            return Trade(self.ticker, new_entry, self.exit, prices[self.ticker])
+        else:
+            return None
+
+    def revise_exit(self, exit_day, prices):
+        '''
+        revise_exit accepts an exit_day (integer), and readjusts the trade to 
+        end on the new exit day.
+        '''
+        if exit_day > 0:
+            new_exit = prices[self.entry:].index[exit_day]
+            return Trade(self.ticker, self.entry, new_exit, prices[self.ticker])
         else:
             return None
 
 
+class TrailingStop:
 
+    def __init__(self, stop_level):
+        self.stop = -1 * abs(stop_level)
 
+    def __call__(self, trade):
+        drawdowns = trade.drawdowns().Drawdown
+        limit_hits = drawdowns.index[drawdowns <= self.stop]
+        if len(limit_hits):
+            return min(limit_hits)
+        else:
+            return None
+
+class StopLoss:
+
+    def __init__(self, stop_level):
+        self.stop = -1 * abs(stop_level)
+
+    def __call__(self, trade):
+        returns = trade.normalised
+        limit_hits = returns.index[returns <= self.stop]
+        if len(limit_hits):
+            return min(limit_hits)
+        else:
+            return None
