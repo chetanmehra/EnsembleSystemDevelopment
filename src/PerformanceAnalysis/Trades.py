@@ -8,18 +8,13 @@ from .Metrics import GeometricGrowth, OptF
 class FilterPerformance():
 
     def __init__(self, trades):
+        self.trades = trades
         self.trade_df = trades.as_dataframe()
         self.result = None
 
     def add_filter_to_df(self, *args):
         for filter in args:
-            cols = filter.types
-            for col in cols:
-                self.trade_df[col] = None
-            if len(cols) == 1:
-                cols = cols[0]
-            for i in self.trade_df.index:
-                self.trade_df.loc[i, cols] = filter.get(self.trade_df, i)
+            self.trade_df = self.trades.add_filter_to_df(self.trade_df, filter)
 
     def filter_summary(self, filter_values, bins = 5):
         '''

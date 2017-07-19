@@ -2,7 +2,7 @@
 # Metrics based on a return series
 # Each of these methods expect a pandas Series.
 
-from pandas import Series
+from pandas import Series, DataFrame
 from numpy import sign
 from sklearn.linear_model import LinearRegression
 
@@ -29,3 +29,14 @@ def K_Ratio(returns):
     lm.fit(X, returns)
     std_error = (Series((lm.predict(X) - returns) ** 2).mean()) ** 0.5
     return ((250 ** 0.5) / len(returns)) * (lm.coef_[0] / std_error)
+
+def Drawdowns(returns):
+    '''
+    Drawdowns accepts a cumulative returns series, and returns a dataframe with
+    columns [Drawdowns, Highwater]
+    '''
+    high_water = Series(0, index = returns.index, dtype = float)
+    for i in range(1, len(returns)):
+        high_water[i] = max(high_water[i - 1], returns[i])
+    dd = ((returns + 1) / (high_water + 1)) - 1
+    return DataFrame({'Drawdown' : dd, 'Highwater' : high_water})

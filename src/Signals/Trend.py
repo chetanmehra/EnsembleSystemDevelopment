@@ -4,7 +4,6 @@ from System.Signal import Signal
 from pandas import Panel, DataFrame
 
 
-
 # TODO Create breakout signal generator
 
 class Crossover(SignalElement):

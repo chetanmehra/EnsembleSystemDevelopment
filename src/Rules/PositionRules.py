@@ -10,6 +10,7 @@ class PositionFromDiscreteSignal(PositionRuleElement):
     '''
     def __init__(self, **kwargs):
         self.level_sizes = kwargs
+        self.name = ", ".join(["{} [{}]".format(key, value) for key, value in self.level_sizes.items()])
 
     def execute(self, strategy):
         pos_data = strategy.get_empty_dataframe(fill_data = 0)

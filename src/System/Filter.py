@@ -3,7 +3,14 @@
 class FilterInterface:
 
     def __call__(self, strategy):
-        raise NotImplementedError("Filter must be callable")
+        return strategy.trades.find(self.accepted_trade)
+
+    def accepted_trade(self, trade):
+        '''
+        Each filter must implement a method accepted_trade which accepts a trade object
+        and returns a boolean to determine if the trade should be kept.
+        '''
+        raise NotImplementedError("Filter must implement 'accepted_trade' method")
 
     def plot(self, ticker, start, end, ax):
         raise NotImplementedError("Filter must implement 'plot' method")
@@ -21,10 +28,8 @@ class FilterValues:
         else:
             self.name = name
 
-
     def __getitem__(self, key):
         raise NotImplementedError
-
 
     def get(self, ticker, date):
         relevant_values = self.find_relevant_values(ticker, date)
@@ -73,7 +78,7 @@ class StackedFilterValues(FilterValues):
     def as_wide_values(self, type = None):
         if type is None:
             type = self.types[0]
-        df = self.values
+        df = self.values.copy()
         df['date'] = df.index
         df = df.pivot(index = 'date', columns = 'ticker', values = type)
         df = df.fillna(method = 'ffill')

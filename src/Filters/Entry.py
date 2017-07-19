@@ -2,6 +2,7 @@
 from System.Filter import FilterInterface
 from System.Trade import Trade, TradeCollection
 
+# TODO EntryLagFilter is an Entry Condition, not a Filter
 
 class EntryLagFilter(FilterInterface):
 

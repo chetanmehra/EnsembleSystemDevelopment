@@ -1,5 +1,6 @@
 
-from pandas import rolling_sum
+
+# TODO Average True Range volatility measure
 
 def EfficiencyRatio(prices, period):
     '''
@@ -11,5 +12,5 @@ def EfficiencyRatio(prices, period):
     period - an integer lookback window.
     '''
     overall_change = prices.diff(period).abs()
-    daily_sum = rolling_sum(prices.diff().abs(), period)
+    dialy_sum = prices.diff().abs().rolling(window = period, center = False).sum()
     return overall_change / daily_sum

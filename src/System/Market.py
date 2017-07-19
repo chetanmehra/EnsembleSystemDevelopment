@@ -3,7 +3,6 @@ Created on 6 Dec 2014
 
 @author: Mark
 '''
-import System.Data as Data
 from pandas import DateOffset, Panel, DataFrame
 from pandas.stats.moments import ewma
 import pandas as pd
@@ -27,7 +26,6 @@ class Market(object):
         '''
         self.start = start_date
         self.end = end_date
-        self.downloader = Data.Handler(r"D:\Investing\Data")
         self.instruments = Panel({ticker:DataFrame(None) for ticker in sorted(tickers)})
         
     @property
@@ -72,17 +70,8 @@ class Market(object):
     def _get_series(self, name):
         return self.instruments.minor_xs(name)
 
-    def download_data(self):
-        for ticker in self.tickers:
-            raw = self.downloader.get(ticker, self.start, self.end)
-            self[ticker] = self.downloader.adjust(raw)
-
-    def load_data(self):
-        for ticker in self.tickers:
-            self[ticker] = self.downloader.load(ticker, self.start, self.end)
-            
     def returns(self, indexer):
-        returns = indexer.marketReturns(self)
+        returns = indexer.market_returns(self)
         return AverageReturns(returns, indexer)
 
     def volatility(self, window):
@@ -92,8 +81,7 @@ class Market(object):
     def relative_performance(self, indexer, period):
         returns = indexer.market_returns(self)
         relative = returns.subtract(returns.mean(axis = 'columns'), axis = 'rows')
-        return WideFilterValues(ewma(relative, span = period), "relative_return")
-
+        return WideFilterValues(relative.ewm(span = period).mean(), "relative_return")
 
     def candlestick(self, ticker, start = None, end = None):
         data = self[ticker][start:end]

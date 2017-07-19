@@ -1,8 +1,9 @@
 
 from pandas import Series, DataFrame, qcut, cut, concat
-from numpy import sign, log, hstack
+from numpy import sign, log, exp, hstack
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
+from PerformanceAnalysis.Metrics import Drawdowns
 
 # Factory methods
 def create_trades(position_data, strategy):
@@ -30,7 +31,7 @@ def create_trades(position_data, strategy):
             else:
                 next_entry = None
             exit_day = ticker_flags[entry_day:next_entry].index[ticker_flags[entry_day:next_entry] < 0]
-            if not exit_day:
+            if not len(exit_day):
                 exit_day = ticker_flags.index[-1]
             else:
                 exit_day = exit_day[0]
@@ -165,7 +166,7 @@ class TradeCollection(object):
         return max(self.MFEs)
 
     def consecutive_wins_losses(self):
-        trade_df = self.as_dataframe().sort(columns = 'exit')
+        trade_df = self.as_dataframe().sort_values(by = 'exit')
         win_loss = sign(trade_df.base_return)
         # Create series which has just 1's and 0's
         positive = Series(hstack(([0], ((win_loss > 0) * 1).values, [0])))
@@ -235,18 +236,12 @@ class TradeCollection(object):
             self._daily_returns = returns.dropna()
         return self._daily_returns
 
-    def apply_trailing_stop(self, strat, stop):
-        return self.apply_stop(strat, stop, 'apply_trailing_stop')
-
-    def apply_stop_loss(self, strat, stop):
-        return self.apply_stop(strat, stop, 'apply_stop_loss')
-
-    def apply_stop(self, strat, stop, type):
+    def apply_exit_condition(self, strat, condition):
         prices = strat.get_trade_prices()
-        stopped_trades = []
-        for T in self.as_list():
-            stopped_trades.append(T.__getattribute__(type)(stop, prices))
-        return TradeCollection(stopped_trades)
+        adjusted_trades = []
+        for trade in self.as_list():
+            adjusted_trades.append(trade.apply_exit_condition(condition, prices))
+        return TradeCollection(adjusted_trades)
 
     def apply_delay(self, strat, delay):
         prices = strat.get_trade_prices()
@@ -311,7 +306,7 @@ class Trade(object):
             self.daily_returns = daily_returns * position_size
         else:
             self.daily_returns = daily_returns * position_size[self.entry:self.exit]
-        self.normalised = Series((log(1 + self.daily_returns).cumsum()).values)
+        self.normalised = Series((exp(log(1 + self.daily_returns).cumsum()) - 1).values)
         # Note: duration is measured by days-in-market not calendar days
         self.duration = len(self.normalised)
         self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]
@@ -358,30 +353,8 @@ class Trade(object):
         return max(self.normalised)
 
     def drawdowns(self):
-        norm = self.normalised
-        high_water = Series(0, index = norm.index, dtype = float)
-        for i in range(1, len(norm)):
-            high_water[i] = max(high_water[i - 1], norm[i])
-        dd = ((norm + 1) / (high_water + 1)) - 1
+        return Drawdowns(self.normalised)
 
-        return DataFrame({'Drawdown' : dd, 'Highwater' : high_water})
-
-    def apply_trailing_stop(self, stop, prices):
-        dd = self.drawdowns()
-        return self.apply_stop(dd.Drawdown, stop, prices)
-
-    def apply_stop_loss(self, stop, prices):
-        return self.apply_stop(self.normalised, stop, prices)
-
-    def apply_stop(self, stop_measure, stop, prices):
-        stop = -1 * abs(stop)
-        limit_hits = stop_measure.index[stop_measure <= stop]
-        if len(limit_hits):
-            stopped_day = min(limit_hits)
-            return self.revise_exit(stopped_day, prices)
-
-    # apply_exit_condition is a further generalised form of apply_stop.
-    # TODO apply_exit_condition needs to be tested, and replace apply_stop if successful.
     def apply_exit_condition(self, condition, prices):
         '''
         apply_exit_condition takes a condition, which is a callable object.
@@ -420,28 +393,44 @@ class Trade(object):
             return None
 
 
-class TrailingStop:
+class ExitCondition:
+
+    def get_limit_hits(self, trade):
+        raise NotImplementedError("Exit condition must impelement get_limit_hits")
+
+    def __call__(self, trade):
+        limit_hits = self.get_limit_hits(trade)
+        if len(limit_hits):
+            return min(limit_hits)
+        else:
+            return None
+
+class TrailingStop(ExitCondition):
 
     def __init__(self, stop_level):
         self.stop = -1 * abs(stop_level)
 
-    def __call__(self, trade):
+    def get_limit_hits(self, trade):
         drawdowns = trade.drawdowns().Drawdown
-        limit_hits = drawdowns.index[drawdowns <= self.stop]
-        if len(limit_hits):
-            return min(limit_hits)
-        else:
-            return None
+        return drawdowns.index[drawdowns <= self.stop]
 
-class StopLoss:
+class StopLoss(ExitCondition):
 
     def __init__(self, stop_level):
         self.stop = -1 * abs(stop_level)
 
-    def __call__(self, trade):
+    def get_limit_hits(self, trade):
         returns = trade.normalised
-        limit_hits = returns.index[returns <= self.stop]
-        if len(limit_hits):
-            return min(limit_hits)
-        else:
-            return None
+        return returns.index[returns <= self.stop]
+
+class ReturnTriggeredTrailingStop(ExitCondition):
+
+    def __init__(self, stop_level, return_level):
+        self.stop = -1 * abs(stop_level)
+        self.return_level = return_level
+
+    def get_limit_hits(self, trade):
+        dd = trade.drawdowns()
+        drawdowns = dd.Drawdown
+        highwater = dd.Highwater
+        return highwater.index[(highwater >= self.return_level) & (drawdowns <= self.stop)]

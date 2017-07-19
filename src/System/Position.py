@@ -8,7 +8,6 @@ from numpy import sign
 from System.Strategy import DataElement
 
 
-
 class Position(DataElement):
     '''
     Position objects hold the dual role of keeping the position data for the strategy, as well as 
@@ -19,7 +18,6 @@ class Position(DataElement):
             raise TypeError
         self.data = data
 
-
     def update_from_trades(self, trades):
         new_pos_data = deepcopy(self.data)
         new_pos_data[:] = 0
@@ -27,10 +25,8 @@ class Position(DataElement):
             new_pos_data.loc[trade.entry:trade.exit, trade.ticker] = self.data.loc[trade.entry:trade.exit, trade.ticker]
         self.data = new_pos_data
 
-
     def applied_to(self, market_returns):
         return AggregateReturns(self.data * market_returns.data, market_returns.indexer)
-
 
     @property
     def start(self):
@@ -62,7 +58,6 @@ class Position(DataElement):
         data = deepcopy(self.data)
         data = data.div(self.num_concurrent(), axis = 0)
         return Position(data)
-
 
 
 class Returns(DataElement):
@@ -125,6 +120,9 @@ class AggregateReturns(Returns):
         returns = self.collapse_by("sum")
         return (1 + returns) ** 260 - 1
 
+    def cumulative(self):
+        return super().cumulative("sum")
+
     def plot(self, start = None, **kwargs):
         super(AggregateReturns, self).plot("sum", start, **kwargs)
     
@@ -134,6 +132,9 @@ class AverageReturns(Returns):
     def annualised(self):
         returns = self.collapse_by("mean")
         return (1 + returns) ** 260 - 1
+
+    def cumulative(self):
+        return super().cumulative("mean")
 
     def plot(self, start = None, **kwargs):
         return super(AverageReturns, self).plot("mean", start, **kwargs)

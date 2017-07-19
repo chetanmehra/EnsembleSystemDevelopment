@@ -3,7 +3,13 @@ Created on 15 Feb 2015
 
 @author: Mark
 '''
+from multiprocessing import Pool
+import datetime
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 
+from System.Data import getMarket, getValues, getValueRatios, getValueMetrics
 from System.Market import Market
 from System.Strategy import Strategy, MeasureEnsembleStrategy,\
     ModelEnsembleStrategy, CompoundEnsembleStrategy
@@ -11,33 +17,32 @@ from Signals.Trend import Crossover
 from Measures.MovingAverages import EMA, KAMA
 from System.Forecast import BlockForecaster, MeanForecastWeighting, NullForecaster
 from Rules.PositionRules import PositionFromDiscreteSignal, SingleLargestF, OptimalFSign, OptimalPositions
-from Filters.Value import ValueRangeFilter, ValueFilterValues
+from Filters.Value import ValueRangeFilter, ValueFilterValues, ValueRankFilter
 from System.Filter import StackedFilterValues, WideFilterValues
-from System.Trade import TradeCollection
+from System.Trade import TradeCollection, StopLoss, TrailingStop, ReturnTriggeredTrailingStop
 from PerformanceAnalysis.Trades import summary_report
-from multiprocessing import Pool
-import datetime
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
 
 
 # TODO Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
+# TODO Strategy should keep full list of trades after filter, to allow easy reapplication of filters without having to
+# run full strategy again.
 
 # TODO Strategy idea
 # Conditions - Entry
 #   - Market index EMA(50-200) must be long
-#   - Individual ticker EMA(25-100) must be long
-#   - Ticker value ratio (Adjusted) > 3
-#   - Select top ranked stocks (e.g. 5 positions)
+#   - Individual ticker EMA(50-120) must be long
+#   - Ticker value ratio (Adjusted) > 2
+#   - Value rank filter at 10
 # Conditions - Exit
-#   - Individual ticker EMA(25-100) goes short
-#   - 10% Stop loss
-#   - Apply 10% trailing stop when value ratio < 1
+#   - Individual ticker EMA(50-120) goes short
+#   - 15% Stop loss
+#   - Apply 20% trailing stop when returns exceed 30%
+#   - Apply 10% trailing stop when returns exceed 50%
 
 # TODO Refactoring
 #   - Inherit strategy data element from dataframe
 #   - Consider giving trades a reference to the market object.
+#   - Turn ValueRangeFilter into a BandPassFilter. Ratios for value filters should be pre-calculated.
 
 
 pd.set_option('display.width', 120)
@@ -104,47 +109,9 @@ dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT',
                  u'ICS', u'XTE', u'EGO', u'BXN', u'DRA', u'VMT', 
                  u'PGC']
 
-good_tickers = list(valued_tickers)
-[good_tickers.remove(tick) for tick in dodgy_tickers]
+good_tickers = list(set(valued_tickers) - set(dodgy_tickers))
 
 
-def getValues(type = None):
-    vals = pd.read_excel(r'D:\Investing\Workspace\Valuations20170129.xlsx', index_col = 0)
-    if type is not None:
-        vals = vals[["ticker", type]]
-    return ValueFilterValues(vals, type)
-
-def getNyseValues(type = None):
-    vals = pd.read_excel(r'D:\Investing\Workspace\NYSEvaluations20170527.xlsx', index_col = 0)
-    if type is not None:
-        vals = vals[["ticker", type]]
-    return ValueFilterValues(vals, type)
-
-
-def getValueMetrics(type = None):
-    vals = pd.read_excel(r'D:\Investing\Workspace\ValueMetrics20170329.xlsx', index_col = 0)
-    if type is not None:
-        vals = vals[["ticker", type]]
-    return StackedFilterValues(vals, type)
-
-
-def getMarket():
-    instruments = pd.read_pickle(r'D:\Investing\Workspace\market_instruments.pkl')
-    start = instruments.iloc[0].index.min().to_pydatetime().date()
-    end = instruments.iloc[0].index.max().to_pydatetime().date()
-    market = Market(good_tickers, start, end)
-    market.instruments = instruments.loc[good_tickers, :, :]
-    return market
-
-def getNyseMarket():
-    instruments = pd.read_pickle(r'D:\Investing\Workspace\nyse_instruments.pkl')
-    tickers = list(instruments.items)
-    start = instruments.iloc[0].index.min().to_pydatetime().date()
-    end = instruments.iloc[0].index.max().to_pydatetime().date()
-    market = Market(tickers, start, end)
-    market.instruments = instruments
-    return market
-    
 
 def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50), exchange = "NYSE"):
     if exchange == "NYSE":
@@ -169,7 +136,7 @@ def test_pars(short_pars, long_pars):
     for long in long_pars:
         for short in short_pars:
             strat.measure.update_param((long, short))
-            strat.refresh()
+            strat.rerun()
             sharpes.loc[short, long] = strat.trades.Sharpe_annual
             summaries.append(((short, long), summary_report(strat.trades)))
 
@@ -177,7 +144,7 @@ def test_pars(short_pars, long_pars):
 
 def strat_summary(pars):
     strat = baseStratSetup(params = pars)
-    strat.initialise()
+    strat.run()
     attempts = 0
     while True:
         try:
@@ -208,62 +175,5 @@ def parallel_test_pars(short_pars, long_pars):
         summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))
 
-
-
-def compareBlockForecastMethods():
-
-    results = pd.DataFrame()
-
-    signal_strat = signalStratSetup()
-    signal_strat.run()
-
-    trades = {}
-
-    results['Base'] = summary_report(signal_strat.trades)
-    trades['base'] = signal_strat.trades
-
-
-    strat = baseStratSetup()
-    print("Base fcst...")
-    strat.model = BlockForecaster(100)
-    strat.select_positions = OptimalPositions()
-    strat.run()
-    try:
-        results['Base forecast'] = summary_report(strat.trades)
-    except Exception:
-        pass
-    trades['unpooled mean fcst'] = strat.trades
-
-    print("Pooled mean fcst...")
-    strat.reset()
-    strat.model = BlockForecaster(100, pooled = True)
-    strat.run()
-    try:
-        results['Pooled mean fcst'] = summary_report(strat.trades)
-    except Exception:
-        pass
-    trades['pooled mean fcst'] = strat.trades
-
-    print("Unpooled median fcst...")
-    strat.reset()
-    strat.model = BlockForecaster(100, average = 'median')
-    strat.run()
-    try:
-        results['Unpooled median fcst'] = summary_report(strat.trades)
-    except Exception:
-        pass
-    trades['unpooled median fcst'] = strat.trades
-
-    print("Pooled median fcst...")
-    strat.reset()
-    strat.model = BlockForecaster(100, pooled = True, average = 'median')
-    strat.run()
-    try:
-        results['Pooled median fcst'] = summary_report(strat.trades)
-    except Exception:
-        pass
-    trades['pooled median fcst'] = strat.trades
-
-    return (results, trades)
 
 

@@ -9,7 +9,6 @@ from pandas import DateOffset, Panel, DataFrame, Series
 from System.Trade import Trade, TradeCollection, create_trades
 
 
-
 class Strategy(object):
     '''
     Strategy defines the base interface for Strategy objects
@@ -94,6 +93,14 @@ class Strategy(object):
         '''
         self.filters += [filter]
         self.trades = filter(self)
+        self.positions.update_from_trades(self.trades)
+
+    def apply_exit_condition(self, condition):
+        '''
+        Accepts an exit condition object e.g. StopLoss, which is
+        passed to the Trade Collection to be applied to each trade.
+        '''
+        self.trades = self.trades.apply_exit_condition(self, condition)
         self.positions.update_from_trades(self.trades)
     
     @property
@@ -306,12 +313,12 @@ class DataElement:
         lag = self.get_lag(timing)
         return self.shift(lag)
 
-    def alignWith(self, other):
+    def align_with(self, other):
         '''
-        'alignWith' returns a lagged version of the data so that it is aligned with the 
+        'align_with' returns a lagged version of the data so that it is aligned with the 
         timing of the supplied other data object. This ensures that this data will be available at the 
         time creation of the other data object would have started.
-        The logic for the overall lag calculated in alignWith is as follows:
+        The logic for the overall lag calculated in align_with is as follows:
         - total lag = alignment lag + other lag
             - alignment lag = lag between this data calc end to the other data calc start
             - other lag = the lag already applied to the other data.
@@ -324,7 +331,7 @@ class DataElement:
         '''
         Calculate the lag between the completion of calculating this data object and the requested timing.
         '''
-        return self.indexer.getLag(self.calculation_timing[-1], target_timing)
+        return self.indexer.get_lag(self.calculation_timing[-1], target_timing)
 
     @property
     def index(self):
@@ -357,7 +364,7 @@ class Indexer(object):
                            "close" : "C"}
 
 
-    def getLag(self, start, end):
+    def get_lag(self, start, end):
         start = self.convert_timing(start)
         end = self.convert_timing(end)
         if "OC" in start + end:
@@ -372,7 +379,7 @@ class Indexer(object):
             raise ValueError("Timing must be one of: " + ",".join(self.timing_map.keys()))
         return self.timing_map[timing]
     
-    def marketReturns(self, market):
+    def market_returns(self, market):
         timing_map = {"O":"open", "C":"close"}
         if self.trade_timing == "OC":
             lag = 0

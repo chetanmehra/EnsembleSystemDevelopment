@@ -1,5 +1,6 @@
-from .Volatility import EfficiencyRatio
+
 from pandas import DataFrame
+from .Volatility import EfficiencyRatio
 
 class MovingAverage:
 
@@ -25,7 +26,11 @@ class EMA(MovingAverage):
 
 
 class KAMA(MovingAverage):
-
+    '''
+    Calculates the Kaufman adaptive moving average. The smooth parameter varies between the 
+    square of the fast and slow parameters based on the efficiency ratio calculated from 
+    the period number of previous days.
+    '''
     def __init__(self, period, fast = 2, slow = 30):
         self.fast = fast
         self.slow = slow
