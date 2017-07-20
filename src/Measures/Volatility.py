@@ -12,5 +12,5 @@ def EfficiencyRatio(prices, period):
     period - an integer lookback window.
     '''
     overall_change = prices.diff(period).abs()
-    dialy_sum = prices.diff().abs().rolling(window = period, center = False).sum()
+    daily_sum = prices.diff().abs().rolling(window = period, center = False).sum()
     return overall_change / daily_sum

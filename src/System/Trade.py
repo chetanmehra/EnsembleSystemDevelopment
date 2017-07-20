@@ -7,6 +7,7 @@ from PerformanceAnalysis.Metrics import Drawdowns
 
 
 # TODO Apply exit condition and apply entry condition are effectively the same.
+# TODO create_trades does not support short positions.
 
 # Factory methods
 def create_trades(position_data, strategy):
