@@ -5,6 +5,9 @@ from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 from PerformanceAnalysis.Metrics import Drawdowns
 
+
+# TODO Apply exit condition and apply entry condition are effectively the same.
+
 # Factory methods
 def create_trades(position_data, strategy):
     prices = strategy.get_trade_prices()
@@ -166,6 +169,9 @@ class TradeCollection(object):
         return max(self.MFEs)
 
     def consecutive_wins_losses(self):
+        '''
+        Calculates the positive and negative runs in the trade series.
+        '''
         trade_df = self.as_dataframe().sort_values(by = 'exit')
         win_loss = sign(trade_df.base_return)
         # Create series which has just 1's and 0's
@@ -237,6 +243,10 @@ class TradeCollection(object):
         return self._daily_returns
 
     def apply_exit_condition(self, strat, condition):
+        '''
+        Applies a given exit condition to each trade in the collection.
+        A new TradeCollection is returned with the modified trades.
+        '''
         prices = strat.get_trade_prices()
         adjusted_trades = []
         for trade in self.as_list():

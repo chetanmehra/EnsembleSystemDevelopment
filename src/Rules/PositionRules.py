@@ -1,4 +1,7 @@
 
+from copy import deepcopy
+from numpy import sign
+
 from System.Strategy import PositionRuleElement
 from System.Position import Position
 

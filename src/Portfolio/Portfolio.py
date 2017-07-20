@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 from System.Trade import TradeCollection
 from PerformanceAnalysis.Metrics import Drawdowns
 
+
+# TODO Add rebalancing methods.
+
 class Portfolio(object):
     '''
     The portfolio class manages cash and stock positions, as well as rules 
@@ -53,31 +56,52 @@ class Portfolio(object):
 
     @property
     def cash(self):
+        '''
+        Returns the series of dollar value of cash held over time.
+        '''
         return self.summary["Cash"]
 
     @property
     def holdings_total(self):
+        '''
+        Returns the series of dollar value of all holdings (excluding cash).
+        '''
         return self.summary["Holdings"]
 
     @property
     def value(self):
+        '''
+        Returns the series of total dollar value of the portfolio
+        '''
         return self.summary["Total"]
 
     @property
     def returns(self):
+        '''
+        Returns the daily returns for the portfolio
+        '''
         returns = self.value / self.value.shift(1) - 1
         returns[0] = 0
         return returns
 
     @property
     def cumulative_returns(self):
+        '''
+        Returns the cumulative returns series for the portfolio
+        '''
         return self.value / self.value[0] - 1
 
     @property
     def drawdowns(self):
+        '''
+        Returns the calculated drawdowns and highwater series for the portfolio returns.
+        '''
         return Drawdowns(self.cumulative_returns)
 
     def plot_result(self, start = None, dd_ylim = (-0.25, 0), rets_ylim = (-0.2, 1)):
+        '''
+        Plots the portfolio returns and drawdowns vs the market.
+        '''
         f, axarr = plt.subplots(2, 1, sharex = True)
         axarr[0].set_ylabel('Return')
         axarr[1].set_ylabel('Drawdown')
@@ -95,6 +119,10 @@ class Portfolio(object):
 
 # Accepts a trade if the current cash position is greater than the minimum trade size.
 def minimum_position_size(portfolio, trade):
+    '''
+    Provides a trade condition where the cash at the time of entry must be greater
+    than the minimum allowable portfolio size.
+    '''
     return portfolio.cash[trade.entry] > min(portfolio.trade_size)
 
     

@@ -6,3 +6,4 @@
 /.vs
 *.pyc
 *.suo
+.vscode/settings.json

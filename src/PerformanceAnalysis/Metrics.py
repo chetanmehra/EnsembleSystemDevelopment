@@ -3,7 +3,7 @@
 # Each of these methods expect a pandas Series.
 
 from pandas import Series, DataFrame
-from numpy import sign
+from numpy import sign, log
 from sklearn.linear_model import LinearRegression
 
 def Sharpe(returns):

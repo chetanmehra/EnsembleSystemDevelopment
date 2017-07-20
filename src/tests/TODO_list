@@ -11,7 +11,7 @@
 - DONE - Strategy does not redo existing components on initialise
 *Plot long and short results together
 *Calculate performance metrics
-*Strategy to produce label for self
+- DONE - Strategy to produce label for self
 
  Error proofing
 *Ensemble forecast mean to handle missing values.
@@ -23,7 +23,6 @@
 - DONE - Ensemble Strategy to contain sub-strategies instead of collections of forecasts etc.
 *Speed up forecast window method.
 *Maybe change strategy initialisation to require market input.
-*Measures to be contained in Model.
 *Abstract out a data container object for use by market, models etc.
 
  Testing assertions specific to object type

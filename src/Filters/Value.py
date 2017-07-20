@@ -19,7 +19,7 @@ class ValueFilterValues(StackedFilterValues):
 
 class ValueRangeFilter(FilterInterface):
     '''
-    ValueRangeFilter filters strategy trades based on the valuation at the time of 
+    ValueRangeFilter filters strategy trades based on the valuation at the time of
     entry being within the specified range.
     '''
     def __init__(self, values, filter_range):
@@ -51,7 +51,7 @@ class ValueRangeFilter(FilterInterface):
 
 class ValueRankFilter(FilterInterface):
     '''
-    ValueRankFilter filters trades based on the rank of the valuation calculated at the 
+    ValueRankFilter filters trades based on the rank of the valuation calculated at the
     time of trade entry.
     '''
     def __init__(self, values, market, max_rank):
@@ -117,25 +117,26 @@ class LoPassFilter(FilterInterface):
 class BandPassFilter(FilterInterface):
     '''
     BandPassFilter allows trades according to where the filter values lie with respect to the
-    specified range. if 'include' is True (default), values falling within the range result in 
+    specified range. if 'within_bounds' is True (default), values falling within the range result in
     acceptance of the trade, and vice-versa.
     '''
-    def __init__(self, values, range, include = True):
+    def __init__(self, values, bounds, within_bounds = True):
         '''
         Requires that values is a WideFilterValues object.
         filter_range should be a tuple representing the acceptable filter range.
         '''
         self.values = values
-        self.range = range
+        self.bounds = bounds
+        self.within_bounds = within_bounds
         self.filter_name = values.name
-        self.name = '{}:{}-{}'.format(values.name, min(range), max(range))
+        self.name = '{}:{}-{}'.format(values.name, min(bounds), max(bounds))
 
     def accepted_trade(self, trade):
         '''
         Returns True if the value is within the threshold at the trade entry, else False.
         '''
         value = self.values.get(trade.ticker, trade.entry)
-        return (not include) ^ (min(self.range) < value < max(self.range))
+        return (not self.within_bounds) ^ (min(self.bounds) < value < max(self.bounds))
 
     def plot(self, ticker, start, end, ax):
         self.values.plot(ticker, start, end, ax)
