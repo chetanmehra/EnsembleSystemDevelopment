@@ -98,7 +98,7 @@ class Portfolio(object):
         '''
         return Drawdowns(self.cumulative_returns)
 
-    def plot_result(self, start = None, dd_ylim = (-0.25, 0), rets_ylim = (-0.2, 1)):
+    def plot_result(self, start = None, dd_ylim = None, rets_ylim = None):
         '''
         Plots the portfolio returns and drawdowns vs the market.
         '''
@@ -110,9 +110,9 @@ class Portfolio(object):
         dd = self.drawdowns
         dd.Highwater[start:].plot(ax = axarr[0], color = 'red')
         dd.Drawdown[start:].plot(ax = axarr[1], ylim = dd_ylim)
-        mkt_returns = self.strategy.market_returns.cumulative()
-        mkt_dd = Drawdowns(mkt_returns).Drawdown
-        mkt_returns[start:].plot(ax = axarr[0], color = 'black')
+        mkt_returns = self.strategy.market_returns
+        mkt_dd = Drawdowns(mkt_returns.cumulative()).Drawdown
+        mkt_returns.plot(start = start, ax = axarr[0], color = 'black')
         mkt_dd[start:].plot(ax = axarr[1], color = 'black')
         return axarr
 

@@ -120,11 +120,11 @@ class AggregateReturns(Returns):
         returns = self.collapse_by("sum")
         return (1 + returns) ** 260 - 1
 
-    def cumulative(self):
-        return super().cumulative("sum")
+    def cumulative(self, collapse_fun = "sum"):
+        return super().cumulative(collapse_fun)
 
     def plot(self, start = None, **kwargs):
-        super(AggregateReturns, self).plot("sum", start, **kwargs)
+        super().plot("sum", start, **kwargs)
     
     
 class AverageReturns(Returns):
@@ -133,11 +133,11 @@ class AverageReturns(Returns):
         returns = self.collapse_by("mean")
         return (1 + returns) ** 260 - 1
 
-    def cumulative(self):
-        return super().cumulative("mean")
+    def cumulative(self, collapse_fun = "mean"):
+        return super().cumulative(collapse_fun)
 
     def plot(self, start = None, **kwargs):
-        return super(AverageReturns, self).plot("mean", start, **kwargs)
+        return super().plot("mean", start, **kwargs)
 
         
 

@@ -114,12 +114,8 @@ good_tickers = list(set(valued_tickers) - set(dodgy_tickers))
 
 
 def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50), exchange = "NYSE"):
-    if exchange == "NYSE":
-        market = getNyseMarket()
-    else:
-        market = getMarket()
     strategy = Strategy(trade_timing, ind_timing)
-    strategy.market = market
+    strategy.market = getMarket(exchange)
     strategy.signal_generator = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
     strategy.position_rules = PositionFromDiscreteSignal(Up = 1)
     return strategy

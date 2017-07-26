@@ -25,20 +25,16 @@ def create_trades(position_data, strategy):
     flags.ix[start_row][position_sign.ix[start_row] != 0] = position_sign.ix[start_row][position_sign.ix[start_row] != 0]
     for ticker in flags:
         ticker_flags = flags[ticker]
-        entries = ticker_flags.index[ticker_flags > 0]
-        i = 0
-        while i < len(entries):
-            entry_day = entries[i]
-            i += 1
-            if i < len(entries):
-                next_entry = entries[i]
-            else:
-                next_entry = None
-            exit_day = ticker_flags[entry_day:next_entry].index[ticker_flags[entry_day:next_entry] < 0]
-            if not len(exit_day):
+        ticker_sign = position_sign[ticker]
+        # Flag values of -2 or 2 represents a complete switch from short to long or vice-versa.
+        entries = ticker_flags.index[((ticker_flags != 0) & (ticker_sign != 0)) | (abs(ticker_flags) > 1)]
+        exits = ticker_flags.index[((ticker_flags != 0) & (ticker_sign == 0)) | (abs(ticker_flags) > 1)]
+        for entry_day in entries:
+            valid_exits = (exits > entry_day)
+            if not any(valid_exits):
                 exit_day = ticker_flags.index[-1]
             else:
-                exit_day = exit_day[0]
+                exit_day = exits[valid_exits][0]
             trades.append(Trade(ticker, entry_day, exit_day, prices[ticker], position_data[ticker]))
     return TradeCollection(trades)
 
@@ -243,22 +239,20 @@ class TradeCollection(object):
             self._daily_returns = returns.dropna()
         return self._daily_returns
 
-    def apply_exit_condition(self, strat, condition):
+    def apply_exit_condition(self, condition):
         '''
         Applies a given exit condition to each trade in the collection.
         A new TradeCollection is returned with the modified trades.
         '''
-        prices = strat.get_trade_prices()
         adjusted_trades = []
         for trade in self.as_list():
-            adjusted_trades.append(trade.apply_exit_condition(condition, prices))
+            adjusted_trades.append(trade.apply_exit_condition(condition))
         return TradeCollection(adjusted_trades)
 
-    def apply_delay(self, strat, delay):
-        prices = strat.get_trade_prices()
+    def apply_delay(self, delay):
         delayed_trades = []
         for T in self.as_list():
-            new_T = T.apply_delay(delay, prices)
+            new_T = T.apply_delay(delay)
             if new_T is not None:
                 delayed_trades.append(new_T)
         return TradeCollection(delayed_trades)
@@ -349,7 +343,7 @@ class Trade(object):
 
     @property
     def base_return(self):
-        return (self.exit_price / self.entry_price) - 1
+        return self.normalised.iloc[-1]
 
     @property
     def annualised_return(self):
@@ -366,40 +360,43 @@ class Trade(object):
     def drawdowns(self):
         return Drawdowns(self.normalised)
 
-    def apply_exit_condition(self, condition, prices):
+    def apply_exit_condition(self, condition):
         '''
         apply_exit_condition takes a condition, which is a callable object.
         The condition receives the trade and calculates the new exit day.
-        The new exit day and prices are used to return a new trade object.
         '''
         new_exit_day = condition(self)
         if new_exit_day is not None:
-            return self.revise_exit(new_exit_day, prices)
+            return self.revise_exit(new_exit_day)
         else:
             return self
 
-    def apply_delay(self, delay, prices):
-        return revise_entry(delay, prices)
+    def apply_delay(self, delay):
+        return self.revise_entry(delay)
 
-    def revise_entry(self, entry_day, prices):
+    def revise_entry(self, entry_day):
         '''
         revise_entry accepts an entry_day (integer), and readjusts the trade to
         start on the new (later) entry day.
         '''
         if self.duration > entry_day:
-            new_entry = prices[self.entry:].index[entry_day]
-            return Trade(self.ticker, new_entry, self.exit, prices[self.ticker])
+            self.entry = self.daily_returns.index[entry_day]
+            self.daily_returns = self.daily_returns[self.entry:]
+            self.normalised = Series((self.normalised[entry_day:] - self.normalised[entry_day]).values)
+            return self
         else:
             return None
 
-    def revise_exit(self, exit_day, prices):
+    def revise_exit(self, exit_day):
         '''
         revise_exit accepts an exit_day (integer), and readjusts the trade to
         end on the new exit day.
         '''
         if exit_day > 0:
-            new_exit = prices[self.entry:].index[exit_day]
-            return Trade(self.ticker, self.entry, new_exit, prices[self.ticker])
+            self.exit = self.daily_returns.index[exit_day]
+            self.daily_returns = self.daily_returns[:self.exit]
+            self.normalised = self.normalised[:(exit_day + 1)]
+            return self
         else:
             return None
 

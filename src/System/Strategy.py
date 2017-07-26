@@ -100,7 +100,7 @@ class Strategy(object):
         Accepts an exit condition object e.g. StopLoss, which is
         passed to the Trade Collection to be applied to each trade.
         '''
-        self.trades = self.trades.apply_exit_condition(self, condition)
+        self.trades = self.trades.apply_exit_condition(condition)
         self.positions.update_from_trades(self.trades)
     
     @property
