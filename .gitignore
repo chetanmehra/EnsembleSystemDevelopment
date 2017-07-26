@@ -7,3 +7,4 @@
 *.pyc
 *.suo
 .vscode/settings.json
+.vscode/launch.json
