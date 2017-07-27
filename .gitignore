@@ -2,7 +2,7 @@
 # This .gitignore file was automatically created by Microsoft(R) Visual Studio.
 ################################################################################
 
-/src/System/__pycache__
+ensemble_trading_system/__pycache__
 /.vs
 *.pyc
 *.suo
