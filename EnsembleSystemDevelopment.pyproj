@@ -6,7 +6,7 @@
     <ProjectGuid>{feda7fc8-f9bd-4587-bae3-d0ab29e83788}</ProjectGuid>
     <ProjectHome />
     <StartupFile>ensemble_trading_system\TestScript.py</StartupFile>
-    <SearchPath>src\System\;src\;..\Investing\Investing</SearchPath>
+    <SearchPath>src\System\;src\;..\FinancialDataHandling\financial_data_handling</SearchPath>
     <WorkingDirectory>ensemble_trading_system</WorkingDirectory>
     <OutputPath>.</OutputPath>
     <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
@@ -27,6 +27,7 @@
     <Folder Include="ensemble_trading_system\" />
     <Folder Include="ensemble_trading_system\data_types\" />
     <Folder Include="ensemble_trading_system\system\" />
+    <Folder Include="ensemble_trading_system\tests\" />
     <Folder Include="ensemble_trading_system\trade_modifiers\" />
     <Folder Include="ensemble_trading_system\measures\" />
     <Folder Include="ensemble_trading_system\rules\" />
@@ -39,7 +40,6 @@
     <Compile Include="ensemble_trading_system\mean_sd_forecasters.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="ensemble_trading_system\data.py" />
     <Compile Include="ensemble_trading_system\data_types\filter_data.py" />
     <Compile Include="ensemble_trading_system\data_types\forecasts.py" />
     <Compile Include="ensemble_trading_system\rules\signal_rules.py">

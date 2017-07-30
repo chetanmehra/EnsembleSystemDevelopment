@@ -11,6 +11,8 @@ from matplotlib.dates import date2num
 import matplotlib.pyplot as plt
 import datetime
 
+from formats.price_history import Instruments
+
 from data_types.positions import AverageReturns
 from data_types.filter_data import WideFilterValues
 
@@ -20,17 +22,27 @@ class Market(object):
     it comprises.
     '''
 
-    def __init__(self, tickers, start_date, end_date):
+    def __init__(self, instruments):
         '''
         Constructor
         '''
-        self.start = start_date
-        self.end = end_date
-        self.instruments = Panel({ticker:DataFrame(None) for ticker in sorted(tickers)})
+        self.name = instruments.name
+        self.start = instruments.start
+        self.end = instruments.end
+        self.exchange = instruments.exchange
+        self.instruments = instruments.data
         
     @property
     def tickers(self):
         return list(self.instruments.items)
+
+    def as_instruments(self):
+        instruments = Instruments(self.name)
+        instruments.data = self.data
+        instruments.start = self.start
+        instruments.end = self.end
+        instruments.exchange = self.exchange
+        return instruments
     
     def __setitem__(self, key, val):
         instruments = dict(self.instruments)
