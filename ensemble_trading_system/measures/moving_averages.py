@@ -36,12 +36,13 @@ class KAMA(MovingAverage):
         self.fast = fast
         self.slow = slow
         self.period = period
+        self.eff_ratio = EfficiencyRatio(period)
         self.name = 'KAMA.{}.{}.{}'.format(period, fast, slow)
 
     def __call__(self, prices):
         fastest = 2 / (self.fast + 1.0)
         slowest = 2 / (self.slow + 1.0)
-        ER = EfficiencyRatio(prices, self.period)
+        ER = self.eff_ratio(prices)
         sc = (ER * (fastest - slowest) + slowest) ** 2
         kama = DataFrame(None, index = prices.index, columns = prices.columns, dtype = float)
         kama.iloc[self.period] = prices.iloc[self.period]

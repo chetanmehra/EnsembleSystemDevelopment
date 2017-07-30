@@ -26,60 +26,40 @@
   <ItemGroup>
     <Folder Include="ensemble_trading_system\" />
     <Folder Include="ensemble_trading_system\data_types\" />
-    <Folder Include="ensemble_trading_system\system\" />
-    <Folder Include="ensemble_trading_system\trade_modifiers\" />
     <Folder Include="ensemble_trading_system\measures\" />
     <Folder Include="ensemble_trading_system\rules\" />
-    <Folder Include="tests\" />
+    <Folder Include="ensemble_trading_system\system\" />
+    <Folder Include="ensemble_trading_system\trade_modifiers\" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ensemble_trading_system\data_types\__init__.py">
+    <Compile Include="ensemble_trading_system\carter_forecasters.py">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="ensemble_trading_system\mean_sd_forecasters.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="ensemble_trading_system\data.py" />
     <Compile Include="ensemble_trading_system\data_types\filter_data.py" />
     <Compile Include="ensemble_trading_system\data_types\forecasts.py" />
-    <Compile Include="ensemble_trading_system\rules\signal_rules.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="ensemble_trading_system\system\interfaces.py">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="ensemble_trading_system\data_types\market.py" />
     <Compile Include="ensemble_trading_system\data_types\positions.py" />
     <Compile Include="ensemble_trading_system\data_types\signals.py" />
-    <Compile Include="ensemble_trading_system\system\core.py" />
-    <Compile Include="ensemble_trading_system\TestScript.py" />
     <Compile Include="ensemble_trading_system\data_types\trades.py" />
-    <Compile Include="ensemble_trading_system\system\__init__.py" />
-    <Compile Include="ensemble_trading_system\trade_modifiers\exit_conditions.py">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="ensemble_trading_system\trade_modifiers\filters.py" />
-    <Compile Include="ensemble_trading_system\trade_modifiers\__init__.py" />
+    <Compile Include="ensemble_trading_system\data_types\__init__.py" />
+    <Compile Include="ensemble_trading_system\level_signals.py" />
+    <Compile Include="ensemble_trading_system\mean_sd_forecasters.py" />
     <Compile Include="ensemble_trading_system\measures\moving_averages.py" />
     <Compile Include="ensemble_trading_system\measures\oscillators.py" />
     <Compile Include="ensemble_trading_system\measures\volatility.py" />
     <Compile Include="ensemble_trading_system\measures\__init__.py" />
-    <Compile Include="ensemble_trading_system\system\metrics.py" />
-    <Compile Include="ensemble_trading_system\system\analysis.py" />
     <Compile Include="ensemble_trading_system\rules\forecast_rules.py" />
+    <Compile Include="ensemble_trading_system\rules\signal_rules.py" />
     <Compile Include="ensemble_trading_system\rules\__init__.py" />
-    <Compile Include="ensemble_trading_system\level_signals.py" />
-    <Compile Include="ensemble_trading_system\tests\testDataHandler.py" />
-    <Compile Include="ensemble_trading_system\tests\testForecast.py" />
-    <Compile Include="ensemble_trading_system\tests\TestHelpers.py" />
-    <Compile Include="ensemble_trading_system\tests\testIndicator.py" />
-    <Compile Include="ensemble_trading_system\tests\testMarket.py" />
-    <Compile Include="ensemble_trading_system\tests\testPositions.py" />
-    <Compile Include="ensemble_trading_system\tests\testStrategy.py" />
-    <Compile Include="ensemble_trading_system\tests\__init__.py" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="ensemble_trading_system\tests\TODO_list" />
+    <Compile Include="ensemble_trading_system\system\analysis.py" />
+    <Compile Include="ensemble_trading_system\system\core.py" />
+    <Compile Include="ensemble_trading_system\system\interfaces.py" />
+    <Compile Include="ensemble_trading_system\system\metrics.py" />
+    <Compile Include="ensemble_trading_system\system\__init__.py" />
+    <Compile Include="ensemble_trading_system\TestScript.py" />
+    <Compile Include="ensemble_trading_system\trade_modifiers\exit_conditions.py" />
+    <Compile Include="ensemble_trading_system\trade_modifiers\filters.py" />
+    <Compile Include="ensemble_trading_system\trade_modifiers\__init__.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
 </Project>
