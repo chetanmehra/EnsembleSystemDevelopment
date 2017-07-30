@@ -8,7 +8,7 @@ __pycache__/
 *.pyproj
 *.pyproj.user
 *.sln
-.vc/
+.vs/
 .vscode/
 
 # C extensions

@@ -8,6 +8,7 @@ from pandas import DateOffset, Panel, DataFrame, Series
 
 from system.interfaces import Indexer
 from data_types.trades import Trade, TradeCollection, create_trades
+from system.metrics import Drawdowns
 
 
 class Strategy:
@@ -159,6 +160,8 @@ class Strategy:
         Gets the dataframe of market returns relevant for the trade timing.
         '''
         return self.market.returns(self.indexer)
+
+    # TODO Strategy returns should be an AverageReturns object, not AggregateReturns.
     
     @property
     def returns(self):
@@ -235,7 +238,7 @@ class Strategy:
 
 
 # TODO Add Portfolio rebalancing methods.
-# TODO Portfolio returns should be a Returns object
+# TODO Portfolio returns should be an AggregateReturns object
 
 class Portfolio:
     '''

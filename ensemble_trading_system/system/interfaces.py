@@ -101,7 +101,7 @@ class Indexer:
     def convert_timing(self, timing):
         timing = timing.lower()
         if timing not in self.timing_map.keys():
-            raise ValueError("Timing must be one of: " + ",".join(self.timing_map.keys()))
+            raise ValueError("Timing must be one of: " + ", ".join(self.timing_map.keys()))
         return self.timing_map[timing]
     
     def market_returns(self, market):
@@ -146,7 +146,7 @@ class StrategyElement:
         return result is not None and result.creator == self.ID
     
     def get_result(self, strategy):
-        raise NotImplementedError("Strategy Element must define 'get_child'")
+        raise NotImplementedError("Strategy Element must define 'get_result'")
 
     def starting_lag(self):
         return 0

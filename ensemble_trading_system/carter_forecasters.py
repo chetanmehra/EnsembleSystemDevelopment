@@ -20,15 +20,33 @@ class EWMAC(StrategyElement):
         self.fast = fast
         self.vol = vol_method
 
+    def get_result(self, strategy):
+        return None
+
 
     def execute(self, strategy):
         prices = strategy.get_indicator_prices()
         slow = self.slow(prices)
         fast = self.fast(prices)
         vol = self.vol(prices)
-        forecast = (fast - slow) / vol
-
+        forecast = self.normalise((fast - slow) / vol)
         return forecast
+
+
+    def normalise(self, forecast):
+        """
+        Normalises the forecast to be between -20/20 with absolute average of 10.
+        """
+        overall_mean = forecast.abs().mean().mean()
+        adjustment = forecast.abs()
+        adjustment.iloc[0, :] = overall_mean
+        adjustment = adjustment.ewm(200).mean()
+        forecast = forecast * (10 / adjustment)
+        forecast[forecast > 20] = 20
+        forecast[forecast < -20] = -20
+        return forecast
+
+
 
 
 
