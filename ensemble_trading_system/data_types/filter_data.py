@@ -85,28 +85,13 @@ class WideFilterValues(FilterValues):
     def types(self):
         return [self.name]
 
-    def value_ratio(self, market):
-        fullDF = market.get_empty_dataframe()
-        values = self.values.reindex(fullDF.index, method = 'ffill')
-        ratios = values / market.close
-        return ratios
+    def value_ratio(self, prices):
+        values = self.values.reindex(prices.index, method = 'ffill')
+        ratios = values / prices - 1
+        return WideFilterValues(ratios, self.name + "_ratio")
 
-    def value_rank(self, market):
-        ratios = self.value_ratio(market)
+    def value_rank(self, prices):
+        ratios = self.value_ratio(prices)
         ranks = ratios.rank(axis = 1, ascending = False)
-        return ranks
+        return WideFilterValues(ranks, self.name + "_rank")
 
-
-class ValueFilterValues(StackedFilterValues):
-    '''
-    Returns the ratio of the calculated value to the price at time of entry.
-    '''
-    def get_for_df(self, df, row):
-        ticker = df.ticker[row]
-        date = df.entry[row]
-        recent = self.get(ticker, date)
-        price = df.entry_price[row]
-        if recent is not None:
-            return recent / price
-        else:
-            return recent

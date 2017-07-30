@@ -9,13 +9,17 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-from data import getMarket, getValues, getValueRatios, getValueMetrics
+from store.file_system import Storage
+
 from data_types.market import Market
+from data_types.trades import TradeCollection
+from data_types.filter_data import StackedFilterValues, WideFilterValues
+
 from system.core import Strategy, Portfolio
 from level_signals import Crossover
 from measures.moving_averages import EMA, KAMA
 from rules.signal_rules import PositionFromDiscreteSignal
-from data_types.trades import TradeCollection
+
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop, ReturnTriggeredTrailingStop
 from system.analysis import summary_report
 
@@ -108,11 +112,29 @@ dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT',
 
 good_tickers = list(set(valued_tickers) - set(dodgy_tickers))
 
+def getMarket(store, source = "ASX", excluded_tickers = None):
+    return Market(store.get_instruments(source, excluded_tickers))
+
+
+def getValues(store, date = None):
+    valuations = store.get_valuations(date)
+    return StackedFilterValues(valuations.summary, "Valuations")
+
+def getValueRatios(store, type, strat):
+    valuation = getValues(store).as_wide_values(type)
+    ratios = valuation.value_ratio(strat.get_trade_prices())
+    ratios.name = "Value Ratio"
+    return ratios
+
+def getValueMetrics(store, date = None):
+    metrics = store.get_valuemetrics(date)
+    return StackedFilterValues(metrics.summary, "ValuationMetrics")
 
 
 def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50), exchange = "NYSE"):
+    store = Storage(exchange)
     strategy = Strategy(trade_timing, ind_timing)
-    strategy.market = getMarket(exchange)
+    strategy.market = getMarket(store, exchange)
     strategy.signal_generator = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
     strategy.position_rules = PositionFromDiscreteSignal(Up = 1)
     return strategy

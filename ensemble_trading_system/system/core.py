@@ -234,7 +234,8 @@ class Strategy:
         plt.title(ticker)
 
 
-# TODO Add rebalancing methods.
+# TODO Add Portfolio rebalancing methods.
+# TODO Portfolio returns should be a Returns object
 
 class Portfolio:
     '''
