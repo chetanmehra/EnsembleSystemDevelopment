@@ -8,9 +8,13 @@ import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-
+# Add dev folder of related package(s)
+import sys
+import os
+sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\FinancialDataHandling\\financial_data_handling"))
 from store.file_system import Storage
 
+# Local imports
 from data_types.market import Market
 from data_types.trades import TradeCollection
 from data_types.filter_data import StackedFilterValues, WideFilterValues
@@ -42,8 +46,6 @@ from system.analysis import summary_report
 
 # TODO Refactoring
 #   - Inherit strategy data element from dataframe
-#   - Consider giving trades a reference to the market object.
-#   - Turn ValueRangeFilter into a BandPassFilter. Ratios for value filters should be pre-calculated.
 
 
 pd.set_option('display.width', 120)
@@ -112,7 +114,9 @@ dodgy_tickers = [u'MWR', u'FGX', u'NMS', u'ARW', u'SOM', u'GJT',
 
 good_tickers = list(set(valued_tickers) - set(dodgy_tickers))
 
-def getMarket(store, source = "ASX", excluded_tickers = None):
+def getMarket(store, source = None, excluded_tickers = None):
+    if source is None:
+        source = store.exchange
     return Market(store.get_instruments(source, excluded_tickers))
 
 

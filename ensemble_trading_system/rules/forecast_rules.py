@@ -5,6 +5,25 @@ from numpy import sign
 from rules import PositionRuleElement, Position
 
 
+class CarterPositions(PositionRuleElement):
+    """
+    Calculates positions based on the normalised forecast (-20 to 20), 
+    and the current standard deviation of the instrument.
+    """
+    def __init__(self, volatility_method, target_volatility, long_only = True):
+        self.volatility_method = volatility_method
+        self.target_vol = target_volatility
+        self.long_only = long_only
+
+    def execute(self, strategy):
+        forecasts = strategy.signal.at("entry")
+        current_volatility = self.volatility_method(strategy.get_indicator_prices())
+        base_position = 10 * self.target_vol / current_volatility # This is the size we should hold for a forecast of 10
+        positions = forecasts.data / base_position
+        if self.long_only:
+            positions[positions < 0] = 0
+        return Position(positions)
+
 
 class OptimalFSign(PositionRuleElement):
     '''

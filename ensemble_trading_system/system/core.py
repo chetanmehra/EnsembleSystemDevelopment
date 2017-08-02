@@ -8,7 +8,8 @@ from pandas import DateOffset, Panel, DataFrame, Series
 
 from system.interfaces import Indexer
 from data_types.trades import Trade, TradeCollection, create_trades
-from system.metrics import Drawdowns
+from data_types.positions import Position, Returns
+
 
 
 class Strategy:
@@ -161,8 +162,6 @@ class Strategy:
         '''
         return self.market.returns(self.indexer)
 
-    # TODO Strategy returns should be an AverageReturns object, not AggregateReturns.
-    
     @property
     def returns(self):
         '''
@@ -238,7 +237,6 @@ class Strategy:
 
 
 # TODO Add Portfolio rebalancing methods.
-# TODO Portfolio returns should be an AggregateReturns object
 
 class Portfolio:
     '''
@@ -267,8 +265,8 @@ class Portfolio:
         for i in range(len(trade_df)): # Note index is unordered due to sort so need to create new index range for loop.
             trade = trade_df.iloc[i]
             trade_num = trade_df.index[i]
-            executed_trades.append(self.strategy.trades[trade_num])
             if all(self.conditions_met_for(trade)):
+                executed_trades.append(self.strategy.trades[trade_num])
                 num_shares = int(min(self.cash[trade.entry], max(self.trade_size)) / trade.entry_price)
                 cost = (num_shares * trade.entry_price) + self.transaction_cost
                 self.cash[trade.entry:] -= cost
@@ -314,21 +312,21 @@ class Portfolio:
         '''
         returns = self.value / self.value.shift(1) - 1
         returns[0] = 0
-        return returns
+        return Returns(returns, self.strategy.indexer)
 
     @property
     def cumulative_returns(self):
         '''
         Returns the cumulative returns series for the portfolio
         '''
-        return self.value / self.value[0] - 1
+        return self.returns.cumulative()
 
     @property
     def drawdowns(self):
         '''
         Returns the calculated drawdowns and highwater series for the portfolio returns.
         '''
-        return Drawdowns(self.cumulative_returns)
+        return self.returns.drawdowns()
 
     def plot_result(self, start = None, dd_ylim = None, rets_ylim = None):
         '''
@@ -343,7 +341,7 @@ class Portfolio:
         dd.Highwater[start:].plot(ax = axarr[0], color = 'red')
         dd.Drawdown[start:].plot(ax = axarr[1], ylim = dd_ylim)
         mkt_returns = self.strategy.market_returns
-        mkt_dd = Drawdowns(mkt_returns.cumulative()).Drawdown
+        mkt_dd = mkt_returns.drawdowns().Drawdown
         mkt_returns.plot(start = start, ax = axarr[0], color = 'black')
         mkt_dd[start:].plot(ax = axarr[1], color = 'black')
         return axarr

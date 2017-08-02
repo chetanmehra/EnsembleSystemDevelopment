@@ -8,6 +8,7 @@ __pycache__/
 *.pyproj
 *.pyproj.user
 *.sln
+UpgradeLog*.htm
 .vs/
 .vscode/
 

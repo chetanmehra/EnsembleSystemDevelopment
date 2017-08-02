@@ -22,18 +22,26 @@ class EfficiencyRatio:
 
 
 class StdDevRolling:
-
+    """
+    Given a set of prices; calculates the annualised rolling standard deviation of returns.
+    """
     def __init__(self, period):
         self.period = period
+        self.annualisation_factor = 16 # SQRT(256)
 
     def __call__(self, prices):
-        return prices.rolling(span = self.period).std()
+        rtns = (prices / prices.shift(1)) - 1
+        return self.annualisation_factor * rtns.rolling(span = self.period).std()
 
 
 class StdDevEMA:
-
+    """
+    Given a set of prices; calculates the annualised exponentially weighted average standard deviation of returns.
+    """
     def __init__(self, period):
         self.period = period
+        self.annualisation_factor = 16 # SQRT(256)
 
     def __call__(self, prices):
-        return prices.ewm(span = self.period).std()
+        rtns = (prices / prices.shift(1)) - 1
+        return self.annualisation_factor * rtns.ewm(span = self.period).std()

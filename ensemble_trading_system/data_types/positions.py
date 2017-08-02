@@ -6,6 +6,7 @@ from pandas.core.common import isnull
 from numpy import sign
 
 from system.interfaces import DataElement
+from system.metrics import Drawdowns
 
 
 class Position(DataElement):
@@ -26,7 +27,7 @@ class Position(DataElement):
         self.data = new_pos_data
 
     def applied_to(self, market_returns):
-        return AggregateReturns(self.data * market_returns.data, market_returns.indexer)
+        return AverageReturns(self.data * market_returns.data, market_returns.indexer)
 
     @property
     def start(self):
@@ -61,11 +62,13 @@ class Position(DataElement):
 
 
 class Returns(DataElement):
-    
+    """
+    Returns represents a returns Series, and provides methods for summarising
+    and plotting.
+    """
     def __init__(self, data, indexer):
         data[isnull(data)] = 0
         self.data = data
-        self.columns = data.columns
         self.lag = 1
         self.calculation_timing = ["entry", "exit"]
         self.indexer = indexer
@@ -79,23 +82,18 @@ class Returns(DataElement):
     def append(self, other):
         self.data[other.data.columns] = other.data
     
-    def collapse_by(self, function):
-        allowable_functions = ["mean", "sum"]
-        if function not in allowable_functions:
-            raise TypeError("function must be one of: " + ", ".join(allowable_functions))
-        return self.data.__getattribute__(function)(axis = 1)
-        
-    def cumulative(self, collapse_fun):
-        returns = self.log(collapse_fun)
+    def cumulative(self):
+        returns = self.data
+        returns = self.log()
         return returns.cumsum()
     
-    def log(self, collapse_fun):
-        returns = self.collapse_by(collapse_fun)
+    def log(self):
+        returns = self.data
         returns[returns <= -1.0] = -0.9999999999
         return (returns + 1).apply(log)
         
-    def plot(self, collapse_fun, start = None, **kwargs):
-        returns = self.cumulative(collapse_fun)
+    def plot(self, start = None, **kwargs):
+        returns = self.cumulative()
         if start is not None:
             start_value = returns[start]
             if isinstance(start_value, Series):
@@ -103,43 +101,49 @@ class Returns(DataElement):
             returns = returns - start_value
         returns[start:].plot(**kwargs)
         
-    def annualised(self, collapse_fun):
-        returns = self.collapse_by(collapse_fun)
+    def annualised(self):
         return (1 + returns) ** 260 - 1
+
+    def drawdowns(self):
+        return Drawdowns(self.cumulative())
         
-    def sharpe(self, collapse_fun):
-        returns = self.annualised(collapse_fun)
+    def sharpe(self):
+        returns = self.annualised()
         mean = returns.mean()
         std = returns.std()
         return mean / std
     
     
 class AggregateReturns(Returns):
-    
+    """
+    AggregateReturns represents a dataframe of returns which are summed for the overall
+    result (e.g. the result of position weighted returns).
+    """
+    def __init__(self, data, indexer):
+        super().__init__(data, indexer)
+        self.columns = data.columns
+
+    def log(self):
+        return Returns(self.data.sum(axis = 1), self.indexer).log()
+
     def annualised(self):
-        returns = self.collapse_by("sum")
-        return (1 + returns) ** 260 - 1
-
-    def cumulative(self, collapse_fun = "sum"):
-        return super().cumulative(collapse_fun)
-
-    def plot(self, start = None, **kwargs):
-        super().plot("sum", start, **kwargs)
+        return Returns(self.data.sum(axis = 1), self.indexer).annualised()
     
     
 class AverageReturns(Returns):
+    """
+    AverageReturns represents a dataframe of returns which are averaged for the overal
+    result (e.g. market returns).
+    """
+    def __init__(self, data, indexer):
+        super().__init__(data, indexer)
+        self.columns = data.columns
     
+    def log(self):
+        return Returns(self.data.mean(axis = 1), self.indexer).log()
+
     def annualised(self):
-        returns = self.collapse_by("mean")
-        return (1 + returns) ** 260 - 1
-
-    def cumulative(self, collapse_fun = "mean"):
-        return super().cumulative(collapse_fun)
-
-    def plot(self, start = None, **kwargs):
-        return super().plot("mean", start, **kwargs)
-
-        
+        return Returns(self.data.mean(axis = 1), self.indexer).annualised()
 
 
 

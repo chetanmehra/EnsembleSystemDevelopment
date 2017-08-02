@@ -11,6 +11,10 @@ from matplotlib.dates import date2num
 import matplotlib.pyplot as plt
 import datetime
 
+# Import from related packages
+import os
+import sys
+sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\FinancialDataHandling\\financial_data_handling"))
 from formats.price_history import Instruments
 
 from data_types.positions import AverageReturns
@@ -85,17 +89,6 @@ class Market(object):
     def returns(self, indexer):
         returns = indexer.market_returns(self)
         return AverageReturns(returns, indexer)
-
-    # TODO Move std dev volatility to measures package
-    def volatility(self, window):
-        vol = self.close.rolling(window).std()
-        return WideFilterValues(vol, "volatility")
-
-    # TODO move relative performance to measures package
-    def relative_performance(self, indexer, period):
-        returns = indexer.market_returns(self)
-        relative = returns.subtract(returns.mean(axis = 'columns'), axis = 'rows')
-        return WideFilterValues(relative.ewm(span = period).mean(), "relative_return")
 
     def candlestick(self, ticker, start = None, end = None):
         data = self[ticker][start:end]
