@@ -102,16 +102,24 @@ class Returns(DataElement):
         returns[start:].plot(**kwargs)
         
     def annualised(self):
+        returns = self.data
         return (1 + returns) ** 260 - 1
 
     def drawdowns(self):
         return Drawdowns(self.cumulative())
         
     def sharpe(self):
+
         returns = self.annualised()
         mean = returns.mean()
         std = returns.std()
         return mean / std
+
+    def returns_by_month(self, method = 'mean'):
+        returns = self.data
+        returns['Month'] = returns.index.strftime('%b')
+        returns['Year'] = returns.index.strftime('%Y')
+        return returns.groupby(["Year", "Month"]).__getattribute__(method)().unstack()
     
     
 class AggregateReturns(Returns):
@@ -124,10 +132,13 @@ class AggregateReturns(Returns):
         self.columns = data.columns
 
     def log(self):
-        return Returns(self.data.sum(axis = 1), self.indexer).log()
+        return self.collapsed().log()
 
     def annualised(self):
-        return Returns(self.data.sum(axis = 1), self.indexer).annualised()
+        return self.collapsed().annualised()
+
+    def collapsed(self):
+        return Returns(self.data.sum(axis = 1), self.indexer)
     
     
 class AverageReturns(Returns):
@@ -140,10 +151,12 @@ class AverageReturns(Returns):
         self.columns = data.columns
     
     def log(self):
-        return Returns(self.data.mean(axis = 1), self.indexer).log()
+        return self.collapsed().log()
 
     def annualised(self):
-        return Returns(self.data.mean(axis = 1), self.indexer).annualised()
+        return self.collapsed().annualised()
 
+    def collapsed(self):
+        return Returns(self.data.mean(axis = 1), self.indexer)
 
 
