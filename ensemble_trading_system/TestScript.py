@@ -124,8 +124,8 @@ def getValues(store, date = None):
     valuations = store.get_valuations(date)
     return StackedFilterValues(valuations.summary, "Valuations")
 
-def getValueRatios(store, type, strat):
-    valuation = getValues(store).as_wide_values(type)
+def getValueRatios(store, value_type, strat):
+    valuation = getValues(store).as_wide_values(value_type)
     ratios = valuation.value_ratio(strat.get_trade_prices())
     ratios.name = "Value Ratio"
     return ratios

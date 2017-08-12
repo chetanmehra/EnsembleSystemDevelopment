@@ -27,29 +27,12 @@ class EwmacFamily(SignalElement):
         return Signal(measures.mean(axis = 'items'), [-20, 20], measures)
 
 
-class EWMAC(SignalElement):
+class CarterForecast(SignalElement):
     """
-    Exponentially Weighted Moving Average Crossover.
-    Creates a forecast based on the separation between two EMA measures.
-    The measures are normalised based on the volatility.
+    Interface for creating normalised forecasts.
     """
-
-    def __init__(self, slow, fast, vol_method):
-        self.slow = slow
-        self.fast = fast
-        self.vol = vol_method
-
     def get_result(self, strategy):
         return None
-
-    def execute(self, strategy):
-        prices = strategy.get_indicator_prices()
-        slow = self.slow(prices)
-        fast = self.fast(prices)
-        vol = self.vol(prices)
-        forecast = self.normalise((fast - slow) / vol)
-        return Signal(forecast, [-20, 20], Panel({"Fast" : fast, "Slow" : slow, "Volatility" : vol}))
-
 
     def normalise(self, forecast):
         """
@@ -64,6 +47,44 @@ class EWMAC(SignalElement):
         forecast[forecast < -20] = -20
         return forecast
 
+
+class EWMAC(CarterForecast):
+    """
+    Exponentially Weighted Moving Average Crossover.
+    Creates a forecast based on the separation between two EMA measures.
+    The measures are normalised based on the volatility.
+    """
+
+    def __init__(self, slow, fast, vol_method):
+        self.slow = slow
+        self.fast = fast
+        self.vol = vol_method
+
+    def execute(self, strategy):
+        prices = strategy.get_indicator_prices()
+        slow = self.slow(prices)
+        fast = self.fast(prices)
+        vol = self.vol(prices)
+        forecast = self.normalise((fast - slow) / vol)
+        return Signal(forecast, [-20, 20], Panel({"Fast" : fast, "Slow" : slow, "Volatility" : vol}))
+
+
+class PriceCrossover(CarterForecast):
+    """
+    Calculates the forecast based on the difference between a set of base values (e.g. valuations), 
+    and those of a measure derived from market prices.
+    """
+    def __init__(self, base, measure, vol_method):
+        self.base = base
+        self.measure = measure
+        self.vol = vol_method
+
+    def execute(self, strategy):
+        prices = strategy.get_indicator_prices()
+        indicator = self.measure(prices)
+        vol = self.vol(prices)
+        forecast = self.normalise((self.base - indicator) / vol)
+        return Signal(forecast, [-20, 20], Panel({"Base" : self.base, "Ind" : indicator, "Volatility" : vol}))
 
 
 
