@@ -194,6 +194,9 @@ class TradeCollection:
         '''
         trades = [trade for trade in self.trades if condition(trade)]
         return TradeCollection(trades)
+
+    def index(self, trade):
+        return self.trades.index(trade)
         
     def trade_frame(self, compacted = True, cumulative = True):
         '''

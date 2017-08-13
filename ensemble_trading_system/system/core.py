@@ -287,6 +287,7 @@ class Portfolio:
                 self.cash[trade.exit:] += sale_proceeds
         self.trades = TradeCollection(executed_trades)
         self.holdings = self.positions * self.strategy.get_trade_prices()
+        self.holdings = self.holdings.fillna(method = 'ffill')
         self.summary["Holdings"] = self.holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
 
