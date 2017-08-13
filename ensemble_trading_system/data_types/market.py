@@ -86,9 +86,10 @@ class Market(object):
     def _get_series(self, name):
         return self.instruments.minor_xs(name)
 
-    def returns(self, indexer):
-        returns = indexer.market_returns(self)
-        return AverageReturns(returns, indexer)
+    def returns(self, timing = "close"):
+        trade_days = getattr(self, timing)
+        returns = (trade_days / trade_days.shift(1)) - 1
+        return AverageReturns(returns)
 
     def candlestick(self, ticker, start = None, end = None):
         data = self[ticker][start:end]

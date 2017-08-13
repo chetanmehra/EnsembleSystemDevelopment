@@ -6,7 +6,7 @@ Created on 21 Dec 2014
 import matplotlib.pyplot as plt
 from pandas import DateOffset, Panel, DataFrame, Series
 
-from system.interfaces import Indexer
+from system.interfaces import IndexerFactory
 from data_types.trades import Trade, TradeCollection, create_trades
 from data_types.positions import Position, Returns
 
@@ -17,14 +17,22 @@ class Strategy:
     Strategy defines the base interface for Strategy objects
     '''
     def __init__(self, trade_timing, ind_timing):
-        self.indexer = Indexer(trade_timing, ind_timing)
         self.required_fields = ["market", "signal_generator", "position_rules"]
         self.name = None
+        # Calculation results
         self.signal = None
         self.positions = None
+        # Component methods
         self.signal_generator = None
         self.position_rules = None
         self.filters = []
+        # Timing parameters
+        self.indexer = IndexerFactory(trade_timing, ind_timing)
+        self.decision = self.indexer("decision")
+        self.entry = self.indexer("entry")
+        self.exit = self.indexer("exit")
+        self.open = self.indexer("open")
+        self.close = self.indexer("close")
 
     def __str__(self):
         if self.name is not None:
@@ -59,6 +67,9 @@ class Strategy:
         self.run()
 
     def reset(self):
+        '''
+        Clears all current results from the Strategy.
+        '''
         self.signal = None
         self.positions = None
         self.trades = None
@@ -160,7 +171,8 @@ class Strategy:
         '''
         Gets the dataframe of market returns relevant for the trade timing.
         '''
-        return self.market.returns(self.indexer)
+        trade_timing = {"O" : "open", "C" : "close"}[self.trade_timing[0]]
+        return self.market.returns(trade_timing)
 
     @property
     def returns(self):
@@ -312,7 +324,7 @@ class Portfolio:
         '''
         returns = self.value / self.value.shift(1) - 1
         returns[0] = 0
-        return Returns(returns, self.strategy.indexer)
+        return Returns(returns)
 
     @property
     def cumulative_returns(self):
