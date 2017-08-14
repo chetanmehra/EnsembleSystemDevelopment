@@ -11,7 +11,7 @@ from data_types.trades import Trade, TradeCollection, create_trades
 from data_types.positions import Position, Returns
 
 
-
+# TODO Strategy trade_timing should be just [O]pen or [C]lose, not OO/CC.
 class Strategy:
     '''
     Strategy defines the base interface for Strategy objects
@@ -249,7 +249,8 @@ class Strategy:
 
 
 # TODO Add Portfolio rebalancing methods.
-
+# TODO Estimate slippage costs based on price increments set by exchange.
+# TODO Keep a record of transaction and slippage costs.
 class Portfolio:
     '''
     The portfolio class manages cash and stock positions, as well as rules 
@@ -341,6 +342,7 @@ class Portfolio:
         '''
         return self.returns.drawdowns()
 
+    # TODO Automatically set start of Portfolio result plot when trading begins.
     def plot_result(self, start = None, dd_ylim = None, rets_ylim = None):
         '''
         Plots the portfolio returns and drawdowns vs the market.

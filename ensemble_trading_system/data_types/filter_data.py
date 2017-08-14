@@ -7,7 +7,7 @@ class FilterValues:
         '''
         values should be a dataframe with index of dates
         '''
-        self.values = values
+        self.data = values
         if name is None:
             self.name = "Filter"
         else:
@@ -33,9 +33,9 @@ class FilterValues:
         if relevant_values.empty:
             result = None
         elif relevant_values.shape[1] == 1:
-            result = relevant_values.iloc[-1].values[0]
+            result = relevant_values.iloc[-1].data[0]
         else:
-            result = relevant_values.iloc[-1].values
+            result = relevant_values.iloc[-1].data
         return result
 
     def plot(self, ticker, start = None, end = None, ax = None):
@@ -43,7 +43,7 @@ class FilterValues:
         df[ticker][start:end].plot(ax = ax)
 
     def get_plot_frame(self):
-        return self.values
+        return self.data
 
 
 class StackedFilterValues(FilterValues):
@@ -54,23 +54,25 @@ class StackedFilterValues(FilterValues):
     '''
 
     def __getitem__(self, key):
-        return self.values[self.values.ticker == key][self.values.columns[1:]]
+        return self.data[self.data.ticker == key][self.data.columns[1:]]
 
     @property
     def types(self):
-        return self.values.columns[1:].tolist()
+        return self.data.columns[1:].tolist()
 
-    def as_wide_values(self, type = None):
+    def as_wide_values(self, type = None, index = None):
         if type is None:
             type = self.types[0]
-        df = self.values.copy()
+        df = self.data.copy()
         df['date'] = df.index
         df = df.pivot(index = 'date', columns = 'ticker', values = type)
         df = df.fillna(method = 'ffill')
+        if index is not None:
+            df = df.reindex(index, method = 'ffill')
         return WideFilterValues(df, name = type)
 
     def get_plot_frame(self):
-        return self.as_wide_values().values
+        return self.as_wide_values().data
 
 
 class WideFilterValues(FilterValues):
@@ -79,14 +81,14 @@ class WideFilterValues(FilterValues):
     Wide filters contain one type of filter with a column for each ticker.
     '''
     def __getitem__(self, key):
-        return self.values[[key]]
+        return self.data[[key]]
 
     @property
     def types(self):
         return [self.name]
 
     def value_ratio(self, prices):
-        values = self.values.reindex(prices.index, method = 'ffill')
+        values = self.data.reindex(prices.index, method = 'ffill')
         ratios = values / prices - 1
         return WideFilterValues(ratios, self.name + "_ratio")
 

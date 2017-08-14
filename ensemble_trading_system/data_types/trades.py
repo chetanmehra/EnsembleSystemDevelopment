@@ -299,6 +299,8 @@ class TradeCollection:
         plt.ylim(y_range)
 
 
+# TODO Trade should probably use a Returns object, rather than calculate it's own.
+# TODO Instead of Trade holding prices, consider retaining a reference to the Market
 class Trade:
 
     def __init__(self, ticker, entry_date, exit_date, prices, position_size = 1.0):
@@ -308,9 +310,9 @@ class Trade:
         self.entry_price = self.get_price(entry_date, prices)
         self.exit_price = self.get_price(exit_date, prices)
 
-        prices = prices[self.entry:self.exit]
-        daily_returns = Series(prices / prices.shift(1)) - 1
-        daily_returns[0] = (prices[0] / self.entry_price) - 1
+        self.prices = prices[self.entry:self.exit]
+        daily_returns = Series(self.prices / self.prices.shift(1)) - 1
+        daily_returns[0] = (self.prices[0] / self.entry_price) - 1
         # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
         if isinstance(position_size, int) or isinstance(position_size, float):
             self.daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size) - 1
@@ -318,8 +320,6 @@ class Trade:
             position_size = position_size[self.entry:self.exit]
             self.daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size[0]) - 1
         self.normalised = Series((exp(log(1 + self.daily_returns).cumsum()) - 1).values)
-        # Note: duration is measured by days-in-market not calendar days
-        self.duration = len(self.normalised)
         self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]
 
     def __str__(self):
@@ -346,6 +346,13 @@ class Trade:
 
     def as_tuple(self):
         return tuple(getattr(self, name) for name in self.cols)
+
+    @property
+    def duration(self):
+        """
+        Duration is measured by days-in-market not calendar days
+        """
+        return len(self.normalised)
 
     @property
     def base_return(self):
@@ -400,6 +407,7 @@ class Trade:
         '''
         if exit_day > 0:
             self.exit = self.daily_returns.index[exit_day]
+            self.exit_price = self.prices[self.exit]
             self.daily_returns = self.daily_returns[:self.exit]
             self.normalised = self.normalised[:(exit_day + 1)]
             return self

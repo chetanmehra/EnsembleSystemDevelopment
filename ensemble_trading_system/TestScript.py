@@ -22,7 +22,10 @@ from data_types.filter_data import StackedFilterValues, WideFilterValues
 from system.core import Strategy, Portfolio
 from level_signals import Crossover
 from measures.moving_averages import EMA, KAMA
+from measures.volatility import StdDevEMA
+from carter_forecasters import PriceCrossover, EWMAC
 from rules.signal_rules import PositionFromDiscreteSignal
+from rules.forecast_rules import CarterPositions
 
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop, ReturnTriggeredTrailingStop
 from system.analysis import summary_report

@@ -47,6 +47,22 @@ class CarterForecast(SignalElement):
         forecast[forecast < -20] = -20
         return forecast
 
+class CarterForecastFamily(CarterForecast):
+    """
+    Holds multiple forecasters and returns the mean forecast.
+    """
+    def __init__(self, *args):
+        self.forecasters = args
+
+    def execute(self, strategy):
+        forecasts = {}
+        for forecaster in self.forecasters:
+            forecasts[forecaster.name] = forecaster(strategy).data
+        forecasts = Panel(forecasts)
+        mean_fcst = self.normalise(forecasts.mean(axis = 'items'))
+        return Signal(mean_fcst, [-20, 20], forecasts)
+
+
 
 class EWMAC(CarterForecast):
     """
@@ -59,6 +75,7 @@ class EWMAC(CarterForecast):
         self.slow = slow
         self.fast = fast
         self.vol = vol_method
+        self.name = 'EWMAC_{}x{}'.format(fast, slow)
 
     def execute(self, strategy):
         prices = strategy.get_indicator_prices()
@@ -75,9 +92,10 @@ class PriceCrossover(CarterForecast):
     and those of a measure derived from market prices.
     """
     def __init__(self, base, measure, vol_method):
-        self.base = base
+        self.base = base.data
         self.measure = measure
         self.vol = vol_method
+        self.name = "_".join([base.name, measure.name])
 
     def execute(self, strategy):
         prices = strategy.get_indicator_prices()
