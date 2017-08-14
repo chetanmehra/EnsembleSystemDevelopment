@@ -252,9 +252,10 @@ class Portfolio:
         self.holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
         self.summary = DataFrame(0, index = self.positions.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
+        self.costs = DataFrame(0, index = self.positions.index, columns = ["Transactions", "Slippage"])
         self.trade_size = (2000, 3500) # Min and max by dollar size
         self.transaction_cost = 11 # Each way
-        self.conditions = [minimum_position_size]
+        self.conditions = [MinimimumPositionSize()]
 
     def apply_trades(self):
         '''
@@ -268,11 +269,17 @@ class Portfolio:
             if all(self.conditions_met_for(trade)):
                 executed_trades.append(self.strategy.trades[trade_num])
                 num_shares = int(min(self.cash[trade.entry], max(self.trade_size)) / trade.entry_price)
-                cost = (num_shares * trade.entry_price) + self.transaction_cost
+                entry_slippage = self.estimate_slippage(trade.entry_price, num_shares)
+                cost = (num_shares * trade.entry_price) + self.transaction_cost + entry_slippage
                 self.cash[trade.entry:] -= cost
+                self.costs.loc[trade.entry:, "Transactions"] += self.transaction_cost
+                self.costs.loc[trade.entry:, "Slippage"] += slippage
                 self.positions[trade.ticker][trade.entry:(trade.exit - DateOffset(1))] = num_shares
-                sale_proceeds = (num_shares * trade.exit_price) - self.transaction_cost
+                exit_slippage = self.estimate_slippage(trade.exit_price, num_shares)
+                sale_proceeds = (num_shares * trade.exit_price) - self.transaction_cost - exit_slippage
                 self.cash[trade.exit:] += sale_proceeds
+                self.costs.loc[trade.exit:, "Transactions"] += self.transaction_cost
+                self.costs.loc[trade.exit:, "Slippage"] += slippage
         self.trades = TradeCollection(executed_trades)
         self.holdings = self.positions * self.strategy.get_trade_prices()
         self.summary["Holdings"] = self.holdings.sum(axis = 1)
@@ -283,6 +290,22 @@ class Portfolio:
         Returns a list of boolean values, one for each condition check specified for the portfolio.
         '''
         return [condition(self, trade) for condition in self.conditions]
+
+    def estimate_slippage(self, trade_price, num_shares):
+        """
+        Estimates the slippage assuming that the spread is at least one price increment wide.
+        Price increments used are as defined by the ASX:
+            Up to $0.10     0.1c
+            Up to $2.00     0.5c
+            $2.00 and over  1c
+        """
+        if trade_price < 0.1:
+            slippage = num_shares * 0.001
+        elif trade_price < 2.0:
+            slippage = num_shares * 0.005
+        else:
+            slippage = num_shares * 0.01
+        return abs(slippage)
 
     @property
     def cash(self):
@@ -347,10 +370,25 @@ class Portfolio:
         return axarr
 
 
-# Accepts a trade if the current cash position is greater than the minimum trade size.
-def minimum_position_size(portfolio, trade):
-    '''
-    Provides a trade condition where the cash at the time of entry must be greater
-    than the minimum allowable portfolio size.
-    '''
-    return portfolio.cash[trade.entry] > min(portfolio.trade_size)
+# Portfolio Trade Acceptance Criteria
+class MinimimumPositionSize:
+
+    def __call__(self, portfolio, trade):
+        '''
+        Provides a trade condition where the cash at the time of entry must be greater
+        than the minimum allowable portfolio size.
+        '''
+        return portfolio.cash[trade.entry] > min(portfolio.trade_size)
+
+class MinimumTradePrice:
+
+    def __init__(self, min_price):
+        self.min_price = min_price
+
+    def __call__(self, portfolio, trade):
+        """
+        Accepts trades provided the entry price is above a defined threshold.
+        The idea is to stop positions taken in shares which would incur excessive slippage.
+        """
+        return trade.entry_price >= min_price
+
