@@ -33,7 +33,9 @@ class DataElement:
     def at(self, timing):
         '''
         'at' returns a lagged version of the data appropriate for the timing.
-        Timing may be one of: ["decision", "entry", "exit", "open", "close"]
+        'timing' is a parameter of the strategy e.g. strategy.decision, strategy.entry...
+        This will expose a method called 'get_lag' that determines the lag from this 
+        object's timing ["decision", "entry", "exit", "open", "close"].
         '''
         lag = self.get_lag(timing)
         return self.shift(lag)
@@ -56,7 +58,7 @@ class DataElement:
         '''
         Calculate the lag between the completion of calculating this data object and the requested timing.
         '''
-        return self.indexer.get_lag(self.calculation_timing[-1], target_timing)
+        return target_timing.get_lag(self.calculation_timing[-1])
 
     @property
     def index(self):
@@ -73,8 +75,8 @@ class DataElement:
         return deepcopy(self)
 
 
-class Indexer:
-    
+class IndexerFactory:
+
     def __init__(self, trade_timing, ind_timing):
         if trade_timing not in ["OO", "CC"]:
             raise ValueError("Trade timing must be one of: 'OO', 'CC'.")
@@ -88,10 +90,22 @@ class Indexer:
                            "open" : "O", 
                            "close" : "C"}
 
+    def __call__(self, target):
+        timing = target.lower()
+        if timing not in self.timing_map.keys():
+            raise ValueError("{0}\nTiming must be one of: {1}".format(self.end, ", ".join(self.timing_map.keys())))
+        return Indexer(self.timing_map, target)
 
-    def get_lag(self, start, end):
+
+class Indexer:
+    
+    def __init__(self, timing_map, target):
+        self.timing_map = timing_map
+        self.end = target
+
+    def get_lag(self, start):
         start = self.convert_timing(start)
-        end = self.convert_timing(end)
+        end = self.convert_timing(self.end)
         if "OC" in start + end:
             lag = 0
         else:
@@ -101,19 +115,9 @@ class Indexer:
     def convert_timing(self, timing):
         timing = timing.lower()
         if timing not in self.timing_map.keys():
-            raise ValueError("Timing must be one of: " + ", ".join(self.timing_map.keys()))
+            raise ValueError("{0}\nTiming must be one of: {1}".format(self.end, ", ".join(self.timing_map.keys())))
         return self.timing_map[timing]
     
-    def market_returns(self, market):
-        timing_map = {"O":"open", "C":"close"}
-        if self.trade_timing == "OC":
-            lag = 0
-        else:
-            lag = 1
-        trade_open = getattr(market, timing_map[self.trade_timing[0]])
-        trade_close = getattr(market, timing_map[self.trade_timing[1]])
-        return (trade_open / trade_close.shift(lag)) - 1
-
 
 
 # CALCULATION TYPES
@@ -122,7 +126,7 @@ class StrategyElement:
     The StrategyElement class provides the basic interface for those objects which
     perform calculations based on the strategy data. e.g. to create signals.
     It defines the base functionality required, as well as handling the details of
-    assigning the indexer and lag values.
+    assigning the ag values.
     '''
     @property
     def ID(self): 
@@ -133,7 +137,6 @@ class StrategyElement:
         if not self.created(result):
             result = self.execute(strategy)
             result.creator = self.ID
-            result.indexer = strategy.indexer
             result.calculation_timing = self.calculation_timing
             result.lag = self.starting_lag()
         return result

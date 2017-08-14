@@ -1,9 +1,10 @@
 
 from copy import deepcopy
 from math import log
-from pandas import DataFrame, Series
+from pandas import DataFrame, Series, Categorical
 from pandas.core.common import isnull
 from numpy import sign
+import matplotlib.pyplot as plt
 
 from system.interfaces import DataElement
 from system.metrics import Drawdowns
@@ -27,7 +28,7 @@ class Position(DataElement):
         self.data = new_pos_data
 
     def applied_to(self, market_returns):
-        return AverageReturns(self.data * market_returns.data, market_returns.indexer)
+        return AverageReturns(self.data * market_returns.data)
 
     @property
     def start(self):
@@ -66,12 +67,12 @@ class Returns(DataElement):
     Returns represents a returns Series, and provides methods for summarising
     and plotting.
     """
-    def __init__(self, data, indexer):
+    def __init__(self, data):
         data[isnull(data)] = 0
         self.data = data
         self.lag = 1
         self.calculation_timing = ["entry", "exit"]
-        self.indexer = indexer
+        self.indexer = None
         
     def __getitem__(self, key):
         return self.data[key]
@@ -109,17 +110,33 @@ class Returns(DataElement):
         return Drawdowns(self.cumulative())
         
     def sharpe(self):
-
         returns = self.annualised()
         mean = returns.mean()
         std = returns.std()
         return mean / std
 
-    def returns_by_month(self, method = 'mean'):
-        returns = self.data
-        returns['Month'] = returns.index.strftime('%b')
-        returns['Year'] = returns.index.strftime('%Y')
-        return returns.groupby(["Year", "Month"]).__getattribute__(method)().unstack()
+    def monthly(self):
+        returns = DataFrame(self.data, columns = ["Returns"])
+        returns['Month'] = returns.index.strftime("%b")
+        returns['Month'] = Categorical(returns['Month'], ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                                                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])
+        returns['Year'] = returns.index.strftime("%Y")
+        grouped = returns.groupby(["Year", "Month"])
+        result = {}
+        result["mean"] = grouped.mean().unstack()
+        result['std'] = grouped.std().unstack()
+        result['sharpe'] = result['mean'] / result['std']
+        return result
+
+    def plot_monthly(self, values = 'sharpe'):
+        returns = self.monthly()[values.lower()]
+        title = values.upper()[0] + values.lower()[1:]
+        ax = plt.imshow(returns.values, cmap = "RdYlGn")
+        ax.axes.set_xticklabels(returns.columns.levels[1])
+        ax.axes.set_yticklabels(returns.index)
+        plt.colorbar()
+        plt.title(title)
+        return ax
     
     
 class AggregateReturns(Returns):
@@ -127,18 +144,18 @@ class AggregateReturns(Returns):
     AggregateReturns represents a dataframe of returns which are summed for the overall
     result (e.g. the result of position weighted returns).
     """
-    def __init__(self, data, indexer):
-        super().__init__(data, indexer)
+    def __init__(self, data):
+        super().__init__(data)
         self.columns = data.columns
 
+    def combined(self):
+        return Returns(self.data.sum(axis = 1))
+
     def log(self):
-        return self.collapsed().log()
+        return self.combined().log()
 
     def annualised(self):
-        return self.collapsed().annualised()
-
-    def collapsed(self):
-        return Returns(self.data.sum(axis = 1), self.indexer)
+        return self.combined().annualised()
     
     
 class AverageReturns(Returns):
@@ -146,17 +163,18 @@ class AverageReturns(Returns):
     AverageReturns represents a dataframe of returns which are averaged for the overal
     result (e.g. market returns).
     """
-    def __init__(self, data, indexer):
-        super().__init__(data, indexer)
+    def __init__(self, data):
+        super().__init__(data)
         self.columns = data.columns
     
+    def combined(self):
+        return Returns(self.data.mean(axis = 1))
+
     def log(self):
-        return self.collapsed().log()
+        return self.combined().log()
 
     def annualised(self):
-        return self.collapsed().annualised()
+        return self.combined().annualised()
 
-    def collapsed(self):
-        return Returns(self.data.mean(axis = 1), self.indexer)
 
 
