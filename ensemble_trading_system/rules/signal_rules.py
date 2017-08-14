@@ -13,7 +13,7 @@ class PositionFromDiscreteSignal(PositionRuleElement):
 
     def execute(self, strategy):
         pos_data = strategy.get_empty_dataframe(fill_data = 0)
-        signal = strategy.signal.at(strategy.entry)
+        signal = strategy.signal.at(strategy.trade_entry)
         for level, position_size in self.level_sizes.items():
             pos_data[signal.data == level] = position_size
         return Position(pos_data)

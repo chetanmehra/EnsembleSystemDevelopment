@@ -14,6 +14,10 @@ import os
 sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\FinancialDataHandling\\financial_data_handling"))
 from store.file_system import Storage
 
+# The following is due to working directory not being set correctly on workstation:
+if os.getlogin() == "Mark":
+    os.chdir(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\EnsembleSystemDevelopment\\ensemble_trading_system"))
+
 # Local imports
 from data_types.market import Market
 from data_types.trades import TradeCollection
@@ -130,7 +134,6 @@ def getValues(store, date = None):
 def getValueRatios(store, value_type, strat):
     valuation = getValues(store).as_wide_values(value_type)
     ratios = valuation.value_ratio(strat.get_trade_prices())
-    ratios.name = "Value Ratio"
     return ratios
 
 def getValueMetrics(store, date = None):
@@ -138,12 +141,19 @@ def getValueMetrics(store, date = None):
     return StackedFilterValues(metrics.summary, "ValuationMetrics")
 
 
-def signalStratSetup(trade_timing = "CC", ind_timing = "O", params = (120, 50), exchange = "NYSE"):
+def signalStratSetup(trade_timing = "C", ind_timing = "O", params = (120, 50), exchange = "NYSE"):
     store = Storage(exchange)
     strategy = Strategy(trade_timing, ind_timing)
-    strategy.market = getMarket(store, exchange)
+    strategy.market = getMarket(store)
     strategy.signal_generator = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
     strategy.position_rules = PositionFromDiscreteSignal(Up = 1)
+    return strategy
+
+def createEwmacStrategy(store, ema_params = (120, 50)):
+    strategy = Strategy("O", "C")
+    strategy.market = getMarket(store)
+    strategy.signal_generator = EWMAC(EMA(max(ema_params)), EMA(min(ema_params)), StdDevEMA(36))
+    strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
 

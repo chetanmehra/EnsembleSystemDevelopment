@@ -29,8 +29,7 @@ class Strategy:
         # Timing parameters
         self.indexer = IndexerFactory(trade_timing, ind_timing)
         self.decision = self.indexer("decision")
-        self.entry = self.indexer("entry")
-        self.exit = self.indexer("exit")
+        self.trade_entry = self.indexer("trade")
         self.open = self.indexer("open")
         self.close = self.indexer("close")
 
@@ -145,7 +144,7 @@ class Strategy:
         '''
         Returns the dataframe of prices for trade timing.
         '''
-        if self.trade_timing[0] == "O":
+        if self.trade_timing == "O":
             return self.market.open
         else:
             return self.market.close
@@ -171,7 +170,7 @@ class Strategy:
         '''
         Gets the dataframe of market returns relevant for the trade timing.
         '''
-        trade_timing = {"O" : "open", "C" : "close"}[self.trade_timing[0]]
+        trade_timing = {"O" : "open", "C" : "close"}[self.trade_timing]
         return self.market.returns(trade_timing)
 
     @property
@@ -249,8 +248,6 @@ class Strategy:
 
 
 # TODO Add Portfolio rebalancing methods.
-# TODO Estimate slippage costs based on price increments set by exchange.
-# TODO Keep a record of transaction and slippage costs.
 class Portfolio:
     '''
     The portfolio class manages cash and stock positions, as well as rules 
@@ -265,7 +262,7 @@ class Portfolio:
         self.holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
         self.summary = DataFrame(0, index = self.positions.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
-        self.costs = DataFrame(0, index = self.positions.index, columns = ["Transactions", "Slippage"])
+        self.costs = DataFrame(0, index = self.positions.index, columns = ["Transactions", "Slippage", "Total"])
         self.trade_size = (2000, 3500) # Min and max by dollar size
         self.transaction_cost = 11 # Each way
         self.conditions = [MinimimumPositionSize()]
@@ -286,18 +283,19 @@ class Portfolio:
                 cost = (num_shares * trade.entry_price) + self.transaction_cost + entry_slippage
                 self.cash[trade.entry:] -= cost
                 self.costs.loc[trade.entry:, "Transactions"] += self.transaction_cost
-                self.costs.loc[trade.entry:, "Slippage"] += slippage
+                self.costs.loc[trade.entry:, "Slippage"] += entry_slippage
                 self.positions[trade.ticker][trade.entry:(trade.exit - DateOffset(1))] = num_shares
                 exit_slippage = self.estimate_slippage(trade.exit_price, num_shares)
                 sale_proceeds = (num_shares * trade.exit_price) - self.transaction_cost - exit_slippage
                 self.cash[trade.exit:] += sale_proceeds
                 self.costs.loc[trade.exit:, "Transactions"] += self.transaction_cost
-                self.costs.loc[trade.exit:, "Slippage"] += slippage
+                self.costs.loc[trade.exit:, "Slippage"] += exit_slippage
         self.trades = TradeCollection(executed_trades)
         self.holdings = self.positions * self.strategy.get_trade_prices()
         self.holdings = self.holdings.fillna(method = 'ffill')
         self.summary["Holdings"] = self.holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
+        self.costs["Total"] = self.costs["Transactions"] + self.costs["Slippage"]
 
     def conditions_met_for(self, trade):
         '''
@@ -343,11 +341,27 @@ class Portfolio:
         return self.summary["Total"]
 
     @property
+    def value_ex_cost(self):
+        '''
+        Returns the series of total dollar value assuming zero costs
+        '''
+        return self.value + self.costs["Total"]
+
+    @property
     def returns(self):
         '''
         Returns the daily returns for the portfolio
         '''
         returns = self.value / self.value.shift(1) - 1
+        returns[0] = 0
+        return Returns(returns)
+
+    @property
+    def returns_ex_cost(self):
+        '''
+        Returns the daily returns for the portfolio assuming zero costs
+        '''
+        returns = self.value_ex_cost / self.value_ex_cost.shift(1) - 1
         returns[0] = 0
         return Returns(returns)
 
@@ -365,16 +379,21 @@ class Portfolio:
         '''
         return self.returns.drawdowns()
 
-    # TODO Automatically set start of Portfolio result plot when trading begins.
-    def plot_result(self, start = None, dd_ylim = None, rets_ylim = None):
+    @property
+    def trade_start_date(self):
+        return self.holdings.index[self.holdings.sum(axis = 1) > 0][0]
+
+    def plot_result(self, dd_ylim = None, rets_ylim = None):
         '''
         Plots the portfolio returns and drawdowns vs the market.
         '''
+        start = self.trade_start_date
         f, axarr = plt.subplots(2, 1, sharex = True)
         axarr[0].set_ylabel('Return')
         axarr[1].set_ylabel('Drawdown')
         axarr[1].set_xlabel('Days in trade')
         self.cumulative_returns[start:].plot(ax = axarr[0], ylim = rets_ylim)
+        self.returns_ex_cost.cumulative()[start:].plot(ax = axarr[0], color = 'cyan', linewidth = 0.5)
         dd = self.drawdowns
         dd.Highwater[start:].plot(ax = axarr[0], color = 'red')
         dd.Drawdown[start:].plot(ax = axarr[1], ylim = dd_ylim)

@@ -78,15 +78,14 @@ class DataElement:
 class IndexerFactory:
 
     def __init__(self, trade_timing, ind_timing):
-        if trade_timing not in ["OO", "CC"]:
-            raise ValueError("Trade timing must be one of: 'OO', 'CC'.")
+        if trade_timing not in ["O", "C"]:
+            raise ValueError("Trade timing must be one of: 'O', 'C'.")
         self.trade_timing = trade_timing
         if ind_timing not in ["O", "C"]:
             raise ValueError("Ind_timing must be one of: 'O', 'C'")
         self.ind_timing = ind_timing
         self.timing_map = {"decision" : self.ind_timing, 
-                           "entry" : self.trade_timing[0], 
-                           "exit" : self.trade_timing[-1], 
+                           "trade" : self.trade_timing, 
                            "open" : "O", 
                            "close" : "C"}
 
