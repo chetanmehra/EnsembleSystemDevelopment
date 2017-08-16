@@ -27,7 +27,7 @@ from system.core import Strategy, Portfolio
 from level_signals import Crossover
 from measures.moving_averages import EMA, KAMA
 from measures.volatility import StdDevEMA
-from carter_forecasters import PriceCrossover, EWMAC
+from carter_forecasters import PriceCrossover, EWMAC, CarterForecastFamily
 from rules.signal_rules import PositionFromDiscreteSignal
 from rules.forecast_rules import CarterPositions
 

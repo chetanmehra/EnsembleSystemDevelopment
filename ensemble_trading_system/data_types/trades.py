@@ -301,6 +301,7 @@ class TradeCollection:
 
 # TODO Trade should probably use a Returns object, rather than calculate it's own.
 # TODO Instead of Trade holding prices, consider retaining a reference to the Market
+# TODO Trade returns are being calculated incorrectly somehow.
 class Trade:
 
     def __init__(self, ticker, entry_date, exit_date, prices, position_size = 1.0):

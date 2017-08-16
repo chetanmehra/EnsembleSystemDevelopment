@@ -57,9 +57,33 @@ class Position(DataElement):
         return data.sum(axis = 1)
 
     def normalised(self):
-        data = deepcopy(self.data)
+        """
+        Returns a new Position object with sizes normalised by dividing by the current
+        total number of positions held on that day.
+        """
+        data = self.data.copy()
         data = data.div(self.num_concurrent(), axis = 0)
         return Position(data)
+
+    # TODO discretise only works for long positions at the moment
+    def discretise(self, min, max, step):
+        """
+        Returns a new Position object of discrete position signals.
+        discretise takes the continuous positions and turns it into a stepped series, 
+        attempting to keep the average area under the curve approximately equivalent.
+        Refer: https://qoppac.blogspot.com.au/2016/03/diversification-and-small-account-size.html
+        """
+        i = 0
+        pos = self.data.copy()
+        pos[pos < min] = 0
+        while min + i * step < max:
+            lower = min + i * step
+            upper = min + (i + 1) * step
+            size = min + (i + 0.5) * step
+            pos[(pos >= lower) & (pos < upper)] = size
+            i += 1
+        pos[pos > max] = max
+        return Position(pos)
 
 
 class Returns(DataElement):
