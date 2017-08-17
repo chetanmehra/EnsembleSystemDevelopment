@@ -66,23 +66,23 @@ class Position(DataElement):
         return Position(data)
 
     # TODO discretise only works for long positions at the moment
-    def discretise(self, min, max, step):
+    def discretise(self, min_size, max_size, step):
         """
         Returns a new Position object of discrete position signals.
-        discretise takes the continuous positions and turns it into a stepped series, 
+        discretise takes the continuous positions and turns it into a stepped series,
         attempting to keep the average area under the curve approximately equivalent.
         Refer: https://qoppac.blogspot.com.au/2016/03/diversification-and-small-account-size.html
         """
         i = 0
         pos = self.data.copy()
-        pos[pos < min] = 0
-        while min + i * step < max:
-            lower = min + i * step
-            upper = min + (i + 1) * step
-            size = min + (i + 0.5) * step
+        pos[pos < min_size] = 0
+        while min_size + i * step < max_size:
+            lower = min_size + i * step
+            upper = min_size + (i + 1) * step
+            size = min_size + (i + 0.5) * step
             pos[(pos >= lower) & (pos < upper)] = size
             i += 1
-        pos[pos > max] = max
+        pos[pos > max_size] = max_size
         return Position(pos)
 
 
