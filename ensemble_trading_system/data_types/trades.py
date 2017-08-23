@@ -10,36 +10,6 @@ from system.metrics import Drawdowns
 
 # TODO Apply exit condition and apply entry condition are effectively the same.
 
-# Factory methods
-def create_trades(position_data, strategy):
-    prices = strategy.get_trade_prices()
-    trades = []
-    position_sign = (position_data > 0) * 1
-    position_sign[position_data < 0] = -1
-    flags = position_sign - position_sign.shift(1)
-    # clear missing values from first rows
-    start_row = 0
-    while all(flags.ix[start_row].isnull()):
-        flags.ix[start_row] = 0
-        start_row += 1
-    # Add trade entries occuring on first day
-    flags.ix[start_row][position_sign.ix[start_row] != 0] = position_sign.ix[start_row][position_sign.ix[start_row] != 0]
-    for ticker in flags:
-        ticker_flags = flags[ticker]
-        ticker_sign = position_sign[ticker]
-        # Flag values of -2 or 2 represents a complete switch from short to long or vice-versa.
-        entries = ticker_flags.index[((ticker_flags != 0) & (ticker_sign != 0)) | (abs(ticker_flags) > 1)]
-        exits = ticker_flags.index[((ticker_flags != 0) & (ticker_sign == 0)) | (abs(ticker_flags) > 1)]
-        for entry_day in entries:
-            valid_exits = (exits > entry_day)
-            if not any(valid_exits):
-                exit_day = ticker_flags.index[-1]
-            else:
-                exit_day = exits[valid_exits][0]
-            trades.append(Trade(ticker, entry_day, exit_day, prices[ticker], position_data[ticker]))
-    return TradeCollection(trades)
-
-
 class TradeCollection:
 
     def __init__(self, data):
@@ -301,7 +271,6 @@ class TradeCollection:
 
 # TODO Trade should probably use a Returns object, rather than calculate it's own.
 # TODO Instead of Trade holding prices, consider retaining a reference to the Market
-# TODO Trade returns are being calculated incorrectly somehow.
 class Trade:
 
     def __init__(self, ticker, entry_date, exit_date, prices, position_size = 1.0):

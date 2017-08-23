@@ -156,6 +156,16 @@ def createEwmacStrategy(store, ema_params = (120, 50)):
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
+def createValueRatioStrategy(store, ema_pd = 90, valuations = ["Adjusted", "Base", "Min"]):
+    strategy = Strategy("O", "C")
+    strategy.market = getMarket(store)
+    signal_generators = []
+    for valuation in valuations:
+        value_ratios = getValueRatios(store, valuation, strategy)
+        signal_generators.append(PriceCrossover(value_ratios, EMA(ema_pd), StdDevEMA(36)))
+    strategy.signal_generator = CarterForecastFamily(*signal_generators)
+    strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
+    return strategy
 
 short_pars = [1, 5, 10, 20, 35, 50]
 long_pars = [30, 50, 70, 90, 120, 150, 200]

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from system.interfaces import DataElement
 from system.metrics import Drawdowns
+from data_types.trades import Trade, TradeCollection
 
 
 class Position(DataElement):
@@ -19,6 +20,34 @@ class Position(DataElement):
         if not isinstance(data, DataFrame):
             raise TypeError
         self.data = data
+# Factory methods
+    def create_trades(self, strategy):
+        prices = strategy.get_trade_prices()
+        trades = []
+        position_sign = (self.data > 0) * 1
+        position_sign[self.data < 0] = -1
+        flags = position_sign - position_sign.shift(1)
+        # clear missing values from first rows
+        start_row = 0
+        while all(flags.ix[start_row].isnull()):
+            flags.ix[start_row] = 0
+            start_row += 1
+        # Add trade entries occuring on first day
+        flags.ix[start_row][position_sign.ix[start_row] != 0] = position_sign.ix[start_row][position_sign.ix[start_row] != 0]
+        for ticker in flags:
+            ticker_flags = flags[ticker]
+            ticker_sign = position_sign[ticker]
+            # Flag values of -2 or 2 represents a complete switch from short to long or vice-versa.
+            entries = ticker_flags.index[((ticker_flags != 0) & (ticker_sign != 0)) | (abs(ticker_flags) > 1)]
+            exits = ticker_flags.index[((ticker_flags != 0) & (ticker_sign == 0)) | (abs(ticker_flags) > 1)]
+            for entry_day in entries:
+                valid_exits = (exits > entry_day)
+                if not any(valid_exits):
+                    exit_day = ticker_flags.index[-1]
+                else:
+                    exit_day = exits[valid_exits][0]
+                trades.append(Trade(ticker, entry_day, exit_day, prices[ticker], self.data[ticker]))
+        return TradeCollection(trades)
 
     def update_from_trades(self, trades):
         new_pos_data = deepcopy(self.data)
