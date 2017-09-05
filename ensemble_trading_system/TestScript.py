@@ -8,6 +8,7 @@ import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import pickle
 # Add dev folder of related package(s)
 import sys
 import os
@@ -217,5 +218,27 @@ def parallel_test_pars(short_pars, long_pars):
         summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))
 
+store = Storage("NYSE")
+with open(r'D:\Investing\Workspace\ewmac_strat.pkl', 'rb') as file:
+    strat = pickle.load(file)
 
+port = Portfolio(strat, 15000)
+print("Ready...")
+
+#port.run()
+#date = port.share_holdings.index[0]
+#error_pos = port.get_target_transactions(date)
+
+#date = port.share_holdings.index[500]
+#p1 = port.get_target_transactions(date)
+
+#date = port.share_holdings.index[501]
+#p2 = port.get_target_transactions(date)
+
+#date = port.share_holdings.index[502]
+#p3 = port.get_target_transactions(date)
+
+#print("starting position selection...")
+#selected = port.get_target_transactions(date)
+#print("completed position selection")
 

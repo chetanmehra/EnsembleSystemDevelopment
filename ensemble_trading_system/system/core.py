@@ -5,6 +5,8 @@ Created on 21 Dec 2014
 '''
 import matplotlib.pyplot as plt
 from pandas import DateOffset, Panel, DataFrame, Series
+import numpy as np
+import scipy.optimize
 
 from system.interfaces import IndexerFactory
 from data_types.trades import TradeCollection
@@ -260,27 +262,40 @@ class Portfolio:
         self.strategy = strategy
         self.share_holdings = self.strategy.get_empty_dataframe(0) # Number of shares
         self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
+        self.positions = self.strategy.get_empty_dataframe(0) # Nominal positions
         self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
         self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
         self.trade_size = (2000, 3500) # Min and max by dollar size
         self.conditions = [MinimimumPositionSize()]
         self.transaction_checks = [TransactionCostThreshold(0.02)]
+        self.max_size = 2
+
+        self.positions2 = self.strategy.get_empty_dataframe()
+        self.positions2.iloc[0, :] = 0
+        self.current_positions = Series(0, index = self.positions.columns)
+        self.run_config = 1
 
     def run(self):
         """
         Runs the portfolio for the given strategy and starting conditions.
         This calculates the resulting portfolio based on positions sizes.
         """
-        trading_days = self.share_holdings.index
+        performance_metric = self.get_performance_metric()
+
+        trading_days = self.share_holdings.index[0:100]
+
+        if self.run_config == 1:
+            pos_fun = self.get_position_changes
+        else:
+            pos_fun = self.get_position_changes2
+
         for date in trading_days:
-            target_txns = self.get_target_transactions(date)
-            selected_txns = self.check_transations(target_txn)
-            # TODO need to make sure that exit transactions haven't been removed accidentally.
-            # This may occur if the size of the position has reduced to a point where the cost to
-            # exit would be higher than the threshold allowed. However in this case we still want
-            # to exit the position.
-            self.apply(selected_txns, date)
+            print(date)
+            transactions = pos_fun(date, performance_metric)
+            transactions = self.check_transactions(transactions)
+            self.apply(transactions, date)
+
         self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
         self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
@@ -288,30 +303,146 @@ class Portfolio:
         self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
         #TODO Use a Positions object to calculate trades.
 
-    def get_target_transactions(self, date):
+    def get_performance_metric(self):
         """
-        In essence the target transactions are calculated from the difference
-        between the current positions, and desired positions on a given day.
-        This also needs to convert the generic position sizing into the size
-        relevant for the portfolio, as well as removing positions which don't 
-        fit within the constraints of the portfolio size (e.g. leverage constraints).
+        The performance metric is used to prioritise target positions.
         """
+        current_fcst = self.strategy.signal.at(self.strategy.trade_entry)
+        # If the forecasts are equal bias towards those with target position close to max_size.
+        tie_breaker = (2 / (2 + ((self.strategy.positions.data - self.max_size) ** 2)))
+        return current_fcst.data * tie_breaker
 
-        # 1. Get the target positions
-        # 2. Get the current positions
-        #       Note, may need to hold the generic position size if we want to 
-        #       separate raw position changes from rebalancing position changes.
-        # 3. Target changes = target positions - current positions
-        # 4. Convert the target changes to number of shares.
-        pass
 
+    def get_position_changes(self, date, performance_metric):
+        """
+        This method is responsible for selecting which positions to take from
+        those the strategy has deemed are attractive, taking into account the
+        target position sizes and diversification of the portfolio.
+        The target positions are determined based on the performance metric, 
+        and biased towards any existing positions through a cost factor.
+        """
+        cost_multiplier = 10
+        pos_threshold = 0.1
+        min_size = 0.5
+        max_size = 2
+
+        current_pos = self.positions.loc[date]
+        target_pos = self.strategy.positions.loc[date]
+        missing_targets = np.isnan(target_pos)
+        target_pos[missing_targets] = current_pos[missing_targets]
+        adj_target_pos = target_pos.copy()
+        adj_target_pos[adj_target_pos > max_size] = max_size
+        adj_target_pos[adj_target_pos < min_size] = 0
+        fcst = performance_metric.loc[date]
+        # TODO confirm if the forecast is known on the date in question, or if it should be lagged.
+        full_res = fcst * target_pos - cost_multiplier * (target_pos - current_pos).abs()
+        ix_full = full_res.sort_values(ascending = False).index
+
+        full_selected = ix_full[adj_target_pos[ix_full].cumsum() <= self.target_size]
+
+        selected_pos = Series(0, index = current_pos.index)
+        selected_pos[full_selected] = adj_target_pos[full_selected]
+        # TODO Positions are getting updated here before the transactions are checked.
+        self.positions.loc[date:] = 0
+        for ticker in adj_target_pos[full_selected][adj_target_pos[full_selected] > 0].index:
+            self.positions.loc[date:, ticker] = adj_target_pos[ticker]
+
+        ix_partial = ix_full[len(full_selected):]
+        remaining = self.target_size - adj_target_pos[full_selected].sum()
+
+        if len(ix_partial) and remaining >= min_size:
+            partial_res = fcst[ix_partial] * remaining - 10 * (remaining - current_pos[ix_partial])
+            ix_partial = partial_res.sort_values(ascending = False).index
+            partial_selected = ix_partial[0]
+            selected_pos[partial_selected] = remaining
+            self.positions.loc[date:, partial_selected] = remaining
+
+
+        current_share_holdings = self.share_holdings.loc[date]
+        current_prices = self.strategy.get_trade_prices().loc[date]
+        current_dollar_holdings = current_share_holdings * current_prices
+        nominal_dollar_size = (current_dollar_holdings.sum() + self.cash[date]) / self.target_size
+        nominal_shares = nominal_dollar_size / current_prices
+        target_shares = selected_pos * nominal_shares
+        share_movements = target_shares - current_share_holdings
+        share_movements[np.isnan(share_movements)] = 0
+        
+        return Transactions(share_movements.astype(int, copy = False), current_prices)
+
+    def get_position_changes2(self, date, performance_metric):
+        """
+        This method is responsible for selecting which positions to take from
+        those the strategy has deemed are attractive, taking into account the
+        target position sizes and diversification of the portfolio.
+        The target positions are determined based on the performance metric, 
+        and biased towards any existing positions through a cost factor.
+        """
+        cost_multiplier = 10
+        pos_threshold = 0.1
+        min_size = 0.5
+        max_size = 2
+
+        current_pos = self.current_positions
+        target_pos = self.strategy.positions.loc[date]
+        missing_targets = np.isnan(target_pos)
+        target_pos[missing_targets] = current_pos[missing_targets]
+        adj_target_pos = target_pos.copy()
+        adj_target_pos[adj_target_pos > max_size] = max_size
+        adj_target_pos[adj_target_pos < min_size] = 0
+        fcst = performance_metric.loc[date]
+        # TODO confirm if the forecast is known on the date in question, or if it should be lagged.
+        full_res = fcst * target_pos - cost_multiplier * (target_pos - current_pos).abs()
+        ix_full = full_res.sort_values(ascending = False).index
+
+        full_selected = ix_full[adj_target_pos[ix_full].cumsum() <= self.target_size]
+
+        selected_pos = Series(0, index = current_pos.index)
+        selected_pos[full_selected] = adj_target_pos[full_selected]
+        # TODO Positions are getting updated here before the transactions are checked.
+        for ticker in adj_target_pos[full_selected][adj_target_pos[full_selected] > 0].index:
+            self.positions.loc[date, ticker] = adj_target_pos[ticker]
+
+        ix_partial = ix_full[len(full_selected):]
+        remaining = self.target_size - adj_target_pos[full_selected].sum()
+
+        if len(ix_partial) and remaining >= min_size:
+            partial_res = fcst[ix_partial] * remaining - 10 * (remaining - current_pos[ix_partial])
+            ix_partial = partial_res.sort_values(ascending = False).index
+            partial_selected = ix_partial[0]
+            selected_pos[partial_selected] = remaining
+            self.positions.loc[date, partial_selected] = remaining
+        
+        self.current_positions = selected_pos
+
+        current_share_holdings = self.share_holdings.loc[date]
+        current_prices = self.strategy.get_trade_prices().loc[date]
+        current_dollar_holdings = current_share_holdings * current_prices
+        nominal_dollar_size = (current_dollar_holdings.sum() + self.cash[date]) / self.target_size
+        nominal_shares = nominal_dollar_size / current_prices
+        target_shares = selected_pos * nominal_shares
+        share_movements = target_shares - current_share_holdings
+        share_movements[np.isnan(share_movements)] = 0
+        
+        return Transactions(share_movements.astype(int, copy = False), current_prices)
+
+
+    @property
+    def target_size(self):
+        """
+        Returns the target size (scalar) for the portfolio in number of positions.
+        Changing this method will allow different behaviour such as setting the 
+        portfolio to hold a set number of positions through time, or to change 
+        positions as the the portfolio value increases / decreases.
+        """
+        return 5    
+        
     def check_transactions(self, target_transactions):
         """
         This runs through a series of checks, removing any transactions that don't
         meet the conditions (e.g. if cost would be too high).
         """
         for check in self.transaction_checks:
-            target_transactions = check(target_transactions)
+            target_transactions = check(self, target_transactions)
         return target_transactions
 
     def apply(self, transactions, date):
@@ -468,6 +599,13 @@ class Transactions:
     the Portfolio.
     """
     def __init__(self, num_shares, prices):
+        nominal_size = num_shares * prices
+        trim_factor = 0.02 # This reduces the size of purchases to account for transaction costs
+        trim_size = (nominal_size * trim_factor) / prices
+        trim_size[np.isnan(trim_size)] = 0
+        trim_size = trim_size.astype(int) + 1 # Round to ceiling
+        purchases = num_shares > 0
+        num_shares[purchases] -= trim_size[purchases]
         self.num_shares = num_shares
         self.tickers = num_shares.index
         self.dollar_positions = num_shares * prices
@@ -496,6 +634,10 @@ class Transactions:
         self.commissions[tickers] = 0
 
     @property
+    def active(self):
+        return self.tickers[self.num_shares != 0]
+
+    @property
     def total_cost(self):
         return self.dollar_positions.sum() + self.total_commissions + self.total_slippage
 
@@ -516,8 +658,10 @@ class TransactionCostThreshold:
 
     def __call__(self, portfolio, transactions):
         cost_ratio = (transactions.commissions + transactions.slippage) / transactions.dollar_positions
+        # TODO Note, this will not remove transactions which are reducing in size as cost ratio will be negative.
+        # This is desirable if the transaction is an exit, but not for reductions in size.
         costly_tickers = cost_ratio[cost_ratio > self.cost_threshold].index
-        transactions.remove(transactions.tickers)
+        transactions.remove(costly_tickers)
         return transactions
 
 

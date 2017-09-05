@@ -71,6 +71,14 @@ class DataElement:
     def __getitem__(self, key):
         return self.data[key]
 
+    @property
+    def loc(self):
+        return self.data.loc
+
+    @property
+    def iloc(self):
+        return self.data.iloc
+    
     def copy(self):
         return deepcopy(self)
 
