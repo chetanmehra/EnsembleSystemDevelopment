@@ -225,7 +225,7 @@ with open(r'D:\Investing\Workspace\ewmac_strat.pkl', 'rb') as file:
 port = Portfolio(strat, 15000)
 print("Ready...")
 
-#port.run()
+port.run()
 #date = port.share_holdings.index[0]
 #error_pos = port.get_target_transactions(date)
 

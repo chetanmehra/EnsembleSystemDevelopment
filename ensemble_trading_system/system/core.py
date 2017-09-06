@@ -283,7 +283,7 @@ class Portfolio:
         """
         performance_metric = self.get_performance_metric()
 
-        trading_days = self.share_holdings.index[0:100]
+        trading_days = self.share_holdings.index
 
         if self.run_config == 1:
             pos_fun = self.get_position_changes
@@ -294,7 +294,7 @@ class Portfolio:
             print(date)
             transactions = pos_fun(date, performance_metric)
             transactions = self.check_transactions(transactions)
-            self.apply(transactions, date)
+            self.apply(transactions)
 
         self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
         self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
@@ -351,8 +351,6 @@ class Portfolio:
         remaining = self.target_size - adj_target_pos[full_selected].sum()
 
         if len(ix_partial) and remaining >= min_size:
-            partial_res = fcst[ix_partial] * remaining - 10 * (remaining - current_pos[ix_partial])
-            ix_partial = partial_res.sort_values(ascending = False).index
             partial_selected = ix_partial[0]
             selected_pos[partial_selected] = remaining
             self.positions.loc[date:, partial_selected] = remaining
@@ -367,7 +365,7 @@ class Portfolio:
         share_movements = target_shares - current_share_holdings
         share_movements[np.isnan(share_movements)] = 0
         
-        return Transactions(share_movements.astype(int, copy = False), current_prices)
+        return Transactions(share_movements.astype(int, copy = False), current_prices, date)
 
     def get_position_changes2(self, date, performance_metric):
         """
@@ -423,7 +421,7 @@ class Portfolio:
         share_movements = target_shares - current_share_holdings
         share_movements[np.isnan(share_movements)] = 0
         
-        return Transactions(share_movements.astype(int, copy = False), current_prices)
+        return Transactions(share_movements.astype(int, copy = False), current_prices, date)
 
 
     @property
@@ -445,7 +443,8 @@ class Portfolio:
             target_transactions = check(self, target_transactions)
         return target_transactions
 
-    def apply(self, transactions, date):
+    def apply(self, transactions):
+        date = transactions.date
         self.cash[date:] -= transactions.total_cost
         self.costs.loc[date:, "Commissions"] += transactions.total_commissions
         self.costs.loc[date:, "Slippage"] += transactions.total_slippage
@@ -598,7 +597,8 @@ class Transactions:
     The Transactions object can then calculate the total cash flows, and position movements for 
     the Portfolio.
     """
-    def __init__(self, num_shares, prices):
+    def __init__(self, num_shares, prices, date):
+        self.date = date
         nominal_size = num_shares * prices
         trim_factor = 0.02 # This reduces the size of purchases to account for transaction costs
         trim_size = (nominal_size * trim_factor) / prices
@@ -657,10 +657,12 @@ class TransactionCostThreshold:
         self.cost_threshold = cost_threshold
 
     def __call__(self, portfolio, transactions):
-        cost_ratio = (transactions.commissions + transactions.slippage) / transactions.dollar_positions
-        # TODO Note, this will not remove transactions which are reducing in size as cost ratio will be negative.
-        # This is desirable if the transaction is an exit, but not for reductions in size.
-        costly_tickers = cost_ratio[cost_ratio > self.cost_threshold].index
+        cost_ratio = ((transactions.commissions + transactions.slippage) / transactions.dollar_positions).abs()
+        current_shares = portfolio.share_holdings.loc[transactions.date]
+        net_size = current_shares + transactions.num_shares
+        costly = (cost_ratio > self.cost_threshold)
+        not_exits = (net_size != 0)
+        costly_tickers = transactions.tickers[costly & not_exits]
         transactions.remove(costly_tickers)
         return transactions
 
