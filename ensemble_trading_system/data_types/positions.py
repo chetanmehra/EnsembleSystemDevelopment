@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from system.interfaces import DataElement
 from system.metrics import Drawdowns
+from data_types.trades import Trade, TradeCollection
 
 
 class Position(DataElement):
@@ -19,6 +20,34 @@ class Position(DataElement):
         if not isinstance(data, DataFrame):
             raise TypeError
         self.data = data
+# Factory methods
+    def create_trades(self, strategy):
+        prices = strategy.get_trade_prices()
+        trades = []
+        position_sign = (self.data > 0) * 1
+        position_sign[self.data < 0] = -1
+        flags = position_sign - position_sign.shift(1)
+        # clear missing values from first rows
+        start_row = 0
+        while all(flags.ix[start_row].isnull()):
+            flags.ix[start_row] = 0
+            start_row += 1
+        # Add trade entries occuring on first day
+        flags.ix[start_row][position_sign.ix[start_row] != 0] = position_sign.ix[start_row][position_sign.ix[start_row] != 0]
+        for ticker in flags:
+            ticker_flags = flags[ticker]
+            ticker_sign = position_sign[ticker]
+            # Flag values of -2 or 2 represents a complete switch from short to long or vice-versa.
+            entries = ticker_flags.index[((ticker_flags != 0) & (ticker_sign != 0)) | (abs(ticker_flags) > 1)]
+            exits = ticker_flags.index[((ticker_flags != 0) & (ticker_sign == 0)) | (abs(ticker_flags) > 1)]
+            for entry_day in entries:
+                valid_exits = (exits > entry_day)
+                if not any(valid_exits):
+                    exit_day = ticker_flags.index[-1]
+                else:
+                    exit_day = exits[valid_exits][0]
+                trades.append(Trade(ticker, entry_day, exit_day, prices[ticker], self.data[ticker]))
+        return TradeCollection(trades)
 
     def update_from_trades(self, trades):
         new_pos_data = deepcopy(self.data)
@@ -66,23 +95,23 @@ class Position(DataElement):
         return Position(data)
 
     # TODO discretise only works for long positions at the moment
-    def discretise(self, min, max, step):
+    def discretise(self, min_size, max_size, step):
         """
         Returns a new Position object of discrete position signals.
-        discretise takes the continuous positions and turns it into a stepped series, 
+        discretise takes the continuous positions and turns it into a stepped series,
         attempting to keep the average area under the curve approximately equivalent.
         Refer: https://qoppac.blogspot.com.au/2016/03/diversification-and-small-account-size.html
         """
         i = 0
         pos = self.data.copy()
-        pos[pos < min] = 0
-        while min + i * step < max:
-            lower = min + i * step
-            upper = min + (i + 1) * step
-            size = min + (i + 0.5) * step
+        pos[pos < min_size] = 0
+        while min_size + i * step < max_size:
+            lower = min_size + i * step
+            upper = min_size + (i + 1) * step
+            size = min_size + (i + 0.5) * step
             pos[(pos >= lower) & (pos < upper)] = size
             i += 1
-        pos[pos > max] = max
+        pos[pos > max_size] = max_size
         return Position(pos)
 
 

@@ -5,9 +5,11 @@ Created on 21 Dec 2014
 '''
 import matplotlib.pyplot as plt
 from pandas import DateOffset, Panel, DataFrame, Series
+import numpy as np
+import scipy.optimize
 
 from system.interfaces import IndexerFactory
-from data_types.trades import Trade, TradeCollection, create_trades
+from data_types.trades import TradeCollection
 from data_types.positions import Position, Returns
 
 
@@ -89,7 +91,7 @@ class Strategy:
 
     def apply_rules(self):
         self.positions = self.position_rules(self)
-        self.trades = create_trades(self.positions.data, self)
+        self.trades = self.positions.create_trades(self)
 
     def apply_filters(self):
         if len(self.filters) == 0:
@@ -258,19 +260,201 @@ class Portfolio:
     '''
     def __init__(self, strategy, starting_cash):
         self.strategy = strategy
-        self.positions = self.strategy.get_empty_dataframe(0) # Number of shares
-        self.holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
-        self.summary = DataFrame(0, index = self.positions.index, columns = ["Cash", "Holdings", "Total"])
+        self.share_holdings = self.strategy.get_empty_dataframe(0) # Number of shares
+        self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
+        self.positions = self.strategy.get_empty_dataframe(0) # Nominal positions
+        self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
-        self.costs = DataFrame(0, index = self.positions.index, columns = ["Transactions", "Slippage", "Total"])
+        self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
         self.trade_size = (2000, 3500) # Min and max by dollar size
-        self.transaction_cost = 11 # Each way
         self.conditions = [MinimimumPositionSize()]
+        self.transaction_checks = [TransactionCostThreshold(0.02)]
+        self.max_size = 2
+
+        self.positions2 = self.strategy.get_empty_dataframe()
+        self.positions2.iloc[0, :] = 0
+        self.current_positions = Series(0, index = self.positions.columns)
+        self.run_config = 1
+
+    def run(self):
+        """
+        Runs the portfolio for the given strategy and starting conditions.
+        This calculates the resulting portfolio based on positions sizes.
+        """
+        performance_metric = self.get_performance_metric()
+
+        trading_days = self.share_holdings.index
+
+        if self.run_config == 1:
+            pos_fun = self.get_position_changes
+        else:
+            pos_fun = self.get_position_changes2
+
+        for date in trading_days:
+            print(date)
+            transactions = pos_fun(date, performance_metric)
+            transactions = self.check_transactions(transactions)
+            self.apply(transactions)
+
+        self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
+        self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
+        self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
+        self.summary["Total"] = self.cash + self.holdings_total
+        self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
+        #TODO Use a Positions object to calculate trades.
+
+    def get_performance_metric(self):
+        """
+        The performance metric is used to prioritise target positions.
+        """
+        current_fcst = self.strategy.signal.at(self.strategy.trade_entry)
+        # If the forecasts are equal bias towards those with target position close to max_size.
+        tie_breaker = (2 / (2 + ((self.strategy.positions.data - self.max_size) ** 2)))
+        return current_fcst.data * tie_breaker
+
+
+    def get_position_changes(self, date, performance_metric):
+        """
+        This method is responsible for selecting which positions to take from
+        those the strategy has deemed are attractive, taking into account the
+        target position sizes and diversification of the portfolio.
+        The target positions are determined based on the performance metric, 
+        and biased towards any existing positions through a cost factor.
+        """
+        cost_multiplier = 10
+        pos_threshold = 0.1
+        min_size = 0.5
+        max_size = 2
+
+        current_pos = self.positions.loc[date]
+        target_pos = self.strategy.positions.loc[date]
+        missing_targets = np.isnan(target_pos)
+        target_pos[missing_targets] = current_pos[missing_targets]
+        adj_target_pos = target_pos.copy()
+        adj_target_pos[adj_target_pos > max_size] = max_size
+        adj_target_pos[adj_target_pos < min_size] = 0
+        fcst = performance_metric.loc[date]
+        # TODO confirm if the forecast is known on the date in question, or if it should be lagged.
+        full_res = fcst * target_pos - cost_multiplier * (target_pos - current_pos).abs()
+        ix_full = full_res.sort_values(ascending = False).index
+
+        full_selected = ix_full[adj_target_pos[ix_full].cumsum() <= self.target_size]
+
+        selected_pos = Series(0, index = current_pos.index)
+        selected_pos[full_selected] = adj_target_pos[full_selected]
+        # TODO Positions are getting updated here before the transactions are checked.
+        self.positions.loc[date:] = 0
+        for ticker in adj_target_pos[full_selected][adj_target_pos[full_selected] > 0].index:
+            self.positions.loc[date:, ticker] = adj_target_pos[ticker]
+
+        ix_partial = ix_full[len(full_selected):]
+        remaining = self.target_size - adj_target_pos[full_selected].sum()
+
+        if len(ix_partial) and remaining >= min_size:
+            partial_selected = ix_partial[0]
+            selected_pos[partial_selected] = remaining
+            self.positions.loc[date:, partial_selected] = remaining
+
+
+        current_share_holdings = self.share_holdings.loc[date]
+        current_prices = self.strategy.get_trade_prices().loc[date]
+        current_dollar_holdings = current_share_holdings * current_prices
+        nominal_dollar_size = (current_dollar_holdings.sum() + self.cash[date]) / self.target_size
+        nominal_shares = nominal_dollar_size / current_prices
+        target_shares = selected_pos * nominal_shares
+        share_movements = target_shares - current_share_holdings
+        share_movements[np.isnan(share_movements)] = 0
+        
+        return Transactions(share_movements.astype(int, copy = False), current_prices, date)
+
+    def get_position_changes2(self, date, performance_metric):
+        """
+        This method is responsible for selecting which positions to take from
+        those the strategy has deemed are attractive, taking into account the
+        target position sizes and diversification of the portfolio.
+        The target positions are determined based on the performance metric, 
+        and biased towards any existing positions through a cost factor.
+        """
+        cost_multiplier = 10
+        pos_threshold = 0.1
+        min_size = 0.5
+        max_size = 2
+
+        current_pos = self.current_positions
+        target_pos = self.strategy.positions.loc[date]
+        missing_targets = np.isnan(target_pos)
+        target_pos[missing_targets] = current_pos[missing_targets]
+        adj_target_pos = target_pos.copy()
+        adj_target_pos[adj_target_pos > max_size] = max_size
+        adj_target_pos[adj_target_pos < min_size] = 0
+        fcst = performance_metric.loc[date]
+        # TODO confirm if the forecast is known on the date in question, or if it should be lagged.
+        full_res = fcst * target_pos - cost_multiplier * (target_pos - current_pos).abs()
+        ix_full = full_res.sort_values(ascending = False).index
+
+        full_selected = ix_full[adj_target_pos[ix_full].cumsum() <= self.target_size]
+
+        selected_pos = Series(0, index = current_pos.index)
+        selected_pos[full_selected] = adj_target_pos[full_selected]
+        # TODO Positions are getting updated here before the transactions are checked.
+        for ticker in adj_target_pos[full_selected][adj_target_pos[full_selected] > 0].index:
+            self.positions.loc[date, ticker] = adj_target_pos[ticker]
+
+        ix_partial = ix_full[len(full_selected):]
+        remaining = self.target_size - adj_target_pos[full_selected].sum()
+
+        if len(ix_partial) and remaining >= min_size:
+            partial_res = fcst[ix_partial] * remaining - 10 * (remaining - current_pos[ix_partial])
+            ix_partial = partial_res.sort_values(ascending = False).index
+            partial_selected = ix_partial[0]
+            selected_pos[partial_selected] = remaining
+            self.positions.loc[date, partial_selected] = remaining
+        
+        self.current_positions = selected_pos
+
+        current_share_holdings = self.share_holdings.loc[date]
+        current_prices = self.strategy.get_trade_prices().loc[date]
+        current_dollar_holdings = current_share_holdings * current_prices
+        nominal_dollar_size = (current_dollar_holdings.sum() + self.cash[date]) / self.target_size
+        nominal_shares = nominal_dollar_size / current_prices
+        target_shares = selected_pos * nominal_shares
+        share_movements = target_shares - current_share_holdings
+        share_movements[np.isnan(share_movements)] = 0
+        
+        return Transactions(share_movements.astype(int, copy = False), current_prices, date)
+
+
+    @property
+    def target_size(self):
+        """
+        Returns the target size (scalar) for the portfolio in number of positions.
+        Changing this method will allow different behaviour such as setting the 
+        portfolio to hold a set number of positions through time, or to change 
+        positions as the the portfolio value increases / decreases.
+        """
+        return 5    
+        
+    def check_transactions(self, target_transactions):
+        """
+        This runs through a series of checks, removing any transactions that don't
+        meet the conditions (e.g. if cost would be too high).
+        """
+        for check in self.transaction_checks:
+            target_transactions = check(self, target_transactions)
+        return target_transactions
+
+    def apply(self, transactions):
+        date = transactions.date
+        self.cash[date:] -= transactions.total_cost
+        self.costs.loc[date:, "Commissions"] += transactions.total_commissions
+        self.costs.loc[date:, "Slippage"] += transactions.total_slippage
+        self.share_holdings[date:] += transactions.num_shares
 
     def apply_trades(self):
-        '''
-        Creates the portfolio positions and totals based on the strategy trades and position rules.
-        '''
+        """
+        Given a TradeCollection from a Strategy, determine the selected trades
+        and resulting portfolio positions.
+        """
         trade_df = self.strategy.trades.as_dataframe().sort_values(by = 'entry')
         executed_trades = []
         for i in range(len(trade_df)): # Note index is unordered due to sort so need to create new index range for loop.
@@ -278,46 +462,26 @@ class Portfolio:
             trade_num = trade_df.index[i]
             if all(self.conditions_met_for(trade)):
                 executed_trades.append(self.strategy.trades[trade_num])
-                num_shares = int(min(self.cash[trade.entry], max(self.trade_size)) / trade.entry_price)
-                entry_slippage = self.estimate_slippage(trade.entry_price, num_shares)
-                cost = (num_shares * trade.entry_price) + self.transaction_cost + entry_slippage
-                self.cash[trade.entry:] -= cost
-                self.costs.loc[trade.entry:, "Transactions"] += self.transaction_cost
-                self.costs.loc[trade.entry:, "Slippage"] += entry_slippage
-                self.positions[trade.ticker][trade.entry:(trade.exit - DateOffset(1))] = num_shares
-                exit_slippage = self.estimate_slippage(trade.exit_price, num_shares)
-                sale_proceeds = (num_shares * trade.exit_price) - self.transaction_cost - exit_slippage
-                self.cash[trade.exit:] += sale_proceeds
-                self.costs.loc[trade.exit:, "Transactions"] += self.transaction_cost
-                self.costs.loc[trade.exit:, "Slippage"] += exit_slippage
+                num_shares = Series(0, self.strategy.market.tickers)
+                num_shares[trade.ticker] = int(min(self.cash[trade.entry], max(self.trade_size)) / trade.entry_price)
+                trade_prices = self.strategy.get_trade_prices().loc[trade.entry]
+                entry_txns = Transactions(num_shares, trade_prices)
+                self.apply(entry_txns, trade.entry)
+                trade_prices = self.strategy.get_trade_prices().loc[trade.exit]
+                exit_txns = Transactions(-1 * num_shares, trade_prices)
+                self.apply(exit_txns, trade.exit)
         self.trades = TradeCollection(executed_trades)
-        self.holdings = self.positions * self.strategy.get_trade_prices()
-        self.holdings = self.holdings.fillna(method = 'ffill')
-        self.summary["Holdings"] = self.holdings.sum(axis = 1)
+        self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
+        self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
+        self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
-        self.costs["Total"] = self.costs["Transactions"] + self.costs["Slippage"]
+        self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
 
     def conditions_met_for(self, trade):
         '''
         Returns a list of boolean values, one for each condition check specified for the portfolio.
         '''
         return [condition(self, trade) for condition in self.conditions]
-
-    def estimate_slippage(self, trade_price, num_shares):
-        """
-        Estimates the slippage assuming that the spread is at least one price increment wide.
-        Price increments used are as defined by the ASX:
-            Up to $0.10     0.1c
-            Up to $2.00     0.5c
-            $2.00 and over  1c
-        """
-        if trade_price < 0.1:
-            slippage = num_shares * 0.001
-        elif trade_price < 2.0:
-            slippage = num_shares * 0.005
-        else:
-            slippage = num_shares * 0.01
-        return abs(slippage)
 
     @property
     def cash(self):
@@ -381,7 +545,7 @@ class Portfolio:
 
     @property
     def trade_start_date(self):
-        return self.holdings.index[self.holdings.sum(axis = 1) > 0][0]
+        return self.dollar_holdings.index[self.dollar_holdings.sum(axis = 1) > 0][0]
 
     def plot_result(self, dd_ylim = None, rets_ylim = None):
         '''
@@ -425,4 +589,81 @@ class MinimumTradePrice:
         The idea is to stop positions taken in shares which would incur excessive slippage.
         """
         return trade.entry_price >= min_price
+
+
+class Transactions:
+    """
+    Transactions holds a series of buy and sell transactions for each ticker for a particular day.
+    The Transactions object can then calculate the total cash flows, and position movements for 
+    the Portfolio.
+    """
+    def __init__(self, num_shares, prices, date):
+        self.date = date
+        nominal_size = num_shares * prices
+        trim_factor = 0.02 # This reduces the size of purchases to account for transaction costs
+        trim_size = (nominal_size * trim_factor) / prices
+        trim_size[np.isnan(trim_size)] = 0
+        trim_size = trim_size.astype(int) + 1 # Round to ceiling
+        purchases = num_shares > 0
+        num_shares[purchases] -= trim_size[purchases]
+        self.num_shares = num_shares
+        self.tickers = num_shares.index
+        self.dollar_positions = num_shares * prices
+        self.slippage = self.estimate_slippage(prices, num_shares)
+        self.commissions = Series(0, self.tickers)
+        self.commissions[num_shares != 0] = 11 # $11 each way
+    
+    def estimate_slippage(self, prices, num_shares):
+        """
+        Estimates the slippage assuming that the spread is at least one price increment wide.
+        Price increments used are as defined by the ASX:
+            Up to $0.10     0.1c
+            Up to $2.00     0.5c
+            $2.00 and over  1c
+        """
+        slippage = Series(0, self.tickers)
+        slippage[prices < 0.1] = num_shares[prices < 0.1] * 0.001
+        slippage[(prices >= 0.1) & (prices < 2.0)] = num_shares[(prices >= 0.1) & (prices < 2.0)] * 0.005
+        slippage[prices >= 2.0] = num_shares[prices >= 2.0] * 0.005
+        return abs(slippage)
+
+    def remove(self, tickers):
+        self.num_shares[tickers] = 0
+        self.dollar_positions[tickers] = 0
+        self.slippage[tickers] = 0
+        self.commissions[tickers] = 0
+
+    @property
+    def active(self):
+        return self.tickers[self.num_shares != 0]
+
+    @property
+    def total_cost(self):
+        return self.dollar_positions.sum() + self.total_commissions + self.total_slippage
+
+    @property
+    def total_commissions(self):
+        return self.commissions.sum()
+
+    @property
+    def total_slippage(self):
+        return self.slippage.sum()
+
+
+# Portfolio Transaction Acceptance Criteria
+class TransactionCostThreshold:
+
+    def __init__(self, cost_threshold = 0.02):
+        self.cost_threshold = cost_threshold
+
+    def __call__(self, portfolio, transactions):
+        cost_ratio = ((transactions.commissions + transactions.slippage) / transactions.dollar_positions).abs()
+        current_shares = portfolio.share_holdings.loc[transactions.date]
+        net_size = current_shares + transactions.num_shares
+        costly = (cost_ratio > self.cost_threshold)
+        not_exits = (net_size != 0)
+        costly_tickers = transactions.tickers[costly & not_exits]
+        transactions.remove(costly_tickers)
+        return transactions
+
 

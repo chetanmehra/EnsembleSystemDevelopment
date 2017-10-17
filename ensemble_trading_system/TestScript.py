@@ -8,6 +8,7 @@ import datetime
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import pickle
 # Add dev folder of related package(s)
 import sys
 import os
@@ -22,7 +23,6 @@ if os.getlogin() == "Mark":
 from data_types.market import Market
 from data_types.trades import TradeCollection
 from data_types.filter_data import StackedFilterValues, WideFilterValues
-from trade_modifiers.filters import HighPassFilter
 
 from system.core import Strategy, Portfolio
 from level_signals import Crossover
@@ -44,13 +44,16 @@ from system.analysis import summary_report
 # Conditions - Entry
 #   - Market index EMA(50-200) must be long
 #   - Individual ticker EMA(50-120) must be long
-#   - Ticker value ratio (Adjusted) > 1
+#   - Ticker value ratio (Adjusted) > 2
 #   - Value rank filter at 10
 # Conditions - Exit
 #   - Individual ticker EMA(50-120) goes short
 #   - 15% Stop loss
 #   - Apply 20% trailing stop when returns exceed 30%
 #   - Apply 10% trailing stop when returns exceed 50%
+
+# TODO Refactoring
+#   - Inherit strategy data element from dataframe
 
 
 pd.set_option('display.width', 120)
@@ -154,6 +157,16 @@ def createEwmacStrategy(store, ema_params = (120, 50)):
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
+def createValueRatioStrategy(store, ema_pd = 90, valuations = ["Adjusted", "Base", "Min"]):
+    strategy = Strategy("O", "C")
+    strategy.market = getMarket(store)
+    signal_generators = []
+    for valuation in valuations:
+        value_ratios = getValueRatios(store, valuation, strategy)
+        signal_generators.append(PriceCrossover(value_ratios, EMA(ema_pd), StdDevEMA(36)))
+    strategy.signal_generator = CarterForecastFamily(*signal_generators)
+    strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
+    return strategy
 
 short_pars = [1, 5, 10, 20, 35, 50]
 long_pars = [30, 50, 70, 90, 120, 150, 200]
@@ -205,8 +218,27 @@ def parallel_test_pars(short_pars, long_pars):
         summaries.append(((R[0], R[1]), R[2]))
     return (sharpes, pd.DataFrame(dict(summaries)))
 
-
-# Load valuations
 store = Storage("NYSE")
-print("ready...")
+with open(r'D:\Investing\Workspace\ewmac_strat.pkl', 'rb') as file:
+    strat = pickle.load(file)
+
+port = Portfolio(strat, 15000)
+print("Ready...")
+
+port.run()
+#date = port.share_holdings.index[0]
+#error_pos = port.get_target_transactions(date)
+
+#date = port.share_holdings.index[500]
+#p1 = port.get_target_transactions(date)
+
+#date = port.share_holdings.index[501]
+#p2 = port.get_target_transactions(date)
+
+#date = port.share_holdings.index[502]
+#p3 = port.get_target_transactions(date)
+
+#print("starting position selection...")
+#selected = port.get_target_transactions(date)
+#print("completed position selection")
 
