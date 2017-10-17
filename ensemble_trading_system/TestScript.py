@@ -22,6 +22,7 @@ if os.getlogin() == "Mark":
 from data_types.market import Market
 from data_types.trades import TradeCollection
 from data_types.filter_data import StackedFilterValues, WideFilterValues
+from trade_modifiers.filters import HighPassFilter
 
 from system.core import Strategy, Portfolio
 from level_signals import Crossover
@@ -43,16 +44,13 @@ from system.analysis import summary_report
 # Conditions - Entry
 #   - Market index EMA(50-200) must be long
 #   - Individual ticker EMA(50-120) must be long
-#   - Ticker value ratio (Adjusted) > 2
+#   - Ticker value ratio (Adjusted) > 1
 #   - Value rank filter at 10
 # Conditions - Exit
 #   - Individual ticker EMA(50-120) goes short
 #   - 15% Stop loss
 #   - Apply 20% trailing stop when returns exceed 30%
 #   - Apply 10% trailing stop when returns exceed 50%
-
-# TODO Refactoring
-#   - Inherit strategy data element from dataframe
 
 
 pd.set_option('display.width', 120)
@@ -208,4 +206,7 @@ def parallel_test_pars(short_pars, long_pars):
     return (sharpes, pd.DataFrame(dict(summaries)))
 
 
+# Load valuations
+store = Storage("NYSE")
+print("ready...")
 

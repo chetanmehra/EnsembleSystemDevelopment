@@ -2,9 +2,10 @@
 
 import matplotlib.pyplot as plt
 from pandas import qcut, concat, DataFrame, Series
-from numpy import log
+from numpy import log, random
 
 from system.metrics import *
+from trade_modifiers.exit_conditions import StopLoss, TrailingStop
 
 
 # Path dependent trade results
@@ -426,14 +427,13 @@ def cross_validate_trades(trades, N = 20, subset_fraction = 0.7):
     return (result, summary)
 
 
-def cross_validate_positions(strategy, positionSelector, N = 20, subset_fraction = 0.7):
+def cross_validate_positions(strategy, N = 20, subset_fraction = 0.7):
 
     trades = strategy.trades
-    original_positions = strategy.positions
+    original_positions = strategy.positions.copy()
     tickers = trades.tickers
     start_date = strategy.positions.start
     
-    strategy.positions = positionSelector(strategy)
     base_returns = strategy.returns
     
     sample_size = round(len(tickers) * subset_fraction)
@@ -442,12 +442,13 @@ def cross_validate_positions(strategy, positionSelector, N = 20, subset_fraction
         sample_tickers = list(random.choice(tickers, sample_size, replace = False))
         trade_subset = trades.find(lambda T: T.ticker in sample_tickers)
         strategy.trades = trade_subset    
-        strategy.positions = positionSelector(strategy)
+        strategy.positions.update_from_trades(trade_subset)
         sub_returns = strategy.returns.plot(start = start_date, color = 'grey')
 
     base_returns.plot(start = start_date, color = 'black')
     strategy.market_returns.plot(start = start_date, color = 'red')
     strategy.positions = original_positions
+    strategy.trades = trades
 
 
 # Analysis of exit conditions
@@ -455,12 +456,12 @@ def test_trailing_stop(strat, stops):
     result = DataFrame(columns = [0] + stops)
     result[0] = summary_report(strat.trades)
     for s in stops:
-        result[s] = summary_report(strat.trades.apply_trailing_stop(strat, s))
+        result[s] = summary_report(strat.trades.apply_exit_condition(TrailingStop(s)))
     return result
 
 def test_stop_loss(strat, stops):
     result = DataFrame(columns = [0] + stops)
     result[0] = summary_report(strat.trades)
     for s in stops:
-        result[s] = summary_report(strat.trades.apply_stop_loss(strat, s))
+        result[s] = summary_report(strat.trades.apply_exit_condition(StopLoss(s)))
     return result

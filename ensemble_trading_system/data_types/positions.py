@@ -28,7 +28,7 @@ class Position(DataElement):
         self.data = new_pos_data
 
     def applied_to(self, market_returns):
-        return AverageReturns(self.data * market_returns.data)
+        return StrategyReturns(self.data * market_returns.data, self)
 
     @property
     def start(self):
@@ -103,6 +103,9 @@ class Returns(DataElement):
     
     def __len__(self):
         return len(self.data)
+
+    def __sub__(self, other):
+        return Returns(self.data - other.data)
     
     def append(self, other):
         self.data[other.data.columns] = other.data
@@ -199,6 +202,16 @@ class AverageReturns(Returns):
 
     def annualised(self):
         return self.combined().annualised()
+
+class StrategyReturns(AggregateReturns):
+    """
+    StrategyReturns is a hypothetical result of the strategy assuming that rebalancing
+    can happen daily at no cost, to ensure that the strategy is fully invested. Positions 
+    are divided by the number of concurrent positions for the day to normalise.
+    """
+    def __init__(self, data, positions):
+        data = data.div(positions.num_concurrent(), axis = 'rows')
+        super().__init__(data)
 
 
 

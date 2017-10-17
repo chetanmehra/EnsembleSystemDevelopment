@@ -50,7 +50,6 @@ class StackedFilterValues(FilterValues):
     '''
     A stacked filter may contain more than one filter type, with a column for
     ticker, and each of the filter types.
-    Each row denotes the related ticker.
     '''
 
     def __getitem__(self, key):

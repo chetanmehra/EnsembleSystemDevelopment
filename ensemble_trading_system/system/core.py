@@ -211,7 +211,7 @@ class Strategy:
         else:
             returns = self.returns
         start = self.positions.start
-        returns.plot(start = start, color = color, **kwargs)
+        returns.plot(start = start, color = color, label = "Strategy", **kwargs)
         self.market_returns.plot(start = start, color = "black", label = "Market")
         plt.legend(loc = "upper left")
 
