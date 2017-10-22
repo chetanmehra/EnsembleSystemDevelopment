@@ -33,6 +33,8 @@ from rules.signal_rules import PositionFromDiscreteSignal
 from rules.forecast_rules import CarterPositions
 
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop, ReturnTriggeredTrailingStop
+from trade_modifiers.filters import HighPassFilter
+from system.core import PositionCostThreshold, PositionMaxSize, PositionMinSize
 from system.analysis import summary_report
 
 
@@ -219,13 +221,38 @@ def parallel_test_pars(short_pars, long_pars):
     return (sharpes, pd.DataFrame(dict(summaries)))
 
 store = Storage("NYSE")
-with open(r'D:\Investing\Workspace\ewmac_strat.pkl', 'rb') as file:
+
+#strat = signalStratSetup('O', 'C')
+#adjusted = getValueRatios(store, 'Adjusted', strat)
+#strat.filters.append(HighPassFilter(adjusted, 1.0))
+#print("Running base strat...")
+#strat.run()
+#print("Generated", strat.trades.count, "trades.")
+#print("Applying stops...")
+#strat.apply_exit_condition(StopLoss(0.15))
+#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
+#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
+
+with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
     strat = pickle.load(file)
 
-port = Portfolio(strat, 15000)
-print("Ready...")
+#print("Creating ewmac strat...")
+#strat = createEwmacStrategy(store)
+#print("Running ewmac strat...")
+#strat.run()
+#strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
 
-port.run()
+print("Preparing portfolio...")
+port = Portfolio(strat, 15000)
+port.position_checks.append(PositionCostThreshold(0.007))
+
+
+print("Running portfolio...")
+port.run_events()
+print("Done...")
+
+
+#port.run()
 #date = port.share_holdings.index[0]
 #error_pos = port.get_target_transactions(date)
 

@@ -465,3 +465,5 @@ def test_stop_loss(strat, stops):
     for s in stops:
         result[s] = summary_report(strat.trades.apply_exit_condition(StopLoss(s)))
     return result
+
+
