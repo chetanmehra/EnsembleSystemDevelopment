@@ -280,8 +280,9 @@ class Strategy:
         plt.title(ticker)
 
 
-# TODO Add Portfolio rebalancing methods.
 # TODO Clean up unused Portfolio attributes and methods
+# TODO consider merging Transactions and PositionChanges
+# TODO find a better way to update Portfolio positions from PositionChanges
 class Portfolio:
     '''
     The portfolio class manages cash and stock positions, as well as rules 
@@ -300,107 +301,15 @@ class Portfolio:
         self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
 
         self.trade_size = (2000, 3500) # Min and max by dollar size
-        self.max_size = 2
-        self.target_volatility = 0.2
+        self.rebalancing_strategy = NoRebalancing()
         vol_method = StdDevEMA(40)
-        self.volatilities = vol_method(strategy.get_indicator_prices()).shift(1)
-        
+        volatilities = vol_method(strategy.get_indicator_prices()).shift(1)
+        self.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
         self.conditions = [MinimimumPositionSize()]
-        self.transaction_checks = [TransactionCostThreshold(0.02)]
         self.position_checks = [PositionNaCheck()]
         
-        self.current_positions = Series(0, index = self.positions.columns)
         self.targets = strategy.positions.data.copy()
-        self.rebalancing_dates = []
         self.running = False
-
-
-    def run_forecasts(self):
-        """
-        Runs the portfolio for the given strategy and starting conditions.
-        This calculates the resulting portfolio based on positions sizes and forecast metrics.
-        """
-        self.running = True
-        performance_metric = self.get_performance_metric()
-
-        trading_days = self.share_holdings.index
-
-        for date in trading_days:
-            print(date)
-            transactions = get_position_changes(date, performance_metric)
-            transactions = self.check_transactions(transactions)
-            self.apply(transactions)
-
-        self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
-        self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
-        self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
-        self.summary["Total"] = self.cash + self.holdings_total
-        self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
-        #TODO Use a Positions object to calculate trades.
-        self.running = False
-
-    def get_performance_metric(self):
-        """
-        The performance metric is used to prioritise target positions.
-        """
-        current_fcst = self.strategy.signal.at(self.strategy.trade_entry)
-        # If the forecasts are equal bias towards those with target position close to max_size.
-        tie_breaker = (2 / (2 + ((self.strategy.positions.data - self.max_size) ** 2)))
-        return current_fcst.data * tie_breaker
-
-
-    def get_position_changes(self, date, performance_metric):
-        """
-        This method is responsible for selecting which positions to take from
-        those the strategy has deemed are attractive, taking into account the
-        target position sizes and diversification of the portfolio.
-        The target positions are determined based on the performance metric, 
-        and biased towards any existing positions through a cost factor.
-        """
-        cost_multiplier = 10
-        pos_threshold = 0.1
-        min_size = 0.5
-        max_size = 2
-
-        current_pos = self.positions.loc[date]
-        target_pos = self.strategy.positions.loc[date]
-        missing_targets = np.isnan(target_pos)
-        target_pos[missing_targets] = current_pos[missing_targets]
-        adj_target_pos = target_pos.copy()
-        adj_target_pos[adj_target_pos > max_size] = max_size
-        adj_target_pos[adj_target_pos < min_size] = 0
-        fcst = performance_metric.loc[date]
-        # TODO confirm if the forecast is known on the date in question, or if it should be lagged.
-        full_res = fcst * target_pos - cost_multiplier * (target_pos - current_pos).abs()
-        ix_full = full_res.sort_values(ascending = False).index
-
-        full_selected = ix_full[adj_target_pos[ix_full].cumsum() <= self.target_size]
-
-        selected_pos = Series(0, index = current_pos.index)
-        selected_pos[full_selected] = adj_target_pos[full_selected]
-        # TODO Positions are getting updated here before the transactions are checked.
-        self.positions.loc[date:] = 0
-        for ticker in adj_target_pos[full_selected][adj_target_pos[full_selected] > 0].index:
-            self.positions.loc[date:, ticker] = adj_target_pos[ticker]
-
-        ix_partial = ix_full[len(full_selected):]
-        remaining = self.target_size - adj_target_pos[full_selected].sum()
-
-        if len(ix_partial) and remaining >= min_size:
-            partial_selected = ix_partial[0]
-            selected_pos[partial_selected] = remaining
-            self.positions.loc[date:, partial_selected] = remaining
-
-        current_share_holdings = self.share_holdings.loc[date]
-        current_prices = self.strategy.get_trade_prices().loc[date]
-        current_dollar_holdings = current_share_holdings * current_prices
-        nominal_dollar_size = (current_dollar_holdings.sum() + self.cash[date]) / self.target_size
-        nominal_shares = nominal_dollar_size / current_prices
-        target_shares = selected_pos * nominal_shares
-        share_movements = target_shares - current_share_holdings
-        share_movements[np.isnan(share_movements)] = 0
-        
-        return Transactions(share_movements.astype(int, copy = False), current_prices, date)
 
     def run_events(self):
         '''
@@ -412,140 +321,61 @@ class Portfolio:
         self.running = True
         self.strategy.define_events()
         trading_days = self.share_holdings.index
-        progress = ProgressBar(total = len(trading_days))
+        #progress = ProgressBar(total = len(trading_days))
         for date in trading_days:
             strategy_events = self.strategy.get_events(date)
             if not len(strategy_events):
                 continue
-            positions = self.get_positions(date)
+            positions = PositionChanges(self, date)
+            # TODO below should be positions.apply(strategy_events)
             for event in strategy_events:
                 event.update(positions)
-            if self.rebalancing(date):
-                self.apply_rebalancing(positions)
-            self.estimate_transactions(positions)
+            self.rebalancing_strategy(date, positions)
+            positions.estimate_transactions()
             self.process_exits(positions)
             self.check_positions(positions)
             self.select(positions)
             trade_prices = self.strategy.get_trade_prices().loc[date]
             transactions = Transactions(positions.num_shares, trade_prices, date)
             self.apply(transactions)
-            progress.print(trading_days.get_loc(date))
+            #progress.print(trading_days.get_loc(date))
         self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
         self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
         self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
         self.running = False
-
-    def get_positions(self, date):
-        positions = DataFrame(index = self.share_holdings.columns)
-        positions['current_shares'] = self.share_holdings.loc[date] # assumes position updates are carried forward.
-        # Get the prices from yesterday's indicator timing.
-        # TODO currently assumes indicator at Close and trade at Open, remove manual shift and use data object timing method.
-        positions['prices'] = self.strategy.get_indicator_prices().shift(1).loc[date]
-        positions['current_dollars'] = positions.current_shares * positions.prices
-        positions['dollar_ratio'] = self.dollar_ratio(date)
-        positions['current_nominal'] = positions.current_dollars / positions.dollar_ratio
-        # applied_size represents the nominal size that the portfolio has moved towards
-        # this may be different from the target_size if, for example, an adjustment or entry wasn't 
-        # acted upon.
-        positions['applied_size'] = self.positions.loc[date] # assumes position updates are carried forward.
-        positions['target_size'] = self.targets.shift(1).loc[date] # yesterday's strategy position size
-        positions['suggested_size'] = np.nan
-        positions['selected'] = TradeSelected.NO
-        positions['type'] = "-"
-        positions.date = date
-        return positions
-    
-    # Below would require a list of rebalancing dates to be set up on Portfolio initialisation
-    # This could even be set up with a plugin rebalancing strategy - e.g. not just at fixed dates,
-    # but if the positions get out of line by a certain percentage.
-    def rebalancing(self, date):
-        return date in self.rebalancing_dates
-  
-    def set_weekly_rebalancing(self, day = "FRI"):
-        # Refer to the following link for options:
-        # http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
-        # Note the count method is only used to stop pandas from throwing a warning, as
-        # it wants to know how to aggregate the data.
-        self.rebalancing_dates = self.value.resample('W-' + day).count().index
-
-    def set_month_end_rebalancing(self):
-        self.rebalancing_dates = self.value.resample('M').count().index
-
-    def apply_rebalancing(self, positions):
-        unmodified = np.isnan(positions.suggested_size)
-        positions.suggested_size[unmodified] = positions.applied_size[unmodified]
-        positions.loc[unmodified, 'type'] = "rebalance"
-
-    def estimate_transactions(self, positions):
-        num_shares = (positions.dollar_ratio * positions.suggested_size / positions.prices)
-        num_shares -= positions.current_shares
-        num_shares[np.isnan(num_shares)] = 0
-        txns = Transactions(num_shares.astype(int), positions.prices, positions.date)
-        positions["cost"] = txns.slippage + txns.commissions
-        # TODO trade_size does not include slippage and commissions - messes up selection procedure
-        positions["trade_size"] = txns.dollar_positions
-        positions["num_shares"] = txns.num_shares
     
     def process_exits(self, positions):
-        positions.loc[positions.type == ExitEvent.Label, 'selected'] = TradeSelected.YES
-        self.positions.loc[positions.date:, positions.type == ExitEvent.Label] = 0
+        positions.select_exits()
+        self.positions.loc[positions.date:, positions.exit_mask] = 0
   
     def check_positions(self, positions):
-        # This is already a check_transactions method set up in Portfolio
-        # Need to modify checks to work with positions.
         for check in self.position_checks:
             check(self, positions)
-      
+    
+    # TODO select needs to be a separate plug-in strategy
     def select(self, positions):
         # First apply all the trades which will reduce positions (i.e. increase cash)
-        undecided_sells = ((positions.selected == TradeSelected.UNDECIDED) &
+        undecided_sells = ((positions.undecided_mask) &
                             (positions.suggested_size < positions.applied_size))
-        positions.loc[undecided_sells, 'selected'] = TradeSelected.YES
+        positions.select(undecided_sells)
         # Select buys which will cost the least slippage + commissions as long
         # as there is cash available.
         perct_cost = positions.cost / positions.trade_size
         while True:
-            undecided = (positions.selected == TradeSelected.UNDECIDED)
+            undecided = positions.undecided_mask
             if not any(undecided):
                 break
-            selected = (positions.selected == TradeSelected.YES)
             lowest_cost = perct_cost[undecided].idxmin()
-            if positions.trade_size[lowest_cost] >= (self.cash[positions.date] - positions.trade_size[selected].sum()):
-                positions.loc[lowest_cost, 'selected'] = TradeSelected.NO
-                positions.loc[lowest_cost, 'trade_size'] = 0
-                positions.loc[lowest_cost, 'num_shares'] = 0
-                positions.loc[lowest_cost, 'cost'] = 0
-
+            if positions.trade_size[lowest_cost] >= (self.cash[positions.date] - positions.total_cost()):
+                positions.deselect(lowest_cost)
             else:
-                positions.loc[lowest_cost, 'selected'] = TradeSelected.YES
+                positions.select(lowest_cost)
                 self.positions.loc[positions.date:, lowest_cost] = positions.suggested_size[lowest_cost] 
-        
     
     def dollar_ratio(self, date):
-        nominal_dollar_position_size = self.value[date] / self.target_size
-        volatility_ratio = self.target_volatility / self.volatilities.loc[date]
-        return volatility_ratio * nominal_dollar_position_size
-
-    @property
-    def target_size(self):
-        """
-        Returns the target size (scalar) for the portfolio in number of positions.
-        Changing this method will allow different behaviour such as setting the 
-        portfolio to hold a set number of positions through time, or to change 
-        positions as the the portfolio value increases / decreases.
-        """
-        return 5    
-        
-    def check_transactions(self, target_transactions):
-        """
-        This runs through a series of checks, removing any transactions that don't
-        meet the conditions (e.g. if cost would be too high).
-        """
-        for check in self.transaction_checks:
-            target_transactions = check(self, target_transactions)
-        return target_transactions
+        return self.sizing_strategy(self, date)
 
     def apply(self, transactions):
         date = transactions.date
@@ -682,6 +512,121 @@ class Portfolio:
         return axarr
 
 
+class PositionChanges:
+    
+    def __init__(self, portfolio, date):
+        self.current_shares = portfolio.share_holdings.loc[date] # assumes position updates are carried forward.
+        # Get the prices from yesterday's indicator timing.
+        # TODO currently assumes indicator at Close and trade at Open, remove manual shift and use data object timing method.
+        self.prices = portfolio.strategy.get_indicator_prices().shift(1).loc[date]
+        self.current_dollars = self.current_shares * self.prices
+        self.dollar_ratio = portfolio.dollar_ratio(date)
+        self.current_nominal = self.current_dollars / self.dollar_ratio
+        # applied_size represents the nominal size that the portfolio has moved towards
+        # this may be different from the target_size if, for example, an adjustment or entry wasn't 
+        # acted upon.
+        self.applied_size = portfolio.positions.loc[date] # assumes position updates are carried forward.
+        self.target_size = portfolio.targets.shift(1).loc[date] # yesterday's strategy position size
+        self.suggested_size = Series(index = self.current_shares.index)
+        self.selected = Series(TradeSelected.NO, index = self.current_shares.index)
+        self.type = Series("-", index = self.current_shares.index)
+        self.date = date
+
+    @property
+    def exit_mask(self):
+        return self.type == ExitEvent.Label
+
+    @property
+    def undecided_mask(self):
+        return self.selected == TradeSelected.UNDECIDED
+
+    @property
+    def selected_mask(self):
+        return self.selected == TradeSelected.YES
+
+    def apply_rebalancing(self, tickers = None):
+        if tickers is None:
+            # All tickers which have not been touched by an event are rebalanced.
+            tickers = np.isnan(self.suggested_size)
+        self.suggested_size[tickers] = self.applied_size[tickers]
+        self.type[tickers] = "rebalance"
+
+    def estimate_transactions(self):
+        num_shares = (self.dollar_ratio * self.suggested_size / self.prices)
+        num_shares -= self.current_shares
+        num_shares[np.isnan(num_shares)] = 0
+        txns = Transactions(num_shares.astype(int), self.prices, self.date)
+        self.cost = txns.slippage + txns.commissions
+        self.trade_size = txns.dollar_positions
+        self.num_shares = txns.num_shares
+
+    def select(self, tickers):
+        self.selected[tickers] = TradeSelected.YES
+
+    def deselect(self, tickers):
+        self.selected[tickers] = TradeSelected.NO
+        self.trade_size[tickers] = 0
+        self.num_shares[tickers] = 0
+        self.cost[tickers] = 0
+    
+    def select_exits(self):
+        self.select(self.exit_mask)
+
+    def total_cost(self):
+        return self.trade_size[self.selected_mask].sum() + self.cost[self.selected_mask].sum()
+        
+
+# REBALANCING STRATEGIES
+class NoRebalancing:
+
+    def __call__(self, positions, date):
+        pass
+
+
+class FixedRebalanceDates:
+
+    def __init__(self):
+        self.rebalancing_dates = []
+  
+    def set_weekly_rebalancing(self, daily_series, day = "FRI"):
+        # Refer to the following link for options:
+        # http://pandas.pydata.org/pandas-docs/stable/timeseries.html#offset-aliases
+        # Note the count method is only used to stop pandas from throwing a warning, as
+        # it wants to know how to aggregate the data.
+        self.rebalancing_dates = daily_series.resample('W-' + day).count().index
+
+    def set_month_end_rebalancing(self, daily_series):
+        self.rebalancing_dates = daily_series.resample('M').count().index
+
+    def __call__(self, positions, date):
+        if date in self.rebalancing_dates:
+            positions.apply_rebalancing()
+
+
+# SIZING STRATEGIES
+class FixedNumberOfPositionsSizing:
+
+    def __init__(self, target_positions = 5):
+        self.target_positions = target_positions
+
+    def __call__(self, portfolio, date):
+        nominal_dollar_position_size = portfolio.value[date] / self.target_positions
+        return nominal_dollar_position_size
+
+
+class VolatilitySizingDecorator:
+
+    def __init__(self, vol_target, volatilities, base_sizing_strategy):
+        self.target = vol_target
+        self.volatilities = volatilities
+        self.base_strategy = base_sizing_strategy
+
+    def __call__(self, portfolio, date):
+        volatility_ratio = self.target / self.volatilities.loc[date]
+        base_size = self.base_strategy(portfolio, date)
+        return volatility_ratio * base_size
+
+
 # Portfolio Trade Acceptance Criteria
 class MinimimumPositionSize:
 
@@ -765,23 +710,6 @@ class Transactions:
         return self.slippage.sum()
 
 
-# Portfolio Transaction Acceptance Criteria
-class TransactionCostThreshold:
-
-    def __init__(self, cost_threshold = 0.02):
-        self.cost_threshold = cost_threshold
-
-    def __call__(self, portfolio, transactions):
-        cost_ratio = ((transactions.commissions + transactions.slippage) / transactions.dollar_positions).abs()
-        current_shares = portfolio.share_holdings.loc[transactions.date]
-        net_size = current_shares + transactions.num_shares
-        costly = (cost_ratio > self.cost_threshold)
-        not_exits = (net_size != 0)
-        costly_tickers = transactions.tickers[costly & not_exits]
-        transactions.remove(costly_tickers)
-        return transactions
-
-
 class TradeEvent:
 
     def __init__(self, ticker, size):
@@ -789,15 +717,15 @@ class TradeEvent:
         self.size = size
 
     def update(self, positions):
-        positions.type.loc[self.ticker] = self.Label
-        positions.loc[self.ticker, 'selected'] = TradeSelected.UNDECIDED
+        positions.type[self.ticker] = self.Label
+        positions.selected[self.ticker] = TradeSelected.UNDECIDED
 
 class EntryEvent(TradeEvent):
     Label = "entry"
 
     def update(self, positions):
-        positions.target_size.loc[self.ticker] = self.size
-        positions.suggested_size.loc[self.ticker] = self.size
+        positions.target_size[self.ticker] = self.size
+        positions.suggested_size[self.ticker] = self.size
         super().update(positions)
         
 
@@ -805,8 +733,8 @@ class ExitEvent(TradeEvent):
     Label = "exit"
 
     def update(self, positions):
-        positions.target_size.loc[self.ticker] = 0
-        positions.suggested_size.loc[self.ticker] = 0
+        positions.target_size[self.ticker] = 0
+        positions.suggested_size[self.ticker] = 0
         super().update(positions)
         
 
@@ -814,12 +742,11 @@ class AdjustmentEvent(TradeEvent):
     Label = "adjustment"
 
     def update(self, positions):
-        positions.target_size.loc[self.ticker] += self.size
-        if positions.applied_size.loc[self.ticker] != 0:
-            positions.suggested_size.loc[self.ticker] = positions.target_size[self.ticker]
+        positions.target_size[self.ticker] += self.size
+        if positions.applied_size[self.ticker] != 0:
+            positions.suggested_size[self.ticker] = positions.target_size[self.ticker]
             super().update(positions)
         
-
   
 class TradeSelected(Enum):
 
@@ -834,9 +761,9 @@ class PositionNaCheck:
 
     def __call__(self, portfolio, positions):
         nans = np.isnan(positions.trade_size)
-        positions.loc[nans, 'selected'] = TradeSelected.NO
+        positions.deselect(nans)
         zeroes = positions.trade_size == 0
-        positions.loc[zeroes, 'selected'] = TradeSelected.NO
+        positions.deselect(zeroes)
 
 
 class PositionMaxSize:
@@ -846,7 +773,7 @@ class PositionMaxSize:
 
     def __call__(self, portfolio, positions):
         exceeding_limit = positions.trade_size > self.limit
-        positions.loc[exceeding_limit, 'selected'] = TradeSelected.NO
+        positions.deselect(exceeding_limit)
       
 class PositionMinSize:
 
@@ -855,7 +782,7 @@ class PositionMinSize:
         
     def __call__(self, portfolio, positions):
         exceeding_limit = positions.trade_size < self.limit
-        positions.loc[exceeding_limit, 'selected'] = TradeSelected.NO
+        positions.deselect(exceeding_limit)
 
 class PositionCostThreshold:
 
@@ -865,6 +792,6 @@ class PositionCostThreshold:
     def __call__(self, portfolio, positions):
         perct_cost = positions.cost / positions.trade_size
         exceeding_limit = perct_cost > self.threshold
-        positions.loc[exceeding_limit, 'selected'] = TradeSelected.NO
+        positions.deselect(exceeding_limit)
     
     

@@ -244,7 +244,7 @@ with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
 
 print("Preparing portfolio...")
 port = Portfolio(strat, 15000)
-port.position_checks.append(PositionCostThreshold(0.007))
+port.position_checks.append(PositionCostThreshold(0.02))
 
 
 print("Running portfolio...")
