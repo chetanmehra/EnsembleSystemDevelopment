@@ -24,8 +24,7 @@ class Position(DataElement):
     def create_trades(self, strategy):
         prices = strategy.get_trade_prices()
         trades = []
-        position_sign = (self.data > 0) * 1
-        position_sign[self.data < 0] = -1
+        position_sign = self.unitised().data
         flags = position_sign - position_sign.shift(1)
         # clear missing values from first rows
         start_row = 0
@@ -93,6 +92,15 @@ class Position(DataElement):
         data = self.data.copy()
         data = data.div(self.num_concurrent(), axis = 0)
         return Position(data)
+
+    def unitised(self):
+        """
+        Returns a new positions object with sizes set to unity (1 long, -1 long).
+        """
+        position_sign = (self.data > 0) * 1
+        position_sign[self.data < 0] = -1
+        return Position(position_sign)
+        
 
     # TODO discretise only works for long positions at the moment
     def discretise(self, min_size, max_size, step):

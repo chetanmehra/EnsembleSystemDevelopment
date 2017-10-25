@@ -16,8 +16,8 @@ sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\Financi
 from store.file_system import Storage
 
 # The following is due to working directory not being set correctly on workstation:
-if os.getlogin() == "Mark":
-    os.chdir(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\EnsembleSystemDevelopment\\ensemble_trading_system"))
+#if os.getlogin() == "Mark":
+os.chdir(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\EnsembleSystemDevelopment\\ensemble_trading_system"))
 
 # Local imports
 from data_types.market import Market
@@ -222,19 +222,24 @@ def parallel_test_pars(short_pars, long_pars):
 
 store = Storage("NYSE")
 
-#strat = signalStratSetup('O', 'C')
-#adjusted = getValueRatios(store, 'Adjusted', strat)
-#strat.filters.append(HighPassFilter(adjusted, 1.0))
-#print("Running base strat...")
-#strat.run()
-#print("Generated", strat.trades.count, "trades.")
-#print("Applying stops...")
-#strat.apply_exit_condition(StopLoss(0.15))
-#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
-#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
+strat = signalStratSetup('O', 'C')
+adjusted = getValueRatios(store, 'Adjusted', strat)
+base = getValueRatios(store, 'Base', strat)
+cyclic = getValueRatios(store, 'Cyclic', strat)
+strat.filters.append(HighPassFilter(adjusted, 1.0))
+strat.filters.append(HighPassFilter(base, 0.0))
+strat.filters.append(HighPassFilter(cyclic, 0.0))
 
-with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
-    strat = pickle.load(file)
+print("Running base strat...")
+strat.run()
+print("Generated", strat.trades.count, "trades.")
+print("Applying stops...")
+strat.apply_exit_condition(StopLoss(0.15))
+strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
+strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
+
+#with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
+#    strat = pickle.load(file)
 
 #print("Creating ewmac strat...")
 #strat = createEwmacStrategy(store)
@@ -245,12 +250,14 @@ with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
 print("Preparing portfolio...")
 port = Portfolio(strat, 15000)
 port.position_checks.append(PositionCostThreshold(0.02))
-
+vol_method = StdDevEMA(40)
+volatilities = vol_method(strat.get_indicator_prices()).shift(1)
+from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
+port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 3))
 
 print("Running portfolio...")
 port.run_events()
 print("Done...")
-
 
 #port.run()
 #date = port.share_holdings.index[0]

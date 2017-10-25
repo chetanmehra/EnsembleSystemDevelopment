@@ -374,14 +374,24 @@ def summary_duration(trades):
     duration['Avg consecutive losers'] = round(negative_runs.mean(), 2)
     return duration
 
-def summary_report(trades):
+def summary_report(trades = None, **kwargs):
     '''
     Provides a summary of the trade statistics
     '''
-    trade_volume = summary_trade_volume(trades)
-    returns = summary_returns(trades)
-    duration = summary_duration(trades)
-    return concat((trade_volume, returns, duration))
+    if trades is not None:
+        trade_volume = summary_trade_volume(trades)
+        returns = summary_returns(trades)
+        duration = summary_duration(trades)
+        return concat((trade_volume, returns, duration))
+    else:
+        df = DataFrame()
+        for label, trades in kwargs.items():
+            trade_volume = summary_trade_volume(trades)
+            returns = summary_returns(trades)
+            duration = summary_duration(trades)
+            df[label] = concat((trade_volume, returns, duration))
+        return df
+
 
 def summary_by_period(trades, periods = 5):
     entries = [T.entry for T in trades.as_list()]
