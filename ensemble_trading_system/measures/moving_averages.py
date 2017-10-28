@@ -44,7 +44,7 @@ class KAMA(MovingAverage):
         slowest = 2 / (self.slow + 1.0)
         ER = self.eff_ratio(prices)
         sc = (ER * (fastest - slowest) + slowest) ** 2
-        kama = DataFrame(None, index = prices.index, columns = prices.columns, dtype = float)
+        kama = DataFrame(None, index = prices.index, columns = prices.tickers, dtype = float)
         kama.iloc[self.period] = prices.iloc[self.period]
         for i in range((self.period + 1), len(kama)):
             prev_kama = kama.iloc[(i - 1)]

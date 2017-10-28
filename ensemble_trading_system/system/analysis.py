@@ -3,9 +3,12 @@
 import matplotlib.pyplot as plt
 from pandas import qcut, concat, DataFrame, Series
 from numpy import log, random
+from multiprocessing import Pool
 
 from system.metrics import *
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop
+from measures.moving_averages import EMA
+from level_signals import Crossover
 
 
 # Path dependent trade results
@@ -459,6 +462,86 @@ def cross_validate_positions(strategy, N = 20, subset_fraction = 0.7):
     strategy.market_returns.plot(start = start_date, color = 'red')
     strategy.positions = original_positions
     strategy.trades = trades
+
+
+def parameter_fuzzing(base_parameters, fuzz_range, num_trials):
+    
+    fuzzed_pars = fuzz_parameters(base_parameters, fuzz_range, num_trials)
+    # Note: below assumes last column in fuzzed_pars is 'Fuzz size'
+    par_tuples = [tuple(pars) for pars in fuzzed_pars[fuzzed_pars.columns[:-1]].values]
+    
+    pool = Pool(processes = 8)
+    results = pool.map(strat_summary, par_tuples)
+    summaries = []
+    for R in results:
+        # R[0] will be the parameter tuple
+        # R[1] will be the summary report
+        label = ':'.join(['{:0.1f}'] * len(R[0])).format(*R[0])
+        summaries.append((label, R[1]))
+    return (pd.DataFrame(dict(summaries)))
+
+
+
+def fuzz_parameters(parameter_tuple, fuzz_range = 0.15, num_trials = 20):
+
+    parameter_labels = ['P' + str(n) for n in list(range(len(parameter_tuple)))]
+
+    multiples = DataFrame((1 - fuzz_range) + random.rand(num_trials, len(parameter_tuple)) * (2 * fuzz_range), columns = parameter_labels)
+    fuzzed_pars = DataFrame(0, index = list(range(num_trials)), columns = parameter_labels)
+
+    for par in parameter_labels:
+        fuzzed_pars[par] = parameter_tuple[parameter_labels.index(par)] * multiples[par]
+
+    fuzz_size = ((multiples - 1) ** 2).sum(axis = 'columns') ** 0.5
+    fuzz_magnitude = (fuzzed_pars ** 2).sum(axis = 'columns') - (Series(parameter_tuple) ** 2).sum()
+    fuzzed_pars['Fuzz size'] = fuzz_size * sign(fuzz_magnitude)
+    return fuzzed_pars
+
+
+def strat_summary(pars):
+    strat.signal_generator = Crossover(slow = EMA(max(pars)), fast = EMA(min(pars)))
+    strat.reset()
+    strat.run()
+    attempts = 0
+    while True:
+        try:
+            if attempts >= 2:
+                summary = pd.Series(index = ['Sharpe annualised inc slippage'])
+            else:
+                summary = summary_report(strat.trades)
+        except ZeroDivisionError:
+            strat.refresh()
+            attempts += 1
+        else:
+            break
+    return (pars, summary)
+
+def generate_strat_summary(strat_update_method, strat):
+    """
+    generate_strat_summary is a closure which returns a method which given a set of 
+    parameters will return a summary_report for the strat created by the supplied
+    strat_creation_method.
+    """
+    def strat_summary(pars):
+        strat = strat_update_method(pars, strat)
+        strat.reset()
+        strat.run()
+        attempts = 0
+        while True:
+            try:
+                if attempts >= 2:
+                    summary = pd.Series(index = ['Sharpe annualised inc slippage'])
+                else:
+                    summary = summary_report(strat.trades)
+            except ZeroDivisionError:
+                strat.refresh()
+                attempts += 1
+            else:
+                break
+            
+        return (pars, summary)
+    return strat_summary
+
 
 
 # Analysis of exit conditions

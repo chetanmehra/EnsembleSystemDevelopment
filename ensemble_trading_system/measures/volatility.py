@@ -30,7 +30,7 @@ class StdDevRolling:
         self.annualisation_factor = 16 # SQRT(256)
 
     def __call__(self, prices):
-        rtns = (prices / prices.shift(1)) - 1
+        rtns = (prices.data / prices.data.shift(1)) - 1
         return self.annualisation_factor * rtns.rolling(span = self.period).std()
 
 
@@ -43,5 +43,5 @@ class StdDevEMA:
         self.annualisation_factor = 16 # SQRT(256)
 
     def __call__(self, prices):
-        rtns = (prices / prices.shift(1)) - 1
+        rtns = (prices.data / prices.data.shift(1)) - 1
         return self.annualisation_factor * rtns.ewm(span = self.period).std()

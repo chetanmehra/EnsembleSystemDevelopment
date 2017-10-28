@@ -135,7 +135,19 @@ class Strategy:
         actions are performed.
         '''
         return self.indexer.ind_timing
+
+    @property
+    def prices(self):
+        return self.market
     
+    @property
+    def indicator_prices(self):
+        return self.prices.at(self.decision)
+
+    @property
+    def trade_prices(self):
+        return self.prices.at(self.trade_entry)
+
     def get_indicator_prices(self):
         '''
         Returns the prices dataframe relevant to the calculation of indicators.
@@ -321,6 +333,7 @@ class Portfolio:
         self.running = True
         self.strategy.define_events()
         trading_days = self.share_holdings.index
+        trade_prices = self.strategy.prices.open
         #progress = ProgressBar(total = len(trading_days))
         for date in trading_days:
             strategy_events = self.strategy.get_events(date)
@@ -335,11 +348,10 @@ class Portfolio:
             self.process_exits(positions)
             self.check_positions(positions)
             self.select(positions)
-            trade_prices = self.strategy.get_trade_prices().loc[date]
-            transactions = Transactions(positions.num_shares, trade_prices, date)
+            transactions = Transactions(positions.num_shares, trade_prices.loc[date], date)
             self.apply(transactions)
             #progress.print(trading_days.get_loc(date))
-        self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
+        self.dollar_holdings = trade_prices.data * self.share_holdings
         self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
@@ -406,7 +418,7 @@ class Portfolio:
                 exit_txns = Transactions(-1 * num_shares, trade_prices, trade.exit)
                 self.apply(exit_txns)
         self.trades = TradeCollection(executed_trades)
-        self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices()
+        self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices().data
         self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
@@ -434,7 +446,7 @@ class Portfolio:
         if self.running:
             prices = self.strategy.get_indicator_prices().shift(1)
             prices.iloc[0] = 0
-            return (self.share_holdings * prices).sum(axis = 'columns')
+            return (self.share_holdings * prices.data).sum(axis = 'columns')
         else:
             return self.summary["Holdings"]
 
@@ -517,8 +529,7 @@ class PositionChanges:
     def __init__(self, portfolio, date):
         self.current_shares = portfolio.share_holdings.loc[date] # assumes position updates are carried forward.
         # Get the prices from yesterday's indicator timing.
-        # TODO currently assumes indicator at Close and trade at Open, remove manual shift and use data object timing method.
-        self.prices = portfolio.strategy.get_indicator_prices().shift(1).loc[date]
+        self.prices = portfolio.strategy.indicator_prices.at(portfolio.strategy.trade_entry).loc[date]
         self.current_dollars = self.current_shares * self.prices
         self.dollar_ratio = portfolio.dollar_ratio(date)
         self.current_nominal = self.current_dollars / self.dollar_ratio

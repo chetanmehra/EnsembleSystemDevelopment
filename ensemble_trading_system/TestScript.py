@@ -136,7 +136,7 @@ def getValues(store, date = None):
 
 def getValueRatios(store, value_type, strat):
     valuation = getValues(store).as_wide_values(value_type)
-    ratios = valuation.value_ratio(strat.get_trade_prices())
+    ratios = valuation.value_ratio(strat.get_trade_prices().data)
     return ratios
 
 def getValueMetrics(store, date = None):
@@ -230,49 +230,36 @@ strat.filters.append(HighPassFilter(adjusted, 1.0))
 strat.filters.append(HighPassFilter(base, 0.0))
 strat.filters.append(HighPassFilter(cyclic, 0.0))
 
-print("Running base strat...")
-strat.run()
-print("Generated", strat.trades.count, "trades.")
-print("Applying stops...")
-strat.apply_exit_condition(StopLoss(0.15))
-strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
-strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
-
-#with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
-#    strat = pickle.load(file)
-
-#print("Creating ewmac strat...")
-#strat = createEwmacStrategy(store)
-#print("Running ewmac strat...")
+#print("Running base strat...")
 #strat.run()
-#strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
+#print("Generated", strat.trades.count, "trades.")
+#print("Applying stops...")
+#strat.apply_exit_condition(StopLoss(0.15))
+#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
+#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 
-print("Preparing portfolio...")
-port = Portfolio(strat, 15000)
-port.position_checks.append(PositionCostThreshold(0.02))
-vol_method = StdDevEMA(40)
-volatilities = vol_method(strat.get_indicator_prices()).shift(1)
-from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
-port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 3))
+##with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
+##    strat = pickle.load(file)
 
-print("Running portfolio...")
-port.run_events()
-print("Done...")
+##print("Creating ewmac strat...")
+##strat = createEwmacStrategy(store)
+##print("Running ewmac strat...")
+##strat.run()
+##strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
 
-#port.run()
-#date = port.share_holdings.index[0]
-#error_pos = port.get_target_transactions(date)
+#print("Preparing portfolio...")
+#port = Portfolio(strat, 15000)
+#port.position_checks.append(PositionCostThreshold(0.02))
+#vol_method = StdDevEMA(40)
+#volatilities = vol_method(strat.get_indicator_prices()).shift(1)
+#from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
+#port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 3))
 
-#date = port.share_holdings.index[500]
-#p1 = port.get_target_transactions(date)
+#print("Running portfolio...")
+#port.run_events()
+#print("Done...")
 
-#date = port.share_holdings.index[501]
-#p2 = port.get_target_transactions(date)
-
-#date = port.share_holdings.index[502]
-#p3 = port.get_target_transactions(date)
-
-#print("starting position selection...")
-#selected = port.get_target_transactions(date)
-#print("completed position selection")
+def strat_update_method(pars, strat):
+    strat.signal_generator = Crossover(slow = EMA(max(pars)), fast = EMA(min(pars)))
+    return strat
 

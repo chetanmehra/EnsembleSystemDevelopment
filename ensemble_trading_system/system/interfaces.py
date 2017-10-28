@@ -83,6 +83,7 @@ class DataElement:
         return deepcopy(self)
 
 
+
 class IndexerFactory:
 
     def __init__(self, trade_timing, ind_timing):
@@ -109,6 +110,10 @@ class Indexer:
     def __init__(self, timing_map, target):
         self.timing_map = timing_map
         self.end = target
+
+    @property
+    def target(self):
+        return self.convert_timing(self.end)
 
     def get_lag(self, start):
         start = self.convert_timing(start)
