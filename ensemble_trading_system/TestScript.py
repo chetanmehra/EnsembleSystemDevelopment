@@ -35,7 +35,7 @@ from rules.forecast_rules import CarterPositions
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop, ReturnTriggeredTrailingStop
 from trade_modifiers.filters import HighPassFilter
 from system.core import PositionCostThreshold, PositionMaxSize, PositionMinSize
-from system.analysis import summary_report
+from system.analysis import summary_report, ParameterFuzzer
 
 
 # TODO Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
@@ -226,8 +226,7 @@ strat = signalStratSetup('O', 'C')
 adjusted = getValueRatios(store, 'Adjusted', strat)
 base = getValueRatios(store, 'Base', strat)
 cyclic = getValueRatios(store, 'Cyclic', strat)
-strat.filters.append(HighPassFilter(adjusted, 1.0))
-strat.filters.append(HighPassFilter(base, 0.0))
+strat.filters.append(HighPassFilter(adjusted, 0.7))
 strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 #print("Running base strat...")
@@ -259,7 +258,4 @@ strat.filters.append(HighPassFilter(cyclic, 0.0))
 #port.run_events()
 #print("Done...")
 
-def strat_update_method(pars, strat):
-    strat.signal_generator = Crossover(slow = EMA(max(pars)), fast = EMA(min(pars)))
-    return strat
-
+print("ready...")

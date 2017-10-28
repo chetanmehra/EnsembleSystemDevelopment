@@ -464,83 +464,84 @@ def cross_validate_positions(strategy, N = 20, subset_fraction = 0.7):
     strategy.trades = trades
 
 
-def parameter_fuzzing(base_parameters, fuzz_range, num_trials):
+
+class ParameterFuzzer:
+
+    def __init__(self, strategy, base_parameters):
+        self.strategy = strategy
+        if strategy.trades is None:
+            strategy.run()
+        self.base = summary_report(strategy.trades)
+        self.base_pars = base_parameters
+        self.summariser = StrategySummariser(strategy)
+        self.summary = None
+
+    def fuzz(self, fuzz_range, num_trials):
+        fuzzed_pars = self.fuzz_parameters(self.base_pars, fuzz_range, num_trials)
+        # Note: below assumes last column in fuzzed_pars is 'Fuzz size'
+        par_tuples = [tuple(pars) for pars in fuzzed_pars[fuzzed_pars.columns[:-1]].values]
     
-    fuzzed_pars = fuzz_parameters(base_parameters, fuzz_range, num_trials)
-    # Note: below assumes last column in fuzzed_pars is 'Fuzz size'
-    par_tuples = [tuple(pars) for pars in fuzzed_pars[fuzzed_pars.columns[:-1]].values]
-    
-    pool = Pool(processes = 8)
-    results = pool.map(strat_summary, par_tuples)
-    summaries = []
-    for R in results:
-        # R[0] will be the parameter tuple
-        # R[1] will be the summary report
-        label = ':'.join(['{:0.1f}'] * len(R[0])).format(*R[0])
-        summaries.append((label, R[1]))
-    return (pd.DataFrame(dict(summaries)))
+        pool = Pool(processes = 8)
+        results = pool.map(self.summariser, par_tuples)
+        summaries = []
+        for R in results:
+            # R[0] will be the parameter tuple
+            # R[1] will be the summary report
+            label = ':'.join(['{:0.1f}'] * len(R[0])).format(*R[0])
+            summaries.append((label, R[1]))
+        summary_table = DataFrame(dict(summaries))
+        summary_table.loc['Fuzz size'] = fuzzed_pars['Fuzz size'].round(2).values
+        self.summary = summary_table
+
+    def fuzz_parameters(self, parameter_tuple, fuzz_range = 0.15, num_trials = 20):
+
+        parameter_labels = ['P' + str(n) for n in list(range(len(parameter_tuple)))]
+
+        multiples = DataFrame((1 - fuzz_range) + random.rand(num_trials, len(parameter_tuple)) * (2 * fuzz_range), columns = parameter_labels)
+        fuzzed_pars = DataFrame(0, index = list(range(num_trials)), columns = parameter_labels)
+
+        for par in parameter_labels:
+            fuzzed_pars[par] = parameter_tuple[parameter_labels.index(par)] * multiples[par]
+
+        fuzz_size = ((multiples - 1) ** 2).sum(axis = 'columns') ** 0.5
+        fuzz_magnitude = (fuzzed_pars ** 2).sum(axis = 'columns') - (Series(parameter_tuple) ** 2).sum()
+        fuzzed_pars['Fuzz size'] = fuzz_size * sign(fuzz_magnitude)
+        return fuzzed_pars
+
+    @property
+    def metrics(self):
+        return self.base.index
+
+    def plot(self, metric):
+        plt.scatter(self.summary.loc['Fuzz size'], self.summary.loc[metric])
+        plt.scatter(0, self.base.loc[metric], color = 'red')
 
 
-
-def fuzz_parameters(parameter_tuple, fuzz_range = 0.15, num_trials = 20):
-
-    parameter_labels = ['P' + str(n) for n in list(range(len(parameter_tuple)))]
-
-    multiples = DataFrame((1 - fuzz_range) + random.rand(num_trials, len(parameter_tuple)) * (2 * fuzz_range), columns = parameter_labels)
-    fuzzed_pars = DataFrame(0, index = list(range(num_trials)), columns = parameter_labels)
-
-    for par in parameter_labels:
-        fuzzed_pars[par] = parameter_tuple[parameter_labels.index(par)] * multiples[par]
-
-    fuzz_size = ((multiples - 1) ** 2).sum(axis = 'columns') ** 0.5
-    fuzz_magnitude = (fuzzed_pars ** 2).sum(axis = 'columns') - (Series(parameter_tuple) ** 2).sum()
-    fuzzed_pars['Fuzz size'] = fuzz_size * sign(fuzz_magnitude)
-    return fuzzed_pars
-
-
-def strat_summary(pars):
-    strat.signal_generator = Crossover(slow = EMA(max(pars)), fast = EMA(min(pars)))
-    strat.reset()
-    strat.run()
-    attempts = 0
-    while True:
-        try:
-            if attempts >= 2:
-                summary = pd.Series(index = ['Sharpe annualised inc slippage'])
-            else:
-                summary = summary_report(strat.trades)
-        except ZeroDivisionError:
-            strat.refresh()
-            attempts += 1
-        else:
-            break
-    return (pars, summary)
-
-def generate_strat_summary(strat_update_method, strat):
+class StrategySummariser:
     """
-    generate_strat_summary is a closure which returns a method which given a set of 
-    parameters will return a summary_report for the strat created by the supplied
-    strat_creation_method.
+    The StrategySummariser is used with the ParameterFuzzer to support parallel processing of
+    strategy variations with different parameter sets.
     """
-    def strat_summary(pars):
-        strat = strat_update_method(pars, strat)
-        strat.reset()
-        strat.run()
+    def __init__(self, strategy):
+        self.strategy = strategy
+
+    def __call__(self, pars):
+        self.strategy.signal_generator.update_param(pars)
+        self.strategy.reset()
+        self.strategy.run()
         attempts = 0
         while True:
             try:
                 if attempts >= 2:
                     summary = pd.Series(index = ['Sharpe annualised inc slippage'])
                 else:
-                    summary = summary_report(strat.trades)
+                    summary = summary_report(self.strategy.trades)
             except ZeroDivisionError:
                 strat.refresh()
                 attempts += 1
             else:
                 break
-            
-        return (pars, summary)
-    return strat_summary
+        return (pars, summary)  
 
 
 

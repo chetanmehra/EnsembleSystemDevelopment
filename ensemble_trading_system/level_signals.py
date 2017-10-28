@@ -31,8 +31,8 @@ class Crossover(SignalElement):
         return Signal(ind_data, ['Up', 'Down'], Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
     
     def update_param(self, new_params):
-        self.slow.update_param(new_params[0])
-        self.fast.update_param(new_params[1])
+        self.slow.update_param(max(new_params))
+        self.fast.update_param(min(new_params))
 
 
 class TripleCrossover(SignalElement):

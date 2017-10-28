@@ -27,6 +27,7 @@ class Strategy:
         # Calculation results
         self.signal = None
         self.positions = None
+        self.trades = None
         # Component methods
         self.signal_generator = None
         self.position_rules = None
