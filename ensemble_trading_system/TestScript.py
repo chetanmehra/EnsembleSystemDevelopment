@@ -170,55 +170,7 @@ def createValueRatioStrategy(store, ema_pd = 90, valuations = ["Adjusted", "Base
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
-short_pars = [1, 5, 10, 20, 35, 50]
-long_pars = [30, 50, 70, 90, 120, 150, 200]
 
-def test_pars(short_pars, long_pars):
-    strat = baseStratSetup()
-    summaries = []
-    sharpes = pd.DataFrame(None, index = short_pars, columns = long_pars, dtype = float)
-
-    for long in long_pars:
-        for short in short_pars:
-            strat.measure.update_param((long, short))
-            strat.rerun()
-            sharpes.loc[short, long] = strat.trades.Sharpe_annual
-            summaries.append(((short, long), summary_report(strat.trades)))
-
-    return (sharpes, pd.Dataframe(dict(summaries)))
-
-def strat_summary(pars):
-    strat = baseStratSetup(params = pars)
-    strat.run()
-    attempts = 0
-    while True:
-        try:
-            if attempts >= 2:
-                summary = pd.Series(index = ['Sharpe annualised inc slippage'])
-            else:
-                summary = summary_report(strat.trades)
-        except ZeroDivisionError:
-            strat.refresh()
-            attempts += 1
-        else:
-            break
-            
-    return (pars[0], pars[1], summary)
-
-def parallel_test_pars(short_pars, long_pars):
-    par_tuples = []
-    for long in long_pars:
-        short = [s for s in short_pars if s < long]
-        par_tuples.extend(zip([long] * len(short), short))
-    pool = Pool(processes = 8)
-    results = pool.map(strat_summary, par_tuples)
-
-    summaries = []
-    sharpes = pd.DataFrame(None, index = long_pars, columns = short_pars, dtype = float)
-    for R in results:
-        sharpes.loc[R[0], R[1]] = R[2]["Sharpe annualised inc slippage"]
-        summaries.append(((R[0], R[1]), R[2]))
-    return (sharpes, pd.DataFrame(dict(summaries)))
 
 store = Storage("NYSE")
 
@@ -229,9 +181,9 @@ cyclic = getValueRatios(store, 'Cyclic', strat)
 strat.filters.append(HighPassFilter(adjusted, 0.7))
 strat.filters.append(HighPassFilter(cyclic, 0.0))
 
-#print("Running base strat...")
-#strat.run()
-#print("Generated", strat.trades.count, "trades.")
+print("Running base strat...")
+strat.run()
+print("Generated", strat.trades.count, "trades.")
 #print("Applying stops...")
 #strat.apply_exit_condition(StopLoss(0.15))
 #strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
@@ -252,7 +204,7 @@ strat.filters.append(HighPassFilter(cyclic, 0.0))
 #vol_method = StdDevEMA(40)
 #volatilities = vol_method(strat.get_indicator_prices()).shift(1)
 #from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
-#port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 3))
+#port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
 
 #print("Running portfolio...")
 #port.run_events()
