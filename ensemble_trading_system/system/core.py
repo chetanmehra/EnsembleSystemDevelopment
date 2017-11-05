@@ -296,6 +296,7 @@ class Strategy:
 # TODO Clean up unused Portfolio attributes and methods
 # TODO consider merging Transactions and PositionChanges
 # TODO find a better way to update Portfolio positions from PositionChanges
+# TODO add method to rerun a portfolio (e.g. after updating the position selection strategy).
 class Portfolio:
     '''
     The portfolio class manages cash and stock positions, as well as rules 
@@ -319,10 +320,35 @@ class Portfolio:
         volatilities = vol_method(strategy.get_indicator_prices()).shift(1)
         self.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
         self.conditions = [MinimimumPositionSize()]
-        self.position_checks = [PositionNaCheck()]
-        
+        self.position_checks = [PositionNaCheck(), PositionCostThreshold(0.02)]
+
+        self.trades = None
         self.targets = strategy.positions.data.copy()
         self.running = False
+
+    def copy(self):
+        port_copy = Portfolio(self.strategy, self.starting_capital)
+        port_copy.position_checks = self.position_checks
+        port_copy.sizing_strategy = self.sizing_strategy
+        return port_copy
+
+    def reset(self):
+        '''
+        reset - Sets the Portfolio back to its starting condition ready to be run again.
+        '''
+        starting_cash = self.starting_capital
+        self.share_holdings = self.strategy.get_empty_dataframe(0) # Number of shares
+        self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
+        self.positions = self.strategy.get_empty_dataframe(0) # Nominal positions
+        self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
+        self.summary["Cash"] = starting_cash
+        self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
+        self.trades = None
+
+    def change_starting_capital(self, starting_cash):
+        self.reset()
+        self.summary["Cash"] = starting_cash
+
 
     def run_events(self):
         '''
@@ -357,6 +383,7 @@ class Portfolio:
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
         self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
+        self.trades = Position(self.positions).create_trades(self.strategy)
         self.running = False
     
     def process_exits(self, positions):
@@ -431,6 +458,10 @@ class Portfolio:
         Returns a list of boolean values, one for each condition check specified for the portfolio.
         '''
         return [condition(self, trade) for condition in self.conditions]
+
+    @property
+    def starting_capital(self):
+        return self.cash.iloc[0]
 
     @property
     def cash(self):
@@ -625,6 +656,9 @@ class FixedNumberOfPositionsSizing:
         nominal_dollar_position_size = portfolio.value[date] / self.target_positions
         return nominal_dollar_position_size
 
+    def update_target_positions(self, target_positions):
+        self.target_positions = target_positions
+
 
 class VolatilitySizingDecorator:
 
@@ -637,6 +671,9 @@ class VolatilitySizingDecorator:
         volatility_ratio = self.target / self.volatilities.loc[date]
         base_size = self.base_strategy(portfolio, date)
         return volatility_ratio * base_size
+
+    def update_target_positions(self, target_positions):
+        self.base_strategy.update_target_positions(target_positions)
 
 
 # Portfolio Trade Acceptance Criteria

@@ -5,6 +5,7 @@ from pandas import qcut, concat, DataFrame, Series
 from numpy import log, random
 from multiprocessing import Pool
 
+from system.core import Portfolio
 from system.metrics import *
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop
 from measures.moving_averages import EMA
@@ -561,3 +562,60 @@ def test_stop_loss(strat, stops):
     return result
 
 
+class PortfolioAnalyser:
+    """
+    The PortfolioAnalyser as its name suggests analyses the performance of a Portfolio.
+    In particular it provides methods for assessing the robustness of the Portfolio 
+    settings in terms of target number of positions, or starting capital.
+    """
+    def __init__(self, portfolio):
+        if portfolio.trades is None:
+            portfolio.run_events()
+        self.portfolio = portfolio
+        self.subsets = {}
+
+    def clear(self):
+        self.subsets = {}
+
+    def vary_starting_capital(self, variations = [10000, 15000, 20000, 25000, 30000]):
+        for capital in variations:
+            variation = self.portfolio.copy()
+            variation.change_starting_capital(capital)
+            variation.run_events()
+            self.subsets["Starting_Cash_" + str(round(capital / 1000, 0)) + "k"] = variation
+
+    def vary_target_positions(self, variations = [3, 4, 5, 6, 7, 8, 9, 10]):
+        var = 1
+        for positions in variations:
+            print("Running variation", var, "of", len(variations))
+            var += 1
+            variation = self.portfolio.copy()
+            variation.sizing_strategy.update_target_positions(positions)
+            variation.run_events()
+            self.subsets["Target_Pos_" + str(positions)] = variation
+
+    def trades_dict(self):
+        trades = {}
+        trades["Base"] = self.portfolio.trades
+        for label, portfolio in self.subsets.items():
+            trades[label] = portfolio.trades
+        return trades
+
+    def totals_dataframe(self):
+        start = self.portfolio.trade_start_date
+        df = DataFrame()
+        df['Base'] = self.portfolio.summary[start:].Total
+        for label, portfolio in self.subsets.items():
+            raw_total = portfolio.summary[start:].Total
+            starting_ratio = (df.Base.iloc[0] / raw_total.iloc[0])
+            df[label] = raw_total * starting_ratio
+        return df
+
+    def plot_vs_base(self, **kwargs):
+        df = self.totals_dataframe()
+        df.plot(color = 'grey', **kwargs)
+        df.Base.plot(color = 'blue')
+
+    def plot_all(self, **kwargs):
+        df = self.totals_dataframe()
+        df.plot(**kwargs)

@@ -71,7 +71,10 @@ class HighPassFilter(FilterInterface):
         Returns True if the value is above the threshold at the trade entry, else False.
         '''
         value = self.values.get(trade.ticker, trade.entry)
-        return value > self.threshold
+        if value is None:
+            return False
+        else:
+            return value > self.threshold
 
     def plot(self, ticker, start, end, ax):
         self.values.plot(ticker, start, end, ax)
@@ -95,7 +98,10 @@ class LoPassFilter(FilterInterface):
         Returns True if the value is above the threshold at the trade entry, else False.
         '''
         value = self.values.get(trade.ticker, trade.entry)
-        return value < self.threshold
+        if value is None:
+            return False
+        else:
+            return value < self.threshold
 
     def plot(self, ticker, start, end, ax):
         self.values.plot(ticker, start, end, ax)
@@ -122,7 +128,10 @@ class BandPassFilter(FilterInterface):
         Returns True if the value is within the threshold at the trade entry, else False.
         '''
         value = self.values.get(trade.ticker, trade.entry)
-        return (not self.within_bounds) ^ (min(self.bounds) < value < max(self.bounds))
+        if value is None:
+            return False
+        else:
+            return (not self.within_bounds) ^ (min(self.bounds) < value < max(self.bounds))
 
     def plot(self, ticker, start, end, ax):
         self.values.plot(ticker, start, end, ax)
