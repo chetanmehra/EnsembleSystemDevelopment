@@ -350,12 +350,17 @@ class Portfolio:
         self.summary["Cash"] = starting_cash
 
 
-    def run_events(self):
+    def run_events(self, position_switching = False):
         '''
         This approach gets the series of events from the strategy, and the portfolio can 
         also add its own events (e.g. rebalancing). Portfolio events are always applied 
         after the Strategy events (i.e. can be used to overrule Strategy events).
         The events are turned into Transactions for execution.
+        If position_switching is True then the portfolio will aim to always be fully
+        allocated by moving available funds into available open trades in the strategy
+        entering new positions if required. 
+        If this is False (default) then new positions are entered only when the 
+        strategy triggers an entry event.
         '''
         self.running = True
         self.strategy.define_events()
@@ -364,6 +369,7 @@ class Portfolio:
         #progress = ProgressBar(total = len(trading_days))
         for date in trading_days:
             strategy_events = self.strategy.get_events(date)
+            # TODO doesn't the below mean that rebalancing won't work?
             if not len(strategy_events):
                 continue
             positions = PositionChanges(self, date)
@@ -373,6 +379,10 @@ class Portfolio:
             self.rebalancing_strategy(date, positions)
             positions.estimate_transactions()
             self.process_exits(positions)
+            if position_switching:
+                # Check available funds and request the top ranked positions
+                # from the strategy.
+                pass
             self.check_positions(positions)
             self.select(positions)
             transactions = Transactions(positions.num_shares, trade_prices.loc[date], date)
