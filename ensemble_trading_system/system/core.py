@@ -16,7 +16,6 @@ from data_types.positions import Position, Returns
 from measures.volatility import StdDevEMA
 
 
-# TODO Strategy trade_timing should be just [O]pen or [C]lose, not OO/CC.
 class Strategy:
     '''
     Strategy defines the base interface for Strategy objects

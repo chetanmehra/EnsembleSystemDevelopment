@@ -15,15 +15,14 @@ import datetime
 import os
 import sys
 sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\FinancialDataHandling\\financial_data_handling"))
-from formats.price_history import Instruments
 
 from system.interfaces import DataElement
 from data_types.positions import AverageReturns
 from data_types.filter_data import WideFilterValues
 
-class Market(object):
+class Market:
     '''
-    System object holds several data frames containing market information for each stock
+    Market holds several data frames containing market information for each stock
     it comprises.
     '''
 
@@ -40,14 +39,6 @@ class Market(object):
     @property
     def tickers(self):
         return list(self.instruments.items)
-
-    def as_instruments(self):
-        instruments = Instruments(self.name)
-        instruments.data = self.data
-        instruments.start = self.start
-        instruments.end = self.end
-        instruments.exchange = self.exchange
-        return instruments
     
     def __setitem__(self, key, val):
         instruments = dict(self.instruments)

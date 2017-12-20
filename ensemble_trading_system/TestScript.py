@@ -171,7 +171,7 @@ def createValueRatioStrategy(store, ema_pd = 90, valuations = ["Adjusted", "Base
     return strategy
 
 
-
+'''
 store = Storage("NYSE")
 
 strat = signalStratSetup('O', 'C')
@@ -184,6 +184,9 @@ strat.filters.append(HighPassFilter(cyclic, 0.0))
 print("Running base strat...")
 strat.run()
 print("Generated", strat.trades.count, "trades.")
+'''
+
+
 #print("Applying stops...")
 #strat.apply_exit_condition(StopLoss(0.15))
 #strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))

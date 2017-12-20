@@ -5,7 +5,6 @@ from pandas import Panel, DataFrame
 from system.interfaces import SignalElement
 from data_types.signals import Signal
 
-# TODO Create breakout signal generator
 
 class Crossover(SignalElement):
     '''
@@ -66,6 +65,29 @@ class TripleCrossover(SignalElement):
         self.fast = pars[0]
         self.mid = pars[1]
         self.slow = pars[2]
+
+
+class Breakout(SignalElement):
+
+    def __init__(self, breakout_measure):
+        self.breakout = breakout_measure
+        self.name = self.breakout.name
+
+    def execute(self, strategy):
+        prices = strategy.get_indicator_prices()
+        breakout = self.breakout(prices)
+        high = breakout["high"]
+        low = breakout["low"]
+
+        ind_data = strategy.get_empty_dataframe()
+        ind_data[prices == high] = 'Up'
+        ind_data[prices == low] = 'Down'
+        ind_data.ffill()
+
+        return Signal(ind_data, ['Up', 'Down'], breakout)
+    
+    def update_param(self, new_params):
+        self.breakout.update_param(max(new_params))
 
 
 # TODO ValueWeightedEMA is not complete
