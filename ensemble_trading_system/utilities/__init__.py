@@ -1,4 +1,6 @@
 
+
+
 # Print iterations progress
 # Taken from: https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
 

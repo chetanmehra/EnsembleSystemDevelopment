@@ -1,5 +1,6 @@
 
 from pandas import DataFrame
+import numpy as np
 
 from .volatility import EfficiencyRatio
 
@@ -63,3 +64,39 @@ class KAMA(MovingAverage):
         self.period = new_params[0]
         self.fast = new_params[1]
         self.slow = new_params[2]
+
+
+
+import numpy as np
+
+# Linear Trend
+# Intended for use in pandas series/dataframe rolling().apply()
+# Usage: dataframe.rolling(span = #).apply(LinearTrend())
+
+class LinearTrend(MovingAverage):
+    '''
+    Linear trend produces a rolling linear regression output for the given span.
+    '''
+    def __init__(self, lookback):
+        self.N = lookback
+        self.name = "LinTrend.{}".format(lookback)
+        X = np.asarray(range(1, self.N + 1))
+        self.X_bar = X.mean()
+        self.X_diff = X - self.X_bar
+        self.SSE_X = (self.X_diff ** 2).sum()
+
+    def __call__(self, prices):
+        return prices.rolling(self.N).apply(self.trend)
+
+    def trend(self, Y):
+        '''
+        This gets called by rolling apply, and gets passed a numpy.ndarray.
+        This will return the linear trend at the end of the supplied window.
+        '''
+        Y_bar = Y.mean()
+        Y_diff = Y - Y_bar
+        slope = (self.X_diff * Y_diff).sum() / self.SSE_X
+        intercept = Y_bar - slope * self.X_bar
+        return slope * self.N + intercept
+
+
