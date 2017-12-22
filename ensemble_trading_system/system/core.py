@@ -214,7 +214,8 @@ class Strategy:
         positions = self.positions.short_only()
         return positions.applied_to(self.market_returns)
 
-    # The below events methods are used in conjunction with Portfolio creation.  
+    # The below events methods are used in conjunction with Portfolio creation.
+    # TODO define_events should perhaps call on the strategy's signal to generate the events.
     def define_events(self):
         pos_data = self.positions.data
         delta = pos_data - pos_data.shift(1)
