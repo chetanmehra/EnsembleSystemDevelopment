@@ -119,3 +119,6 @@ class Prices(DataElement):
 
     def ewm(self, *args, **kwargs):
         return self.data.ewm(*args, **kwargs)
+
+    def rolling(self, *args, **kwargs):
+        return self.data.rolling(*args, **kwargs)

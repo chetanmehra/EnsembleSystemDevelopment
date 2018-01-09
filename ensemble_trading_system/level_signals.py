@@ -80,9 +80,17 @@ class Breakout(SignalElement):
         low = breakout["low"]
 
         ind_data = strategy.get_empty_dataframe()
-        ind_data[prices == high] = 'Up'
-        ind_data[prices == low] = 'Down'
-        ind_data.ffill()
+        # Note: dataframe.where returns the existing values where the
+        #       mask is True, and replaces them with other where False.
+        #       So we need to invert the mask.
+        #       Counterintuitive I think...
+        ind_data = ind_data.where(~(prices.data == high), 'Up')
+        ind_data = ind_data.where(~(prices.data == low), 'Down')
+        ind_data = ind_data.ffill()
+        # We need to remove any remaining Nans (at the start of the df), 
+        # otherwise later string comparisons will throw an error because
+        # it thinks it is a mixed datatype.
+        ind_data = ind_data.fillna('-')
 
         return Signal(ind_data, ['Up', 'Down'], breakout)
     

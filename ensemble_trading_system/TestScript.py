@@ -25,9 +25,12 @@ from data_types.trades import TradeCollection
 from data_types.filter_data import StackedFilterValues, WideFilterValues
 
 from system.core import Strategy, Portfolio
-from level_signals import Crossover
+from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
+
+from level_signals import Crossover, Breakout
 from measures.moving_averages import EMA, KAMA
 from measures.volatility import StdDevEMA
+from measures.breakout import TrailingHighLow
 from carter_forecasters import PriceCrossover, EWMAC, CarterForecastFamily
 from rules.signal_rules import PositionFromDiscreteSignal
 from rules.forecast_rules import CarterPositions
@@ -159,6 +162,13 @@ def createEwmacStrategy(store, ema_params = (120, 50)):
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
+def createBreakoutStrategy(store, window = 20):
+    strategy = Strategy("O", "C")
+    strategy.market = getMarket(store)
+    strategy.signal_generator = Breakout(TrailingHighLow(window))
+    strategy.position_rules = PositionFromDiscreteSignal(Up = 1)
+    return strategy
+
 def createValueRatioStrategy(store, ema_pd = 90, valuations = ["Adjusted", "Base", "Min"]):
     strategy = Strategy("O", "C")
     strategy.market = getMarket(store)
@@ -171,26 +181,25 @@ def createValueRatioStrategy(store, ema_pd = 90, valuations = ["Adjusted", "Base
     return strategy
 
 
-'''
 store = Storage("NYSE")
 
-strat = signalStratSetup('O', 'C')
+#strat = signalStratSetup('O', 'C')
+strat = createBreakoutStrategy(store, window = 60)
 adjusted = getValueRatios(store, 'Adjusted', strat)
 base = getValueRatios(store, 'Base', strat)
 cyclic = getValueRatios(store, 'Cyclic', strat)
-strat.filters.append(HighPassFilter(adjusted, 0.7))
-strat.filters.append(HighPassFilter(cyclic, 0.0))
+#strat.filters.append(HighPassFilter(adjusted, 0.7))
+#strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 print("Running base strat...")
 strat.run()
 print("Generated", strat.trades.count, "trades.")
-'''
 
 
 #print("Applying stops...")
-#strat.apply_exit_condition(StopLoss(0.15))
-#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
-#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
+strat.apply_exit_condition(StopLoss(0.15))
+strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
+strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 
 ###with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
 ###    strat = pickle.load(file)
@@ -202,15 +211,14 @@ print("Generated", strat.trades.count, "trades.")
 ###strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
 
 #print("Preparing portfolio...")
-#port = Portfolio(strat, 15000)
-#port.position_checks.append(PositionCostThreshold(0.02))
-#vol_method = StdDevEMA(40)
-#volatilities = vol_method(strat.indicator_prices.at(strat.trade_entry))
-#from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
-#port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 4))
+port = Portfolio(strat, 15000)
+port.position_checks.append(PositionCostThreshold(0.02))
+vol_method = StdDevEMA(40)
+volatilities = vol_method(strat.indicator_prices.at(strat.trade_entry))
+port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
 
-#print("Running portfolio...")
-#port.run_events()
-#print("Done...")
+print("Running portfolio...")
+port.run_events()
+print("Done...")
 
 print("Ready...")

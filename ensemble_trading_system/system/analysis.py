@@ -78,7 +78,6 @@ def result_after_delay(trades, N):
 
 
 # Boxplot by return outcomes
-
 def box_colour(bp, box_num, edge_color):
     for element in ['boxes', 'whiskers', 'fliers', 'means', 'medians', 'caps']:
         plt.setp(bp[element], color = edge_color)
