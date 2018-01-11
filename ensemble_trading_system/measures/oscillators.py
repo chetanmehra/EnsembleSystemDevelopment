@@ -8,6 +8,8 @@ class BollingerBands:
         Accepts moving average, and volatility calculation methods.
         Uses these along with the provided bands parameter to provide
         the measure.
+        bands should be a scalar multiple (e.g. 1.5 or 2) to be applied
+        to the volatility.
         '''
         self.moving_average = moving_average
         self.vol_method = vol_method

@@ -67,8 +67,6 @@ class KAMA(MovingAverage):
 
 
 
-import numpy as np
-
 # Linear Trend
 # Intended for use in pandas series/dataframe rolling().apply()
 # Usage: dataframe.rolling(span = #).apply(LinearTrend())
@@ -77,9 +75,9 @@ class LinearTrend(MovingAverage):
     '''
     Linear trend produces a rolling linear regression output for the given span.
     '''
-    def __init__(self, lookback):
-        self.N = lookback
-        self.name = "LinTrend.{}".format(lookback)
+    def __init__(self, span):
+        self.N = span
+        self.name = "LinTrend.{}".format(span)
         X = np.asarray(range(1, self.N + 1))
         self.X_bar = X.mean()
         self.X_diff = X - self.X_bar

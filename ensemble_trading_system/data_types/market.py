@@ -26,11 +26,12 @@ class Market:
     it comprises.
     '''
 
-    def __init__(self, instruments):
+    def __init__(self, store, excluded_tickers = None):
         '''
         Constructor
         '''
-        self.name = instruments.name
+        instruments = store.get_instruments(excluded_tickers)
+        self.store = store
         self.start = instruments.start
         self.end = instruments.end
         self.exchange = instruments.exchange
@@ -39,6 +40,10 @@ class Market:
     @property
     def tickers(self):
         return list(self.instruments.items)
+
+    @property
+    def index(self):
+        return self.instruments[self.instruments.items[0]].index
     
     def __setitem__(self, key, val):
         instruments = dict(self.instruments)
@@ -53,7 +58,7 @@ class Market:
             data_type = object
         else:
             data_type = float
-        return DataFrame(fill_data, index = self.close.index, columns = self.tickers, dtype = data_type)
+        return DataFrame(fill_data, index = self.index, columns = self.tickers, dtype = data_type)
 
     @property
     def open(self):
@@ -101,6 +106,21 @@ class Market:
         fig.autofmt_xdate()
         return (fig, ax)
 
+    def get_valuations(self, type, date = None):
+        return self.get_fundamentals(self.store.get_valuations, type, date)
+
+    def get_value_metrics(self, type, date = None):
+        return self.get_fundamentals(self.store.get_valuemetrics, type, date)
+
+    def get_fundamentals(self, store_method, type, date = None):
+        values = store_method(date)
+        try:
+            fundamentals_data = values.as_wide_values(type, index = self.index)
+        except TypeError as E:
+            print(E)
+        else:
+            return Fundamentals(fundamentals_data, type)
+
 
 class Prices(DataElement):
     """
@@ -114,11 +134,15 @@ class Prices(DataElement):
     def returns(self):
         return AverageReturns((self.data / self.data.shift(1)) - 1)
 
-    def diff(self):
-        return self.data.diff()
 
-    def ewm(self, *args, **kwargs):
-        return self.data.ewm(*args, **kwargs)
+class Fundamentals(DataElement):
+    """
+    Provides an interface for different fundamentals data; valuations, 
+    earnings, etc.
+    """
+    def __init__(self, data, name):
+        self.name = name
+        self.data = data
+        self.calculation_timing = ['close']
+        self.lag = 0
 
-    def rolling(self, *args, **kwargs):
-        return self.data.rolling(*args, **kwargs)

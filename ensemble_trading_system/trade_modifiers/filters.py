@@ -1,65 +1,14 @@
 
 from system.interfaces import FilterInterface
 
-
-
-class ValueRangeFilter(FilterInterface):
-    '''
-    ValueRangeFilter filters strategy trades based on the valuation at the time of
-    entry being within the specified range.
-    '''
-    def __init__(self, values, filter_range):
-        '''
-        Requires that values is a ValueFilterValues object.
-        filter_range should be a tuple representing the acceptable filter range.
-        '''
-        self.values = values
-        self.left = min(filter_range)
-        self.right = max(filter_range)
-        self.filter_name = values.name
-        self.name = '{}:{}-{}'.format(values.name, *filter_range)
-
-    def accepted_trade(self, trade):
-        '''
-        Returns True if the trade meets the filter criterion, else False.
-        '''
-        value = self.values.get(trade.ticker, trade.entry)
-        try:
-            ratio = value / trade.entry_price
-        except TypeError:
-            return False
-        else:
-            return (ratio > self.left) and (ratio <= self.right)
-
-    def plot(self, ticker, start, end, ax):
-        self.values.plot(ticker, start, end, ax)
-
-
-class ValueRankFilter(FilterInterface):
-    '''
-    ValueRankFilter filters trades based on the rank of the valuation calculated at the
-    time of trade entry.
-    '''
-    def __init__(self, values, market, max_rank):
-        self.ranks = values.value_rank(market)
-        self.max_rank = max_rank
-
-    def accepted_trade(self, trade):
-        '''
-        Returns True if the trade meets the filter criterion, else False.
-        '''
-        rank = self.ranks.loc[trade.entry, trade.ticker]
-        return rank <= self.max_rank
-
-
 class HighPassFilter(FilterInterface):
     '''
     HighPassFilter allows trades where the filter values are above the specified threshold.
     '''
     def __init__(self, values, threshold):
         '''
-        Requires that values is a WideFilterValues object.
-        filter_range should be a tuple representing the acceptable filter range.
+        Filters assume that the supplied values are a DataElement object.
+        threshold specifies the value above which the filter passes.
         '''
         self.values = values
         self.threshold = threshold
@@ -70,7 +19,7 @@ class HighPassFilter(FilterInterface):
         '''
         Returns True if the value is above the threshold at the trade entry, else False.
         '''
-        value = self.values.get(trade.ticker, trade.entry)
+        value = self.values.loc[trade.entry, trade.ticker]
         if value is None:
             return False
         else:
@@ -79,14 +28,15 @@ class HighPassFilter(FilterInterface):
     def plot(self, ticker, start, end, ax):
         self.values.plot(ticker, start, end, ax)
 
-class LoPassFilter(FilterInterface):
+
+class LowPassFilter(FilterInterface):
     '''
-    LoPassFilter allows trades where the filter values are below the specified threshold.
+    LowPassFilter allows trades where the filter values are below the specified threshold.
     '''
     def __init__(self, values, threshold):
         '''
-        Requires that values is a WideFilterValues object.
-        filter_range should be a tuple representing the acceptable filter range.
+        Filters assume that the supplied values are a DataElement object.
+        threshold specifies the value below which the filter passes.
         '''
         self.values = values
         self.threshold = threshold
@@ -97,7 +47,7 @@ class LoPassFilter(FilterInterface):
         '''
         Returns True if the value is above the threshold at the trade entry, else False.
         '''
-        value = self.values.get(trade.ticker, trade.entry)
+        value = self.values.loc[trade.entry, trade.ticker]
         if value is None:
             return False
         else:
@@ -105,6 +55,7 @@ class LoPassFilter(FilterInterface):
 
     def plot(self, ticker, start, end, ax):
         self.values.plot(ticker, start, end, ax)
+
 
 class BandPassFilter(FilterInterface):
     '''
@@ -114,8 +65,10 @@ class BandPassFilter(FilterInterface):
     '''
     def __init__(self, values, bounds, within_bounds = True):
         '''
-        Requires that values is a WideFilterValues object.
-        filter_range should be a tuple representing the acceptable filter range.
+        Assumes that values is a DataElement object.'
+        bounds is an iterable (e.g. tuple) which specifies the upper and lower range.
+        When within_bounds is True (the default), the filter will pass values between
+        the min and max values of bounds, else it will pass when outside the min or max.
         '''
         self.values = values
         self.bounds = bounds
@@ -127,7 +80,7 @@ class BandPassFilter(FilterInterface):
         '''
         Returns True if the value is within the threshold at the trade entry, else False.
         '''
-        value = self.values.get(trade.ticker, trade.entry)
+        value = self.values.loc[trade.entry, trade.ticker]
         if value is None:
             return False
         else:
