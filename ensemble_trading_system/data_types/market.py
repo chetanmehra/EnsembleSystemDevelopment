@@ -18,7 +18,6 @@ sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\Financi
 
 from system.interfaces import DataElement
 from data_types.positions import AverageReturns
-from data_types.filter_data import WideFilterValues
 
 class Market:
     '''

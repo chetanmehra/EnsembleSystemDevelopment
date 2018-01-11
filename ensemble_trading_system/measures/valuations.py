@@ -14,7 +14,9 @@ class ValueRatio:
         self.name = values.name + "_ratio"
 
     def __call__(self, prices):
-        return self.values.data / prices.data - 1
+        ratios = self.values.data / prices.data - 1
+        ratios.name = self.name
+        return ratios
 
 
 class ValueRank(ValueRatio):
@@ -29,4 +31,6 @@ class ValueRank(ValueRatio):
 
     def __call__(self, prices):
         ratios = super().__call__(prices)
-        return ratios.rank(axis = 1, ascending = False)
+        ranks = ratios.rank(axis = 1, ascending = False)
+        ranks.name = self.name
+        return ranks

@@ -22,7 +22,6 @@ os.chdir(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\EnsembleSystem
 # Local imports
 from data_types.market import Market
 from data_types.trades import TradeCollection
-from data_types.filter_data import StackedFilterValues, WideFilterValues
 
 from system.core import Strategy, Portfolio
 from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
@@ -101,22 +100,22 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
 
 
 #strat = signalStratSetup('O', 'C')
-#strat = createBreakoutStrategy(window = 60)
-#prices = strat.market.at(strat.decision)
-#adjusted = ValueRatio(strat.market.get_valuations('Adjusted'))(prices)
-#base = ValueRatio(strat.market.get_valuations('Base'))(prices)
-#cyclic = ValueRatio(strat.market.get_valuations('Cyclic'))(prices)
-#strat.filters.append(HighPassFilter(adjusted, 0.7))
-#strat.filters.append(HighPassFilter(cyclic, 0.0))
+strat = createBreakoutStrategy(window = 60)
+prices = strat.market.at(strat.decision)
+adjusted = ValueRatio(strat.market.get_valuations('Adjusted'))(prices)
+base = ValueRatio(strat.market.get_valuations('Base'))(prices)
+cyclic = ValueRatio(strat.market.get_valuations('Cyclic'))(prices)
+strat.filters.append(HighPassFilter(adjusted, 0.7))
+strat.filters.append(HighPassFilter(cyclic, 0.0))
 
-#print("Running base strat...")
-#strat.run()
-#print("Generated", strat.trades.count, "trades.")
+print("Running base strat...")
+strat.run()
+print("Generated", strat.trades.count, "trades.")
 
-#print("Applying stops...")
-#strat.apply_exit_condition(StopLoss(0.15))
-#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
-#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
+print("Applying stops...")
+strat.apply_exit_condition(StopLoss(0.15))
+strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
+strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 
 ###with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
 ###strat = pickle.load(file)
