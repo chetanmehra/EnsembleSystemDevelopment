@@ -7,28 +7,30 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.optimize
 from pandas import DateOffset, Panel, DataFrame, Series
-from enum import Enum
 
-from utilities import ProgressBar
 from system.interfaces import IndexerFactory
 from data_types.trades import TradeCollection
 from data_types.positions import Position, Returns
+from data_types.constants import TradeSelected
+from data_types.events import EventCollection, ExitEvent
 from measures.volatility import StdDevEMA
 
 
 class Strategy:
     '''
-    Strategy defines the base interface for Strategy objects
+    Strategy manages creation of positions and trades for a given
+    strategy idea and plotting of results.
     '''
     def __init__(self, trade_timing, ind_timing):
-        self.required_fields = ["market", "signal_generator", "position_rules"]
         self.name = None
         # Calculation results
         self.signal = None
         self.positions = None
         self.trades = None
+        self.events = None
         # Component methods
-        self.signal_generator = None
+        self.measures = {}
+        self._signal_generator = None
         self.position_rules = None
         self.filters = []
         # Timing parameters
@@ -51,76 +53,16 @@ class Strategy:
             fourth_line = 'No filter specified.\n'
         return first_line + second_line + third_line + fourth_line
 
-    def run(self):
-        '''
-        Run the strategy with the current settings.
-        This will create the signals, trades, and base positions.
-        Any filters specified will be applied also.
-        '''
-        self.generate_signals()
-        self.apply_rules()
-        self.apply_filters()
-        
-    def rerun(self):
-        '''
-        Run the strategy by first clearing any previous calculated data.
-        Typically used when the strategy has already been run, but changes have been
-        made to the settings
-        '''
-        self.reset()
-        self.run()
+    @property
+    def signal_generator(self):
+        return self._signal_generator
 
-    def reset(self):
-        '''
-        Clears all current results from the Strategy.
-        '''
-        self.signal = None
-        self.positions = None
-        self.trades = None
+    @signal_generator.setter
+    def signal_generator(self, signal):
+        for measure in signal.measures:
+            self.measures[measure.name] = measure
+        self._signal_generator = signal
 
-    def check_fields(self):
-        missing_fields = []
-        for field in self.required_fields:
-            try:
-                self.__getattribute__(field)
-            except AttributeError:
-                missing_fields += [field]
-        if len(missing_fields):
-            missing_fields = ", ".join(missing_fields)
-            raise StrategyException("Missing parameters: {0}".format(missing_fields))
-           
-    def generate_signals(self):
-        self.signal = self.signal_generator(self)
-
-    def apply_rules(self):
-        self.positions = self.position_rules(self)
-        self.trades = self.positions.create_trades(self)
-
-    def apply_filters(self):
-        if len(self.filters) == 0:
-            return
-        for filter in self.filters:
-            self.trades = filter(self)
-        self.positions.update_from_trades(self.trades)
-
-    def apply_filter(self, filter):
-        '''
-        Add a filter to a strategy which has already been run.
-        This will run the filter, and add it to the list of 
-        existing filters for the strategy.
-        '''
-        self.filters += [filter]
-        self.trades = filter(self)
-        self.positions.update_from_trades(self.trades)
-
-    def apply_exit_condition(self, condition):
-        '''
-        Accepts an exit condition object e.g. StopLoss, which is
-        passed to the Trade Collection to be applied to each trade.
-        '''
-        self.trades = self.trades.apply_exit_condition(condition)
-        self.positions.update_from_trades(self.trades)
-    
     @property
     def trade_timing(self):
         '''
@@ -148,23 +90,69 @@ class Strategy:
     def trade_prices(self):
         return self.prices.at(self.trade_entry)
 
-    def get_indicator_prices(self):
+    def run(self):
         '''
-        Returns the prices dataframe relevant to the calculation of indicators.
+        Run the strategy with the current settings.
+        This will create the signals, trades, and base positions.
+        Any filters specified will be applied also.
         '''
-        if self.ind_timing == "C":
-            return self.market.close
-        if self.ind_timing == "O":
-            return self.market.open
+        self.generate_signals()
+        self.apply_rules()
+        self.apply_filters()
+        
+    def rerun(self):
+        '''
+        Run the strategy by first clearing any previous calculated data.
+        Typically used when the strategy has already been run, but changes have been
+        made to the settings
+        '''
+        self.reset()
+        self.run()
 
-    def get_trade_prices(self):
+    def reset(self):
         '''
-        Returns the dataframe of prices for trade timing.
+        Clears all current results from the Strategy.
         '''
-        if self.trade_timing == "O":
-            return self.market.open
-        else:
-            return self.market.close
+        self.signal = None
+        self.positions = None
+        self.trades = None
+        self.events = None
+        
+    def generate_signals(self):
+        self.signal = self.signal_generator(self)
+
+    def apply_rules(self):
+        self.positions = self.position_rules(self)
+        self.events = self.positions.create_events()
+        self.trades = self.positions.create_trades(self)
+
+    def apply_filters(self):
+        if len(self.filters) == 0:
+            return
+        for filter in self.filters:
+            self.trades = filter(self)
+        self.positions.update_from_trades(self.trades)
+        self.events = self.positions.create_events()
+
+    def apply_filter(self, filter):
+        '''
+        Add a filter to a strategy which has already been run.
+        This will run the filter, and add it to the list of 
+        existing filters for the strategy.
+        '''
+        self.filters += [filter]
+        self.trades = filter(self)
+        self.positions.update_from_trades(self.trades)
+        self.events = self.positions.create_events()
+
+    def apply_exit_condition(self, condition):
+        '''
+        Accepts an exit condition object e.g. StopLoss, which is
+        passed to the Trade Collection to be applied to each trade.
+        '''
+        self.trades = self.trades.apply_exit_condition(condition)
+        self.positions.update_from_trades(self.trades)
+        self.events = self.positions.create_events()
 
     def get_empty_dataframe(self, fill_data = None):
         '''
@@ -217,31 +205,10 @@ class Strategy:
     # The below events methods are used in conjunction with Portfolio creation.
     # TODO define_events should perhaps call on the strategy's signal to generate the events.
     def define_events(self):
-        pos_data = self.positions.data
-        delta = pos_data - pos_data.shift(1)
-        delta.iloc[0] = 0
-        event_keys = self.get_empty_dataframe("-")
-        # Note adjustment goes first and then gets overwritten by entry and exit
-        event_keys[delta != 0] = "adjustment"
-        event_keys[(delta != 0) & (delta == pos_data)] = "entry"
-        event_keys[(delta != 0) & (pos_data == 0)] = "exit"
-        self.events = {}
-        self.events['key'] = event_keys
-        self.events['sizes'] = delta
-    
+        self.events = self.positions.create_events()
+
     def get_events(self, date):
-        keys = self.events['key'].loc[date]
-        event_tickers = self.events['key'].columns[keys != "-"]
-        sizes = self.events['sizes'].loc[date]
-        events = []
-        for ticker in event_tickers:
-            if keys[ticker] == "entry":
-                events.append(EntryEvent(ticker, sizes[ticker]))
-            elif keys[ticker] == "exit":
-                events.append(ExitEvent(ticker, sizes[ticker]))
-            elif keys[ticker] == "adjustment":
-                events.append(AdjustmentEvent(ticker, sizes[ticker]))
-        return events
+        return self.events[date]
 
     # Reporting methods
     def plot_measures(self, ticker, start, end, ax):
@@ -317,7 +284,7 @@ class Portfolio:
         self.trade_size = (2000, 3500) # Min and max by dollar size
         self.rebalancing_strategy = NoRebalancing()
         vol_method = StdDevEMA(40)
-        volatilities = vol_method(strategy.get_indicator_prices()).shift(1)
+        volatilities = vol_method(strategy.indicator_prices).shift(1)
         self.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
         self.conditions = [MinimimumPositionSize()]
         self.position_checks = [PositionNaCheck(), PositionCostThreshold(0.02)]
@@ -350,7 +317,7 @@ class Portfolio:
         self.summary["Cash"] = starting_cash
 
 
-    def run_events(self, position_switching = False):
+    def run(self, position_switching = False):
         '''
         This approach gets the series of events from the strategy, and the portfolio can 
         also add its own events (e.g. rebalancing). Portfolio events are always applied 
@@ -363,12 +330,11 @@ class Portfolio:
         strategy triggers an entry event.
         '''
         self.running = True
-        self.strategy.define_events()
         trading_days = self.share_holdings.index
-        trade_prices = self.strategy.prices.open
+        trade_prices = self.strategy.trade_prices
         #progress = ProgressBar(total = len(trading_days))
         for date in trading_days:
-            strategy_events = self.strategy.get_events(date)
+            strategy_events = self.strategy.events[date]
             # TODO doesn't the below mean that rebalancing won't work?
             if not len(strategy_events):
                 continue
@@ -449,14 +415,14 @@ class Portfolio:
                 executed_trades.append(self.strategy.trades[trade_num])
                 num_shares = Series(0, self.strategy.market.tickers)
                 num_shares[trade.ticker] = int(min(self.cash[trade.entry], max(self.trade_size)) / trade.entry_price)
-                trade_prices = self.strategy.get_trade_prices().loc[trade.entry]
+                trade_prices = self.strategy.trade_prices.loc[trade.entry]
                 entry_txns = Transactions(num_shares, trade_prices, trade.entry)
                 self.apply(entry_txns)
-                trade_prices = self.strategy.get_trade_prices().loc[trade.exit]
+                trade_prices = self.strategy.trade_prices.loc[trade.exit]
                 exit_txns = Transactions(-1 * num_shares, trade_prices, trade.exit)
                 self.apply(exit_txns)
         self.trades = TradeCollection(executed_trades)
-        self.dollar_holdings = self.share_holdings * self.strategy.get_trade_prices().data
+        self.dollar_holdings = self.share_holdings * self.strategy.trade_prices.data
         self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
@@ -486,7 +452,7 @@ class Portfolio:
         Returns the series of dollar value of all holdings (excluding cash).
         '''
         if self.running:
-            prices = self.strategy.get_indicator_prices().shift(1)
+            prices = self.strategy.indicator_prices.shift(1)
             prices.iloc[0] = 0
             return (self.share_holdings * prices.data).sum(axis = 'columns')
         else:
@@ -768,50 +734,6 @@ class Transactions:
     def total_slippage(self):
         return self.slippage.sum()
 
-
-class TradeEvent:
-
-    def __init__(self, ticker, size):
-        self.ticker = ticker
-        self.size = size
-
-    def update(self, positions):
-        positions.type[self.ticker] = self.Label
-        positions.selected[self.ticker] = TradeSelected.UNDECIDED
-
-class EntryEvent(TradeEvent):
-    Label = "entry"
-
-    def update(self, positions):
-        positions.target_size[self.ticker] = self.size
-        positions.suggested_size[self.ticker] = self.size
-        super().update(positions)
-        
-
-class ExitEvent(TradeEvent):
-    Label = "exit"
-
-    def update(self, positions):
-        positions.target_size[self.ticker] = 0
-        positions.suggested_size[self.ticker] = 0
-        super().update(positions)
-        
-
-class AdjustmentEvent(TradeEvent):
-    Label = "adjustment"
-
-    def update(self, positions):
-        positions.target_size[self.ticker] += self.size
-        if positions.applied_size[self.ticker] != 0:
-            positions.suggested_size[self.ticker] = positions.target_size[self.ticker]
-            super().update(positions)
-        
-  
-class TradeSelected(Enum):
-
-    UNDECIDED = 0
-    YES = 1
-    NO = -1
 
 
 # These checks can be used to control the position selection process

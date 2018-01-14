@@ -1,8 +1,9 @@
 
+from . import SignalElement
 
 # TODO Average True Range volatility measure
 
-class EfficiencyRatio:
+class EfficiencyRatio(SignalElement):
     '''
     The Efficiency Ratio is taken from Kaufman's KAMA indicator.
     Refer New Trading Systems and Methods 4th Ed (p732)
@@ -14,6 +15,7 @@ class EfficiencyRatio:
 
     def __init__(self, period):
         self.period = period
+        self.name = "EfficiencyRatio{}".format(period)
 
     def __call__(self, prices):
         overall_change = prices.diff(period).abs()
@@ -21,7 +23,7 @@ class EfficiencyRatio:
         return overall_change / daily_sum
 
 
-class StdDevRolling:
+class StdDevRolling(SignalElement):
     """
     Given a set of prices; calculates the annualised rolling standard deviation of returns.
     """
@@ -34,7 +36,7 @@ class StdDevRolling:
         return self.annualisation_factor * rtns.rolling(span = self.period).std()
 
 
-class StdDevEMA:
+class StdDevEMA(SignalElement):
     """
     Given a set of prices; calculates the annualised exponentially weighted average standard deviation of returns.
     """

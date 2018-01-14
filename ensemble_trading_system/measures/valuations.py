@@ -3,7 +3,9 @@ These measures all deal with fundamental valuations of the underlying business
 as well as potentially incorporating the current price level(s)
 """
 
-class ValueRatio:
+from . import SignalElement
+
+class ValueRatio(SignalElement):
     """
     ValueRatio provides the relative value at the current price. A ValueRatio
     of zero indicates fair value, negative values is overvalued, and positive are
@@ -11,7 +13,10 @@ class ValueRatio:
     """
     def __init__(self, values):
         self.values = values
-        self.name = values.name + "_ratio"
+
+    @property
+    def name(self):
+        return self.values.name + "_ratio"
 
     def __call__(self, prices):
         ratios = self.values.data / prices.data - 1
@@ -27,7 +32,10 @@ class ValueRank(ValueRatio):
 
     def __init__(self, values):
         self.values = values
-        self.name = values.name + "_rank"
+
+    @property
+    def name(self):
+        return self.values.name + "_rank"
 
     def __call__(self, prices):
         ratios = super().__call__(prices)

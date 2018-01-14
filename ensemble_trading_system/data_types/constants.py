@@ -1,6 +1,17 @@
 """
 Global constants for the project, e.g. tickers for a given market.
+And enums.
 """
+from enum import Enum
+
+ 
+class TradeSelected(Enum):
+
+    UNDECIDED = 0
+    YES = 1
+    NO = -1
+
+
 
 ASX20 = ["AMP", "ANZ", "BHP", "BXB", "CBA", "CSL", "IAG", "MQG", "NAB", "ORG", "QBE", 
          "RIO", "SCG", "SUN", "TLS", "WBC", "WES", "WFD", "WOW", "WPL"]

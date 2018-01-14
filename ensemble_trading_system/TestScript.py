@@ -98,24 +98,23 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
-
-#strat = signalStratSetup('O', 'C')
-strat = createBreakoutStrategy(window = 60)
-prices = strat.market.at(strat.decision)
-adjusted = ValueRatio(strat.market.get_valuations('Adjusted'))(prices)
-base = ValueRatio(strat.market.get_valuations('Base'))(prices)
-cyclic = ValueRatio(strat.market.get_valuations('Cyclic'))(prices)
-strat.filters.append(HighPassFilter(adjusted, 0.7))
-strat.filters.append(HighPassFilter(cyclic, 0.0))
+print("Preparing strat...")
+strat = signalStratSetup('O', 'C')
+#strat = createBreakoutStrategy(window = 60)
+#adjusted = ValueRatio(strat.market.get_valuations('Adjusted'))(strat.indicator_prices)
+#base = ValueRatio(strat.market.get_valuations('Base'))(strat.indicator_prices)
+#cyclic = ValueRatio(strat.market.get_valuations('Cyclic'))(strat.indicator_prices)
+#strat.filters.append(HighPassFilter(adjusted, 0.7))
+#strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 print("Running base strat...")
 strat.run()
 print("Generated", strat.trades.count, "trades.")
 
-print("Applying stops...")
-strat.apply_exit_condition(StopLoss(0.15))
-strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
-strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
+#print("Applying stops...")
+#strat.apply_exit_condition(StopLoss(0.15))
+#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
+#strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 
 ###with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
 ###strat = pickle.load(file)
@@ -134,7 +133,7 @@ strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 #port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
 
 #print("Running portfolio...")
-#port.run_events()
+#port.run()
 #print("Done...")
 
 print("Ready...")

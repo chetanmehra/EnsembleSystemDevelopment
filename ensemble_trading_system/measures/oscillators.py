@@ -1,7 +1,7 @@
 
 import pandas as pd
 
-class BollingerBands:
+class BollingerBands(SignalElement):
     
     def __init__(self, moving_average, vol_method, bands):
         '''
@@ -14,6 +14,10 @@ class BollingerBands:
         self.moving_average = moving_average
         self.vol_method = vol_method
         self.bands = bands
+
+    @property
+    def name(self):
+        return "Bollinger.{0}.{1}x{2}".format(self.moving_average.name, self.bands, self.vol_method.name)
 
     def update_param(self, new_params):
         self.vol_period = new_params[0]

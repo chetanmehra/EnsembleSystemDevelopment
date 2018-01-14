@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from system.interfaces import DataElement
 from system.metrics import Drawdowns
 from data_types.trades import Trade, TradeCollection
+from data_types.events import EventCollection
 
 
 class Position(DataElement):
@@ -20,33 +21,28 @@ class Position(DataElement):
         if not isinstance(data, DataFrame):
             raise TypeError
         self.data = data
-# Factory methods
+
+    def create_events(self):
+        return EventCollection.from_position_data(self.data)
+
     def create_trades(self, strategy):
-        prices = strategy.get_trade_prices()
+        prices = strategy.trade_prices
         trades = []
-        position_sign = self.unitised().data
-        flags = position_sign - position_sign.shift(1)
-        # clear missing values from first rows
-        start_row = 0
-        while all(flags.ix[start_row].isnull()):
-            flags.ix[start_row] = 0
-            start_row += 1
-        # Add trade entries occuring on first day
-        flags.ix[start_row][position_sign.ix[start_row] != 0] = position_sign.ix[start_row][position_sign.ix[start_row] != 0]
-        for ticker in flags:
-            ticker_flags = flags[ticker]
-            ticker_sign = position_sign[ticker]
-            # Flag values of -2 or 2 represents a complete switch from short to long or vice-versa.
-            entries = ticker_flags.index[((ticker_flags != 0) & (ticker_sign != 0)) | (abs(ticker_flags) > 1)]
-            exits = ticker_flags.index[((ticker_flags != 0) & (ticker_sign == 0)) | (abs(ticker_flags) > 1)]
-            for entry_day in entries:
-                valid_exits = (exits > entry_day)
-                if not any(valid_exits):
-                    exit_day = ticker_flags.index[-1]
-                else:
-                    exit_day = exits[valid_exits][0]
-                trades.append(Trade(ticker, entry_day, exit_day, prices[ticker], self.data[ticker]))
+        for ticker in strategy.events.tickers:
+            # Note we loop through by ticker and subset the events here so 
+            # we don't have to search the full set of tickers every time.
+            # The EventCollection caches the subset for each ticker behind the
+            # scenes.
+            # Although less elegant, this approach reduced the calculation time 
+            # significantly.
+            ticker_entries = strategy.events.related_entries(ticker)
+            ticker_exits = strategy.events.related_exits(ticker)
+            for entry in ticker_entries:
+                exit = strategy.events.next_exit(entry, ticker_exits)
+                trades.append(Trade(entry.ticker, entry.date, exit.date, 
+                                    prices[entry.ticker], self.data[entry.ticker]))
         return TradeCollection(trades)
+
 
     def update_from_trades(self, trades):
         new_pos_data = deepcopy(self.data)
@@ -54,6 +50,7 @@ class Position(DataElement):
         for trade in trades.as_list():
             new_pos_data.loc[trade.entry:trade.exit, trade.ticker] = self.data.loc[trade.entry:trade.exit, trade.ticker]
         self.data = new_pos_data
+
 
     def applied_to(self, market_returns):
         return StrategyReturns(self.data * market_returns.data, self)

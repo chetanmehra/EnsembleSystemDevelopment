@@ -2,23 +2,15 @@
 from pandas import DataFrame
 import numpy as np
 
+from . import SignalElement
 from .volatility import EfficiencyRatio
 
-class MovingAverage:
 
-    def __call__(self, prices):
-        raise NotImplementedError()
-
-    def update_param(self, new_params):
-        raise NotImplementedError()
-
-
-class EMA(MovingAverage):
+class EMA(SignalElement):
 
     def __init__(self, period):
         self.period = period
-        self.name = 'EMA{}'.format(period)
-    
+        
     def __call__(self, prices):
         return prices.ewm(span = self.period).mean()
 
@@ -26,8 +18,7 @@ class EMA(MovingAverage):
         self.period = new_params
 
 
-
-class KAMA(MovingAverage):
+class KAMA(SignalElement):
     '''
     Calculates the Kaufman adaptive moving average. The smooth parameter varies between the 
     square of the fast and slow parameters based on the efficiency ratio calculated from 
@@ -38,7 +29,10 @@ class KAMA(MovingAverage):
         self.slow = slow
         self.period = period
         self.eff_ratio = EfficiencyRatio(period)
-        self.name = 'KAMA.{}.{}.{}'.format(period, fast, slow)
+
+    @property
+    def name(self):
+        return 'KAMA.{}.{}.{}'.format(period, fast, slow)
 
     def __call__(self, prices):
         fastest = 2 / (self.fast + 1.0)
@@ -66,25 +60,20 @@ class KAMA(MovingAverage):
         self.slow = new_params[2]
 
 
-
-# Linear Trend
-# Intended for use in pandas series/dataframe rolling().apply()
-# Usage: dataframe.rolling(span = #).apply(LinearTrend())
-
-class LinearTrend(MovingAverage):
+class LinearTrend(SignalElement):
     '''
     Linear trend produces a rolling linear regression output for the given span.
     '''
     def __init__(self, span):
-        self.N = span
+        self.period = span
         self.name = "LinTrend.{}".format(span)
-        X = np.asarray(range(1, self.N + 1))
+        X = np.asarray(range(1, self.period + 1))
         self.X_bar = X.mean()
         self.X_diff = X - self.X_bar
         self.SSE_X = (self.X_diff ** 2).sum()
 
     def __call__(self, prices):
-        return prices.rolling(self.N).apply(self.trend)
+        return prices.rolling(self.period).apply(self.trend)
 
     def trend(self, Y):
         '''
@@ -95,6 +84,6 @@ class LinearTrend(MovingAverage):
         Y_diff = Y - Y_bar
         slope = (self.X_diff * Y_diff).sum() / self.SSE_X
         intercept = Y_bar - slope * self.X_bar
-        return slope * self.N + intercept
+        return slope * self.period + intercept
 
 

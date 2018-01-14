@@ -1,5 +1,4 @@
 
-
 from pandas import Panel, DataFrame
 
 from system.interfaces import SignalElement
@@ -19,8 +18,12 @@ class Crossover(SignalElement):
     def name(self):
         return "x".join([self.fast.name, self.slow.name])
 
+    @property
+    def measures(self):
+        return [self.fast, self.slow]
+
     def execute(self, strategy):
-        prices = strategy.get_indicator_prices()
+        prices = strategy.indicator_prices
         fast_ema = self.fast(prices)
         slow_ema = self.slow(prices)
 
@@ -47,9 +50,13 @@ class TripleCrossover(SignalElement):
     @property
     def name(self):
         return "x".join([self.fast.name, self.mid.name, self.slow.name])
+
+    @property
+    def measures(self):
+        return [self.fast, self.mid, self.slow]
         
     def execute(self, strategy):
-        prices = strategy.get_indicator_prices()
+        prices = strategy.indicator_prices
         fast_ema = self.fast(prices)
         mid_ema = self.mid(prices)
         slow_ema = self.slow(prices)
@@ -71,10 +78,17 @@ class Breakout(SignalElement):
 
     def __init__(self, breakout_measure):
         self.breakout = breakout_measure
-        self.name = self.breakout.name
+
+    @property
+    def name(self):
+        return "Breakout." + self.breakout.name
+
+    @property
+    def measures(self):
+        return [self.breakout]
 
     def execute(self, strategy):
-        prices = strategy.get_indicator_prices()
+        prices = strategy.indicator_prices
         breakout = self.breakout(prices)
         high = breakout["high"]
         low = breakout["low"]

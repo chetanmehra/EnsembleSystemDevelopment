@@ -1,7 +1,7 @@
 
+from . import SignalElement
 
-
-class RelativeReturns:
+class RelativeReturns(SignalElement):
     
     def __init__(self, period):
         self.period = period

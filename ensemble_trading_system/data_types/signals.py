@@ -10,7 +10,7 @@ class Signal(DataElement):
     '''
     Indicator represent possible trades for the strategy.
     data should be a dataframe of True / False values for determine trade entries & exits
-    measures should be a panel of the meaures used to derive the signals.
+    measures should be a panel of the measures used to derive the signals.
     '''
 
     def __init__(self, data, levels, measures):

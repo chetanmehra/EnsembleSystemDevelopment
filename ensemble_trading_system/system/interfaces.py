@@ -115,7 +115,11 @@ class IndexerFactory:
 
 
 class Indexer:
-    
+    """
+    Indexer is responsible for determining the amount of lag to add to 
+    a DataElement based on the DataElement calculated timing and the 
+    target timing.
+    """
     def __init__(self, timing_map, target):
         self.timing_map = timing_map
         self.end = target
@@ -159,6 +163,14 @@ class StrategyElement:
     
     def starting_lag(self):
         return 0
+
+    @property
+    def typename(self):
+        """
+        Returns the class name.
+        Assumes type returns "<class '[Parents].[Name]'>"
+        """
+        return str(type(self)).split(".")[-1][:-2]
     
 
 class SignalElement(StrategyElement):
@@ -166,6 +178,10 @@ class SignalElement(StrategyElement):
     @property
     def calculation_timing(self):
         return ["decision"]
+
+    @property
+    def name(self):
+        return self.typename + "{}".format(self.period)
 
     
 class PositionRuleElement(StrategyElement):
