@@ -21,6 +21,7 @@ class Position(DataElement):
         if not isinstance(data, DataFrame):
             raise TypeError
         self.data = data
+        self.events = EventCollection.from_position_data(data)
 
     def create_events(self):
         return EventCollection.from_position_data(self.data)
@@ -50,6 +51,8 @@ class Position(DataElement):
         for trade in trades.as_list():
             new_pos_data.loc[trade.entry:trade.exit, trade.ticker] = self.data.loc[trade.entry:trade.exit, trade.ticker]
         self.data = new_pos_data
+        self.events = self.create_events()
+        self.trades = trades
 
 
     def applied_to(self, market_returns):

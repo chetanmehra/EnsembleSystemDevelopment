@@ -26,11 +26,8 @@ class Strategy:
         # Calculation results
         self.signal = None
         self.positions = None
-        self.trades = None
-        self.events = None
         # Component methods
-        self.measures = {}
-        self._signal_generator = None
+        self.signal_generator = None
         self.position_rules = None
         self.filters = []
         # Timing parameters
@@ -54,16 +51,6 @@ class Strategy:
         return first_line + second_line + third_line + fourth_line
 
     @property
-    def signal_generator(self):
-        return self._signal_generator
-
-    @signal_generator.setter
-    def signal_generator(self, signal):
-        for measure in signal.measures:
-            self.measures[measure.name] = measure
-        self._signal_generator = signal
-
-    @property
     def trade_timing(self):
         '''
         Return the timing (open, close) for when trades occur.
@@ -77,6 +64,18 @@ class Strategy:
         actions are performed.
         '''
         return self.indexer.ind_timing
+
+    @property
+    def trades(self):
+        return self.positions.trades
+
+    @trades.setter
+    def trades(self, trades):
+        self.positions.update_from_trades(trades)
+
+    @property
+    def events(self):
+        return self.positions.events
 
     @property
     def prices(self):
@@ -115,24 +114,19 @@ class Strategy:
         '''
         self.signal = None
         self.positions = None
-        self.trades = None
-        self.events = None
         
     def generate_signals(self):
         self.signal = self.signal_generator(self)
 
     def apply_rules(self):
         self.positions = self.position_rules(self)
-        self.events = self.positions.create_events()
-        self.trades = self.positions.create_trades(self)
+        self.positions.trades = self.positions.create_trades(self)
 
     def apply_filters(self):
         if len(self.filters) == 0:
             return
         for filter in self.filters:
             self.trades = filter(self)
-        self.positions.update_from_trades(self.trades)
-        self.events = self.positions.create_events()
 
     def apply_filter(self, filter):
         '''
@@ -142,8 +136,6 @@ class Strategy:
         '''
         self.filters += [filter]
         self.trades = filter(self)
-        self.positions.update_from_trades(self.trades)
-        self.events = self.positions.create_events()
 
     def apply_exit_condition(self, condition):
         '''
@@ -151,8 +143,6 @@ class Strategy:
         passed to the Trade Collection to be applied to each trade.
         '''
         self.trades = self.trades.apply_exit_condition(condition)
-        self.positions.update_from_trades(self.trades)
-        self.events = self.positions.create_events()
 
     def get_empty_dataframe(self, fill_data = None):
         '''
@@ -168,7 +158,7 @@ class Strategy:
         '''
         signal_data = self.get_empty_dataframe()
         signal_data[:] = 1
-        return createTrades(signal_data, self)
+        return Position(signal_data).create_trades(self)
 
     @property
     def market_returns(self):
@@ -201,14 +191,6 @@ class Strategy:
         '''
         positions = self.positions.short_only()
         return positions.applied_to(self.market_returns)
-
-    # The below events methods are used in conjunction with Portfolio creation.
-    # TODO define_events should perhaps call on the strategy's signal to generate the events.
-    def define_events(self):
-        self.events = self.positions.create_events()
-
-    def get_events(self, date):
-        return self.events[date]
 
     # Reporting methods
     def plot_measures(self, ticker, start, end, ax):

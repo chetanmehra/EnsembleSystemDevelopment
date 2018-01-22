@@ -109,31 +109,37 @@ class Breakout(SignalElement):
         return Signal(ind_data, ['Up', 'Down'], breakout)
     
     def update_param(self, new_params):
-        self.breakout.update_param(max(new_params))
+        self.breakout.update_param(new_params)
 
 
-# TODO ValueWeightedEMA is not complete
-class ValueWeightedEMA(SignalElement):
 
-    def __init__(self, values, fast, slow):
-        self.values = values
+class MultiLevelMACD(SignalElement):
+    """
+    The MultiLevelMACD creates a defined set of levels above and below zero
+    based on the MACD level.
+    """
+    def __init__(self, fast, slow, levels):
+        """
+        ema_pars is a tuple of (fast, slow) parameters for the EMA calc.
+        levels is an integer which determines how many segments the 
+        signal is broken up into above and below zero.
+        """
         self.fast = fast
         self.slow = slow
+        self.levels = levels
 
     @property
     def name(self):
-        return ".".join([self.values.name, "Wtd", self.fast.name, self.slow.name])
+        return "{}.lvl-MACD_".format(self.levels) + ".".join(self.fast.name, self.slow.name)
+
+    def update_params(self, new_params):
+        self.fast.update_param(min(new_params))
+        self.slow.update_param(max(new_params))
 
     def execute(self, strategy):
-        prices = strategy.get_indicator_prices()
-        value_ratio = DataFrame(prices)
-        value_ratio[:] = None
-        for col in self.values:
-            value_ratio[col] = self.values[col]
-        value_ratio.fillna(method = 'ffill')
-        value_ratio = value_ratio / prices
-
-    def update_param(self, new_params):
-        pass
+        prices = strategy.indicator_prices
+        fast = self.fast(prices)
+        slow = self.slow(prices)
+        return Signal(fast - slow)
 
 

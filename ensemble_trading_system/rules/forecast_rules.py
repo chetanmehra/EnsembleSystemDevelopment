@@ -17,7 +17,7 @@ class CarterPositions(PositionRuleElement):
 
     def execute(self, strategy):
         forecasts = strategy.signal.at(strategy.trade_entry)
-        current_annual_volatility = self.volatility_method(strategy.get_indicator_prices())
+        current_annual_volatility = self.volatility_method(strategy.indicator_prices)
         volatility_scalar = self.target_vol / current_annual_volatility # This is the size we should hold for a forecast of 10
         positions = (forecasts.data * volatility_scalar) / 10
         if self.long_only:

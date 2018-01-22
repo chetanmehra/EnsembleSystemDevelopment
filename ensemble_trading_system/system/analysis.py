@@ -8,8 +8,6 @@ from multiprocessing import Pool
 from system.core import Portfolio
 from system.metrics import *
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop
-from measures.moving_averages import EMA
-from level_signals import Crossover
 
 
 # Path dependent trade results

@@ -31,9 +31,6 @@ class CarterForecast(SignalElement):
     """
     Interface for creating normalised forecasts.
     """
-    def get_result(self, strategy):
-        return None
-
     def normalise(self, forecast):
         """
         Normalises the forecast to be between -20/20 with absolute average of 10.
@@ -46,6 +43,7 @@ class CarterForecast(SignalElement):
         forecast[forecast > 20] = 20
         forecast[forecast < -20] = -20
         return forecast
+
 
 class CarterForecastFamily(CarterForecast):
     """
@@ -63,7 +61,6 @@ class CarterForecastFamily(CarterForecast):
         return Signal(mean_fcst, [-20, 20], forecasts)
 
 
-
 class EWMAC(CarterForecast):
     """
     Exponentially Weighted Moving Average Crossover.
@@ -78,7 +75,7 @@ class EWMAC(CarterForecast):
         self.name = 'EWMAC_{}x{}'.format(fast, slow)
 
     def execute(self, strategy):
-        prices = strategy.get_indicator_prices()
+        prices = strategy.indicator_prices
         slow = self.slow(prices)
         fast = self.fast(prices)
         vol = self.vol(prices)
@@ -98,7 +95,7 @@ class PriceCrossover(CarterForecast):
         self.name = "_".join([base.name, measure.name])
 
     def execute(self, strategy):
-        prices = strategy.get_indicator_prices()
+        prices = strategy.indicator_prices
         indicator = self.measure(prices)
         vol = self.vol(prices)
         forecast = self.normalise((self.base - indicator) / vol)

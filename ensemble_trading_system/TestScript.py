@@ -26,12 +26,12 @@ from data_types.trades import TradeCollection
 from system.core import Strategy, Portfolio
 from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
 
-from level_signals import Crossover, Breakout
 from measures.moving_averages import EMA, KAMA
 from measures.volatility import StdDevEMA
 from measures.breakout import TrailingHighLow
 from measures.valuations import ValueRatio, ValueRank
-from carter_forecasters import PriceCrossover, EWMAC, CarterForecastFamily
+from signals.level_signals import Crossover, Breakout
+from signals.carter_forecasters import PriceCrossover, EWMAC, CarterForecastFamily
 from rules.signal_rules import PositionFromDiscreteSignal
 from rules.forecast_rules import CarterPositions
 
@@ -41,7 +41,6 @@ from system.core import PositionCostThreshold, PositionMaxSize, PositionMinSize
 from system.analysis import summary_report, ParameterFuzzer
 
 
-# TODO Compare full valuation calculations (e.g. from statements) with simplified valuations (from CMC summary)
 # TODO Strategy should keep full list of trades after filter, to allow easy reapplication of filters without having to
 # run full strategy again.
 
@@ -56,9 +55,6 @@ from system.analysis import summary_report, ParameterFuzzer
 #   - 15% Stop loss
 #   - Apply 20% trailing stop when returns exceed 30%
 #   - Apply 10% trailing stop when returns exceed 50%
-
-# TODO Refactoring
-#   - Inherit strategy data element from dataframe
 
 
 pd.set_option('display.width', 120)
@@ -91,8 +87,8 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
     strategy.market = Market(store)
     signal_generators = []
     for valuation in valuations:
-        value_ratio = ValueRatio(strategy.market.get_valuations(valuation))
-        value_ratios = value_ratio(strategy.market.at(strategy.decision))
+        value_ratio = ValueRatio(valuation)
+        value_ratios = value_ratio(strategy)
         signal_generators.append(PriceCrossover(value_ratios, EMA(ema_pd), StdDevEMA(36)))
     strategy.signal_generator = CarterForecastFamily(*signal_generators)
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
@@ -101,15 +97,16 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
 print("Preparing strat...")
 strat = signalStratSetup('O', 'C')
 #strat = createBreakoutStrategy(window = 60)
-#adjusted = ValueRatio(strat.market.get_valuations('Adjusted'))(strat.indicator_prices)
-#base = ValueRatio(strat.market.get_valuations('Base'))(strat.indicator_prices)
-#cyclic = ValueRatio(strat.market.get_valuations('Cyclic'))(strat.indicator_prices)
+
+#adjusted = ValueRatio('Adjusted')(strat)
+#base = ValueRatio('Base')(strat)
+#cyclic = ValueRatio('Cyclic')(strat)
 #strat.filters.append(HighPassFilter(adjusted, 0.7))
 #strat.filters.append(HighPassFilter(cyclic, 0.0))
 
-print("Running base strat...")
-strat.run()
-print("Generated", strat.trades.count, "trades.")
+#print("Running base strat...")
+#strat.run()
+#print("Generated", strat.trades.count, "trades.")
 
 #print("Applying stops...")
 #strat.apply_exit_condition(StopLoss(0.15))
