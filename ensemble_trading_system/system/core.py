@@ -259,7 +259,7 @@ class Portfolio:
         self.share_holdings = self.strategy.get_empty_dataframe() # Number of shares
         self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
         self.positions = self.strategy.get_empty_dataframe() # Nominal positions
-        self.position_changes = PositionChanges(self.share_holdings.columns, starting_cash)
+        self.position_states = PositionState(self.share_holdings.columns, starting_cash)
         self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
         self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
@@ -271,7 +271,7 @@ class Portfolio:
         self.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
         self.conditions = [MinimimumPositionSize()]
         self.position_checks = [PositionNaCheck(), PositionCostThreshold(0.02)]
-
+        
         self.trades = None
         self.targets = strategy.positions.data.copy()
 
@@ -289,7 +289,7 @@ class Portfolio:
         self.share_holdings = self.strategy.get_empty_dataframe() # Number of shares
         self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
         self.positions = self.strategy.get_empty_dataframe(0) # Nominal positions
-        self.position_changes = PositionChanges(self.share_holdings.columns, starting_cash)
+        self.position_states = PositionState(self.share_holdings.columns, starting_cash)
         self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
         self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
@@ -317,13 +317,13 @@ class Portfolio:
             #    self.rebalancing_strategy(strategy_events)
             if not len(strategy_events):
                 continue
-            self.position_changes.update(self, date)
-            self.position_changes.apply(strategy_events)
-            self.position_changes.estimate_transactions()
-            self.process_exits(self.position_changes)
-            self.check_positions(self.position_changes)
-            self.select(self.position_changes)
-            self.apply(self.position_changes)
+            self.position_states.update(self, date)
+            self.position_states.apply(strategy_events)
+            self.position_states.estimate_transactions()
+            self.process_exits(self.position_states)
+            self.check_positions(self.position_states)
+            self.select(self.position_states)
+            self.apply(self.position_states)
             #progress.print(trading_days.get_loc(date))
 
         self.positions = self.positions.ffill()
@@ -369,7 +369,7 @@ class Portfolio:
 
     def apply(self, positions):
         date = positions.date
-        self.cash[date] -= positions.txns.total_cost
+        self.cash[date:] -= positions.txns.total_cost
         self.costs.loc[date:, "Commissions"] += positions.txns.total_commissions
         self.costs.loc[date:, "Slippage"] += positions.txns.total_slippage
         self.share_holdings.loc[date] = positions.current_shares
@@ -405,7 +405,7 @@ class Portfolio:
         Returns the current value of the portfolio
         Typically used while the portfolio is performing calculations.
         '''
-        return self.position_changes.current_dollars.sum() + self.position_changes.current_cash
+        return self.position_states.current_dollars.sum() + self.position_states.current_cash
 
     @property
     def value_ex_cost(self):
@@ -471,7 +471,7 @@ class Portfolio:
         return axarr
 
 
-class PositionChanges:
+class PositionState:
     
     def __init__(self, tickers, current_cash):
         self.current_cash = current_cash
@@ -480,6 +480,7 @@ class PositionChanges:
         self.target_size = Series(index = tickers, dtype = float)
         self.selected = Series(TradeSelected.NO, index = tickers)
         self.type = Series("-", index = tickers)
+        self.pending_events = [] # events which were not actioned (e.g. due to missing price data)
 
     def update(self, portfolio, date):
         # Get the prices from yesterday's indicator timing.
@@ -513,7 +514,13 @@ class PositionChanges:
         return self.selected == TradeSelected.YES
 
     def apply(self, events):
-        for event in events:
+        self.pending_events.extend(events)
+        all_events = self.pending_events
+        self.pending_events = []
+        for event in all_events:
+            if np.isnan(self.prices[event.ticker]):
+                self.pending_events.append(event)
+            else:
                 event.update(self)
 
     def apply_rebalancing(self, tickers = None):
