@@ -144,7 +144,6 @@ class EntryEvent(TradeEvent):
 
     def update(self, positions):
         positions.target_size[self.ticker] = self.size
-        positions.suggested_size[self.ticker] = self.size
         super().update(positions)
         
 
@@ -153,7 +152,6 @@ class ExitEvent(TradeEvent):
 
     def update(self, positions):
         positions.target_size[self.ticker] = 0
-        positions.suggested_size[self.ticker] = 0
         super().update(positions)
         
 
@@ -162,8 +160,10 @@ class AdjustmentEvent(TradeEvent):
 
     def update(self, positions):
         positions.target_size[self.ticker] += self.size
+        positions.type[self.ticker] = self.Label
         if positions.applied_size[self.ticker] != 0:
-            positions.suggested_size[self.ticker] = positions.target_size[self.ticker]
-            super().update(positions)
+            positions.selected[self.ticker] = TradeSelected.UNDECIDED
+        else:
+            positions.selected[self.ticker] = TradeSelected.NO
         
  

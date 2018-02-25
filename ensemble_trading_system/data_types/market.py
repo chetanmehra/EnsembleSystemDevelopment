@@ -105,20 +105,14 @@ class Market:
         fig.autofmt_xdate()
         return (fig, ax)
 
-    def get_valuations(self, type, date = None):
-        return self.get_fundamentals(self.store.get_valuations, type, date)
-
-    def get_value_metrics(self, type, date = None):
-        return self.get_fundamentals(self.store.get_valuemetrics, type, date)
-
-    def get_fundamentals(self, store_method, type, date = None):
-        values = store_method(date)
+    def get_valuations(self, type, sub_type, date = None):
+        values = self.store.get_valuations(type, date)
         try:
-            fundamentals_data = values.as_wide_values(type, index = self.index)
+            fundamentals_data = values.as_wide_values(sub_type, index = self.index)
         except TypeError as E:
             print(E)
         else:
-            return Fundamentals(fundamentals_data, type)
+            return Fundamentals(fundamentals_data, sub_type)
 
 
 class Prices(DataElement):

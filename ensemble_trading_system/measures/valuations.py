@@ -11,17 +11,22 @@ class ValueRatio(SignalElement):
     of zero indicates fair value, negative values is overvalued, and positive are
     overvalued.
     """
-    def __init__(self, valuation_type):
+    def __init__(self, valuation_type, sub_type, price_denominator = True):
         self.valuation_type = valuation_type
+        self.sub_type = sub_type
+        self.price_denominator = price_denominator
 
     @property
     def name(self):
-        return self.valuation_type + "_ratio"
+        return "_".join([self.valuation_type, self.sub_type, "ratio"])
 
     def __call__(self, strategy):
-        values = strategy.market.get_valuations(self.valuation_type)
+        values = strategy.market.get_valuations(self.valuation_type, self.sub_type)
         prices = strategy.indicator_prices
-        ratios = values.data / prices.data - 1
+        if self.price_denominator:
+            ratios = values.data / prices.data - 1
+        else:
+            ratios = prices.data / values.data
         ratios.name = self.name
         return ratios
 
@@ -32,12 +37,9 @@ class ValueRank(ValueRatio):
     based on the valuations provided and the price at the given day.
     """
 
-    def __init__(self, values):
-        self.values = values
-
     @property
     def name(self):
-        return self.valuation_type + "_rank"
+        return "_".join([self.valuation_type, self.sub_type, "rank"])
 
     def __call__(self, strategy):
         ratios = super().__call__(strategy)

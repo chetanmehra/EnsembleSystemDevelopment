@@ -26,7 +26,7 @@ from data_types.trades import TradeCollection
 from system.core import Strategy, Portfolio
 from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
 
-from measures.moving_averages import EMA, KAMA
+from measures.moving_averages import EMA, KAMA, LinearTrend
 from measures.volatility import StdDevEMA
 from measures.breakout import TrailingHighLow
 from measures.valuations import ValueRatio, ValueRank
@@ -61,7 +61,7 @@ pd.set_option('display.width', 120)
 
 store = Storage("NYSE")
 
-def signalStratSetup(trade_timing = "C", ind_timing = "O", params = (120, 50), store = store):
+def signalStratSetup(trade_timing = "O", ind_timing = "C", params = (120, 50), store = store):
     strategy = Strategy(trade_timing, ind_timing)
     strategy.market = Market(store)
     strategy.signal_generator = Crossover(slow = EMA(params[0]), fast = EMA(params[1]))
@@ -87,20 +87,20 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
     strategy.market = Market(store)
     signal_generators = []
     for valuation in valuations:
-        value_ratio = ValueRatio(valuation)
+        value_ratio = ValueRatio("EPV", valuation)
         value_ratios = value_ratio(strategy)
         signal_generators.append(PriceCrossover(value_ratios, EMA(ema_pd), StdDevEMA(36)))
     strategy.signal_generator = CarterForecastFamily(*signal_generators)
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
-print("Preparing strat...")
-strat = signalStratSetup('O', 'C')
-#strat = createBreakoutStrategy(window = 60)
+#print("Preparing strat...")
+#strat = signalStratSetup('O', 'C')
+##strat = createBreakoutStrategy(window = 60)
 
-#adjusted = ValueRatio('Adjusted')(strat)
-#base = ValueRatio('Base')(strat)
-#cyclic = ValueRatio('Cyclic')(strat)
+#adjusted = ValueRatio('EPV', 'Adjusted')(strat)
+#base = ValueRatio('EPV', 'Base')(strat)
+#cyclic = ValueRatio('EPV', 'Cyclic')(strat)
 #strat.filters.append(HighPassFilter(adjusted, 0.7))
 #strat.filters.append(HighPassFilter(cyclic, 0.0))
 
@@ -122,15 +122,19 @@ strat = signalStratSetup('O', 'C')
 ###strat.run()
 ###strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
 
-#print("Preparing portfolio...")
-#port = Portfolio(strat, 15000)
-#port.position_checks.append(PositionCostThreshold(0.02))
+print("Loading strat...")
+with open(r'D:\Investing\Workspace\test_strat.pkl', 'rb') as file:
+    strat = pickle.load(file)
+
+print("Preparing portfolio...")
+port = Portfolio(strat, 15000)
+port.position_checks.append(PositionCostThreshold(0.02))
 #vol_method = StdDevEMA(40)
 #volatilities = vol_method(strat.indicator_prices.at(strat.trade_entry))
 #port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
+print("Running portfolio...")
+port.run()
+print("Done...")
 
-#print("Running portfolio...")
-#port.run()
-#print("Done...")
 
 print("Ready...")

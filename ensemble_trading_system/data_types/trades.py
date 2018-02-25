@@ -1,6 +1,6 @@
 
 from pandas import Series, DataFrame, qcut, cut, concat
-from numpy import sign, log, exp, hstack
+from numpy import sign, log, exp, hstack, NaN
 from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
@@ -36,21 +36,24 @@ class TradeCollection:
 
     def as_dataframe_with(self, *args):
         '''
-        requires that values is a FilterValues object.
+        requires that args are a DataElement or a 
+        dataframe with dates on index and columns of tickers.
         '''
         df = self.as_dataframe()
-        for filter in args:
-            self.add_filter_to_df(df, filter)
+        for arg in args:
+            self.add_to_df(df, arg)
         return df
 
-    def add_filter_to_df(self, df, filter):
-        cols = filter.types
-        for col in cols:
-            df[col] = None
-        if len(cols) == 1:
-            cols = cols[0]
+    def add_to_df(self, df, data_element):
+        df[data_element.name] = NaN
         for i in df.index:
-            df.loc[i, cols] = filter.get_for_df(df, i)
+            ticker = df.loc[i].ticker
+            entry = df.loc[i].entry
+            try:
+                df.loc[i, data_element.name] = data_element.loc[entry, ticker]
+            except KeyError:
+                # Leave this entry blank.
+                pass
         return df
 
     @property

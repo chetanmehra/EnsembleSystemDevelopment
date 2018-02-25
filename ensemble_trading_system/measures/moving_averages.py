@@ -32,7 +32,7 @@ class KAMA(SignalElement):
 
     @property
     def name(self):
-        return 'KAMA.{}.{}.{}'.format(period, fast, slow)
+        return 'KAMA.{}.{}.{}'.format(self.period, self.fast, self.slow)
 
     def __call__(self, prices):
         fastest = 2 / (self.fast + 1.0)
@@ -73,7 +73,7 @@ class LinearTrend(SignalElement):
         self.SSE_X = (self.X_diff ** 2).sum()
 
     def __call__(self, prices):
-        return prices.rolling(self.period).apply(self.trend)
+        return prices.ffill().rolling(self.period).apply(self.trend)
 
     def trend(self, Y):
         '''

@@ -19,7 +19,7 @@ class HighPassFilter(FilterInterface):
         '''
         Returns True if the value is above the threshold at the trade entry, else False.
         '''
-        value = self.values.loc[trade.entry, trade.ticker]
+        value = self.get(trade.entry, trade.ticker)
         if value is None:
             return False
         else:
@@ -47,7 +47,7 @@ class LowPassFilter(FilterInterface):
         '''
         Returns True if the value is above the threshold at the trade entry, else False.
         '''
-        value = self.values.loc[trade.entry, trade.ticker]
+        value = self.get(trade.entry, trade.ticker)
         if value is None:
             return False
         else:
@@ -80,7 +80,7 @@ class BandPassFilter(FilterInterface):
         '''
         Returns True if the value is within the threshold at the trade entry, else False.
         '''
-        value = self.values.loc[trade.entry, trade.ticker]
+        value = self.get(trade.entry, trade.ticker)
         if value is None:
             return False
         else:

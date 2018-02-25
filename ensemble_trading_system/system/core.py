@@ -256,9 +256,10 @@ class Portfolio:
     '''
     def __init__(self, strategy, starting_cash):
         self.strategy = strategy
-        self.share_holdings = self.strategy.get_empty_dataframe(0) # Number of shares
+        self.share_holdings = self.strategy.get_empty_dataframe() # Number of shares
         self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
-        self.positions = self.strategy.get_empty_dataframe(0) # Nominal positions
+        self.positions = self.strategy.get_empty_dataframe() # Nominal positions
+        self.position_changes = PositionChanges(self.share_holdings.columns, starting_cash)
         self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
         self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
@@ -273,7 +274,6 @@ class Portfolio:
 
         self.trades = None
         self.targets = strategy.positions.data.copy()
-        self.running = False
 
     def copy(self):
         port_copy = Portfolio(self.strategy, self.starting_capital)
@@ -286,9 +286,10 @@ class Portfolio:
         reset - Sets the Portfolio back to its starting condition ready to be run again.
         '''
         starting_cash = self.starting_capital
-        self.share_holdings = self.strategy.get_empty_dataframe(0) # Number of shares
+        self.share_holdings = self.strategy.get_empty_dataframe() # Number of shares
         self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
         self.positions = self.strategy.get_empty_dataframe(0) # Nominal positions
+        self.position_changes = PositionChanges(self.share_holdings.columns, starting_cash)
         self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
         self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
@@ -298,55 +299,45 @@ class Portfolio:
         self.reset()
         self.summary["Cash"] = starting_cash
 
-
     def run(self, position_switching = False):
         '''
         This approach gets the series of events from the strategy, and the portfolio can 
         also add its own events (e.g. rebalancing). Portfolio events are always applied 
         after the Strategy events (i.e. can be used to overrule Strategy events).
         The events are turned into Transactions for execution.
-        If position_switching is True then the portfolio will aim to always be fully
-        allocated by moving available funds into available open trades in the strategy
-        entering new positions if required. 
-        If this is False (default) then new positions are entered only when the 
-        strategy triggers an entry event.
         '''
-        self.running = True
         trading_days = self.share_holdings.index
         trade_prices = self.strategy.trade_prices
         #progress = ProgressBar(total = len(trading_days))
+
         for date in trading_days:
             strategy_events = self.strategy.events[date]
-            # TODO doesn't the below mean that rebalancing won't work?
+            # TODO rebalancing strategy needs to add events to the queue.
+            #if date in self.rebalancing_strategy.rebalance_dates:
+            #    self.rebalancing_strategy(strategy_events)
             if not len(strategy_events):
                 continue
-            positions = PositionChanges(self, date)
-            # TODO below should be positions.apply(strategy_events)
-            for event in strategy_events:
-                event.update(positions)
-            self.rebalancing_strategy(date, positions)
-            positions.estimate_transactions()
-            self.process_exits(positions)
-            if position_switching:
-                # Check available funds and request the top ranked positions
-                # from the strategy.
-                pass
-            self.check_positions(positions)
-            self.select(positions)
-            transactions = Transactions(positions.num_shares, trade_prices.loc[date], date)
-            self.apply(transactions)
+            self.position_changes.update(self, date)
+            self.position_changes.apply(strategy_events)
+            self.position_changes.estimate_transactions()
+            self.process_exits(self.position_changes)
+            self.check_positions(self.position_changes)
+            self.select(self.position_changes)
+            self.apply(self.position_changes)
             #progress.print(trading_days.get_loc(date))
+
+        self.positions = self.positions.ffill()
+        self.share_holdings = self.share_holdings.ffill()
         self.dollar_holdings = trade_prices.data * self.share_holdings
-        self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
+        self.dollar_holdings = self.dollar_holdings.ffill()
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
         self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
         self.trades = Position(self.positions).create_trades(self.strategy)
-        self.running = False
-    
+
     def process_exits(self, positions):
         positions.select_exits()
-        self.positions.loc[positions.date:, positions.exit_mask] = 0
+        self.positions.loc[positions.date, positions.exit_mask] = 0
   
     def check_positions(self, positions):
         for check in self.position_checks:
@@ -356,7 +347,7 @@ class Portfolio:
     def select(self, positions):
         # First apply all the trades which will reduce positions (i.e. increase cash)
         undecided_sells = ((positions.undecided_mask) &
-                            (positions.suggested_size < positions.applied_size))
+                            (positions.target_size < positions.applied_size))
         positions.select(undecided_sells)
         # Select buys which will cost the least slippage + commissions as long
         # as there is cash available.
@@ -366,57 +357,23 @@ class Portfolio:
             if not any(undecided):
                 break
             lowest_cost = perct_cost[undecided].idxmin()
-            if positions.trade_size[lowest_cost] >= (self.cash[positions.date] - positions.total_cost()):
+            if positions.trade_size[lowest_cost] >= (positions.available_cash()):
                 positions.deselect(lowest_cost)
             else:
                 positions.select(lowest_cost)
-                self.positions.loc[positions.date:, lowest_cost] = positions.suggested_size[lowest_cost] 
+                self.positions.loc[positions.date, lowest_cost] = positions.target_size[lowest_cost] 
+        positions.finalise()
     
     def dollar_ratio(self, date):
         return self.sizing_strategy(self, date)
 
-    def apply(self, transactions):
-        date = transactions.date
-        self.cash[date:] -= transactions.total_cost
-        self.costs.loc[date:, "Commissions"] += transactions.total_commissions
-        self.costs.loc[date:, "Slippage"] += transactions.total_slippage
-        self.share_holdings[date:] += transactions.num_shares
-
-    def run_trades(self):
-        """
-        Given a TradeCollection from a Strategy, determine the selected trades
-        and resulting portfolio positions.
-        """
-        self.running = True
-        trade_df = self.strategy.trades.as_dataframe().sort_values(by = 'entry')
-        executed_trades = []
-        for i in range(len(trade_df)): # Note index is unordered due to sort so need to create new index range for loop.
-            trade = trade_df.iloc[i]
-            trade_num = trade_df.index[i]
-            if all(self.conditions_met_for(trade)):
-                executed_trades.append(self.strategy.trades[trade_num])
-                num_shares = Series(0, self.strategy.market.tickers)
-                num_shares[trade.ticker] = int(min(self.cash[trade.entry], max(self.trade_size)) / trade.entry_price)
-                trade_prices = self.strategy.trade_prices.loc[trade.entry]
-                entry_txns = Transactions(num_shares, trade_prices, trade.entry)
-                self.apply(entry_txns)
-                trade_prices = self.strategy.trade_prices.loc[trade.exit]
-                exit_txns = Transactions(-1 * num_shares, trade_prices, trade.exit)
-                self.apply(exit_txns)
-        self.trades = TradeCollection(executed_trades)
-        self.dollar_holdings = self.share_holdings * self.strategy.trade_prices.data
-        self.dollar_holdings = self.dollar_holdings.fillna(method = 'ffill')
-        self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
-        self.summary["Total"] = self.cash + self.holdings_total
-        self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
-        self.running = False
-
-    def conditions_met_for(self, trade):
-        '''
-        Returns a list of boolean values, one for each condition check specified for the portfolio.
-        '''
-        return [condition(self, trade) for condition in self.conditions]
-
+    def apply(self, positions):
+        date = positions.date
+        self.cash[date] -= positions.txns.total_cost
+        self.costs.loc[date:, "Commissions"] += positions.txns.total_commissions
+        self.costs.loc[date:, "Slippage"] += positions.txns.total_slippage
+        self.share_holdings.loc[date] = positions.current_shares
+        
     @property
     def starting_capital(self):
         return self.cash.iloc[0]
@@ -433,22 +390,22 @@ class Portfolio:
         '''
         Returns the series of dollar value of all holdings (excluding cash).
         '''
-        if self.running:
-            prices = self.strategy.indicator_prices.shift(1)
-            prices.iloc[0] = 0
-            return (self.share_holdings * prices.data).sum(axis = 'columns')
-        else:
-            return self.summary["Holdings"]
+        return self.summary["Holdings"]
 
     @property
     def value(self):
         '''
         Returns the series of total dollar value of the portfolio
         '''
-        if self.running:
-            return self.holdings_total + self.cash
-        else:
-            return self.summary["Total"]
+        return self.summary["Total"]
+
+    @property
+    def current_value(self):
+        '''
+        Returns the current value of the portfolio
+        Typically used while the portfolio is performing calculations.
+        '''
+        return self.position_changes.current_dollars.sum() + self.position_changes.current_cash
 
     @property
     def value_ex_cost(self):
@@ -516,22 +473,32 @@ class Portfolio:
 
 class PositionChanges:
     
-    def __init__(self, portfolio, date):
-        self.current_shares = portfolio.share_holdings.loc[date] # assumes position updates are carried forward.
+    def __init__(self, tickers, current_cash):
+        self.current_cash = current_cash
+        self.current_shares = Series(0, index = tickers)
+        self.applied_size = Series(0, index = tickers)
+        self.target_size = Series(index = tickers, dtype = float)
+        self.selected = Series(TradeSelected.NO, index = tickers)
+        self.type = Series("-", index = tickers)
+
+    def update(self, portfolio, date):
         # Get the prices from yesterday's indicator timing.
         self.prices = portfolio.strategy.indicator_prices.at(portfolio.strategy.trade_entry).loc[date]
         self.current_dollars = self.current_shares * self.prices
         self.dollar_ratio = portfolio.dollar_ratio(date)
         self.current_nominal = self.current_dollars / self.dollar_ratio
-        # applied_size represents the nominal size that the portfolio has moved towards
-        # this may be different from the target_size if, for example, an adjustment or entry wasn't 
-        # acted upon.
-        self.applied_size = portfolio.positions.loc[date] # assumes position updates are carried forward.
-        self.target_size = portfolio.targets.shift(1).loc[date] # yesterday's strategy position size
-        self.suggested_size = Series(index = self.current_shares.index)
+        self.target_size = Series(index = self.current_shares.index)
         self.selected = Series(TradeSelected.NO, index = self.current_shares.index)
         self.type = Series("-", index = self.current_shares.index)
         self.date = date
+
+    def finalise(self):
+        self.current_shares += self.txns.num_shares
+        self.current_cash -= self.txns.total_cost
+        # applied_size represents the nominal size that the portfolio has moved towards
+        # this may be different from the target_size if, for example, an adjustment or entry wasn't 
+        # acted upon.
+        self.applied_size[self.selected_mask] = self.target_size[self.selected_mask]
 
     @property
     def exit_mask(self):
@@ -545,21 +512,35 @@ class PositionChanges:
     def selected_mask(self):
         return self.selected == TradeSelected.YES
 
+    def apply(self, events):
+        for event in events:
+                event.update(self)
+
     def apply_rebalancing(self, tickers = None):
         if tickers is None:
             # All tickers which have not been touched by an event are rebalanced.
-            tickers = np.isnan(self.suggested_size)
-        self.suggested_size[tickers] = self.applied_size[tickers]
+            tickers = np.isnan(self.target_size)
+        self.target_size[tickers] = self.applied_size[tickers]
+        #TODO below should use a RebalanceEvent.Label not string.
         self.type[tickers] = "rebalance"
 
     def estimate_transactions(self):
-        num_shares = (self.dollar_ratio * self.suggested_size / self.prices)
+        num_shares = (self.dollar_ratio * self.target_size / self.prices)
         num_shares -= self.current_shares
         num_shares[np.isnan(num_shares)] = 0
-        txns = Transactions(num_shares.astype(int), self.prices, self.date)
-        self.cost = txns.slippage + txns.commissions
-        self.trade_size = txns.dollar_positions
-        self.num_shares = txns.num_shares
+        self.txns = Transactions(num_shares.astype(int), self.prices, self.date)
+
+    @property
+    def cost(self):
+        return self.txns.slippage + self.txns.commissions
+
+    @property
+    def trade_size(self):
+        return self.txns.dollar_positions
+
+    @property
+    def num_shares(self):
+        return self.txns.num_shares
 
     def select(self, tickers):
         self.selected[tickers] = TradeSelected.YES
@@ -573,12 +554,18 @@ class PositionChanges:
     def select_exits(self):
         self.select(self.exit_mask)
 
+    def available_cash(self):
+        return self.current_cash - self.total_cost()
+
     def total_cost(self):
         return self.trade_size[self.selected_mask].sum() + self.cost[self.selected_mask].sum()
-        
+
 
 # REBALANCING STRATEGIES
 class NoRebalancing:
+
+    def __init__(self):
+        self.rebalancing_dates = []
 
     def __call__(self, positions, date):
         pass
@@ -611,7 +598,7 @@ class FixedNumberOfPositionsSizing:
         self.target_positions = target_positions
 
     def __call__(self, portfolio, date):
-        nominal_dollar_position_size = portfolio.value[date] / self.target_positions
+        nominal_dollar_position_size = portfolio.current_value / self.target_positions
         return nominal_dollar_position_size
 
     def update_target_positions(self, target_positions):

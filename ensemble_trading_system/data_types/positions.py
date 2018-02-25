@@ -36,10 +36,10 @@ class Position(DataElement):
             # scenes.
             # Although less elegant, this approach reduced the calculation time 
             # significantly.
-            ticker_entries = strategy.events.related_entries(ticker)
-            ticker_exits = strategy.events.related_exits(ticker)
+            ticker_entries = self.events.related_entries(ticker)
+            ticker_exits = self.events.related_exits(ticker)
             for entry in ticker_entries:
-                exit = strategy.events.next_exit(entry, ticker_exits)
+                exit = self.events.next_exit(entry, ticker_exits)
                 trades.append(Trade(entry.ticker, entry.date, exit.date, 
                                     prices[entry.ticker], self.data[entry.ticker]))
         return TradeCollection(trades)

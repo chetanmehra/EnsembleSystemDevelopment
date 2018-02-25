@@ -83,14 +83,17 @@ class DataElement:
     def copy(self):
         return deepcopy(self)
 
-    def diff(self):
-        return self.data.diff()
+    def diff(self, *args, **kwargs):
+        return self.data.diff(*args, **kwargs)
 
     def ewm(self, *args, **kwargs):
         return self.data.ewm(*args, **kwargs)
 
     def rolling(self, *args, **kwargs):
         return self.data.rolling(*args, **kwargs)
+
+    def ffill(self, *args, **kwargs):
+        return self.data.ffill(*args, **kwargs)
 
 
 class IndexerFactory:
@@ -179,10 +182,6 @@ class SignalElement(StrategyElement):
     def calculation_timing(self):
         return ["decision"]
 
-    @property
-    def name(self):
-        return self.typename + "{}".format(self.period)
-
     
 class PositionRuleElement(StrategyElement):
 
@@ -195,6 +194,13 @@ class FilterInterface:
 
     def __call__(self, strategy):
         return strategy.trades.find(self.accepted_trade)
+
+    def get(self, date, ticker):
+        try:
+            value = self.values.loc[date, ticker]
+        except KeyError:
+            value = None
+        return value
 
     def accepted_trade(self, trade):
         '''

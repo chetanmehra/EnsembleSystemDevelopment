@@ -18,8 +18,8 @@ class EfficiencyRatio(SignalElement):
         self.name = "EfficiencyRatio{}".format(period)
 
     def __call__(self, prices):
-        overall_change = prices.diff(period).abs()
-        daily_sum = prices.diff().abs().rolling(window = period, center = False).sum()
+        overall_change = prices.diff(self.period).abs()
+        daily_sum = prices.diff().abs().rolling(window = self.period, center = False).sum()
         return overall_change / daily_sum
 
 
