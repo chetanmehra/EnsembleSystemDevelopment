@@ -17,7 +17,7 @@ import sys
 sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\FinancialDataHandling\\financial_data_handling"))
 
 from system.interfaces import DataElement
-from data_types.positions import AverageReturns
+from data_types.returns import AverageReturns
 
 class Market:
     '''

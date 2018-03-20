@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 
 
 from system.metrics import Drawdowns
-
+from data_types.returns import Returns
+from data_types.constants import TRADING_DAYS_PER_YEAR
 
 # TODO Apply exit condition and apply entry condition are effectively the same.
 
@@ -106,7 +107,7 @@ class TradeCollection:
     @property
     def Sharpe_annual(self):
         returns = self.daily_returns
-        return (250 ** 0.5) * (returns.mean() / returns.std())
+        return (TRADING_DAYS_PER_YEAR ** 0.5) * (returns.mean() / returns.std())
 
     @property
     def Sharpe_annual_slippage(self):
@@ -114,7 +115,7 @@ class TradeCollection:
         total_slippage = self.count * self.slippage
         slippage_per_day = total_slippage / len(returns)
         returns = returns - slippage_per_day
-        return (250 ** 0.5) * (returns.mean() / returns.std())
+        return (TRADING_DAYS_PER_YEAR ** 0.5) * (returns.mean() / returns.std())
 
     @property
     def G(self):
@@ -178,7 +179,7 @@ class TradeCollection:
         '''
         df = DataFrame(None, index = range(self.count), columns = range(self.max_duration), dtype = float)
         for i, trade in enumerate(self.trades):
-            df.loc[i] = trade.normalised
+            df.loc[i] = trade.cumulative
         if not cumulative:
             df = ((df + 1).T / (df + 1).T.shift(1)).T - 1
         if compacted and df.shape[1] > 10:
@@ -236,7 +237,7 @@ class TradeCollection:
 
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
-            trade.plot_normalised()
+            trade.plot_cumulative()
 
     def hist(self, **kwargs):
         # First remove NaNs
@@ -272,7 +273,6 @@ class TradeCollection:
         plt.ylim(y_range)
 
 
-# TODO Trade should probably use a Returns object, rather than calculate it's own.
 # TODO Instead of Trade holding prices, consider retaining a reference to the Market
 class Trade:
 
@@ -286,14 +286,17 @@ class Trade:
         self.prices = prices[self.entry:self.exit]
         daily_returns = Series(self.prices / self.prices.shift(1)) - 1
         daily_returns[0] = (self.prices[0] / self.entry_price) - 1
+        self.base_returns = Returns(daily_returns)
         # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
         if isinstance(position_size, int) or isinstance(position_size, float):
-            self.daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size) - 1
+            daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size) - 1
+            self.weighted_returns = Returns(daily_returns)
         else:
-            position_size = position_size[self.entry:self.exit]
-            self.daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size[0]) - 1
-        self.normalised = Series((exp(log(1 + self.daily_returns).cumsum()) - 1).values)
-        self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration"]
+            position_size = position_size.shift(1)[self.entry:self.exit]
+            daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size[1]) - 1
+            self.weighted_returns = Returns(daily_returns)
+        self.cumulative = Series(self.weighted_returns.cumulative().values)
+        self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration", "annualised_return", "normalised_return"]
 
     def __str__(self):
         first_line = '{0:^23}\n'.format(self.ticker)
@@ -307,12 +310,12 @@ class Trade:
         #    price = prices[prices.index >= date].dropna()[0]
         return price
 
-    def plot_normalised(self):
+    def plot_cumulative(self):
         f, axarr = plt.subplots(2, 1, sharex = True)
         axarr[0].set_ylabel('Return')
         axarr[1].set_ylabel('Drawdown')
         axarr[1].set_xlabel('Days in trade')
-        self.normalised.plot(ax = axarr[0])
+        self.cumulative.plot(ax = axarr[0])
         dd = self.drawdowns()
         dd.Highwater.plot(ax = axarr[0], color = 'red')
         dd.Drawdown.plot(ax = axarr[1])
@@ -325,27 +328,39 @@ class Trade:
         """
         Duration is measured by days-in-market not calendar days
         """
-        return len(self.normalised)
+        return len(self.cumulative)
 
     @property
     def base_return(self):
-        return self.normalised.iloc[-1]
+        return self.cumulative.iloc[-1]
 
     @property
     def annualised_return(self):
-        return (sum(self.normalised.apply(log))) ** (260 / self.duration) - 1
+        return (1 + self.base_return) ** (TRADING_DAYS_PER_YEAR / self.duration) - 1
+
+    @property
+    def normalised_return(self):
+        return self.annualised_return / self.base_returns.volatility()
 
     @property
     def MAE(self):
-        return min(self.normalised)
+        # Maximum adverse excursion
+        return min(self.cumulative)
 
     @property
     def MFE(self):
-        return max(self.normalised)
+        # Maximum favourable excursion
+        return max(self.cumulative)
+
+    @property
+    def ETD(self):
+        # End trade drawdown
+        return (1 + self.base_return) / (1 + self.MFE) - 1
 
     def drawdowns(self):
-        return Drawdowns(self.normalised)
+        return self.weighted_returns.drawdowns()
 
+    # Trade modifiers
     def apply_exit_condition(self, condition):
         '''
         apply_exit_condition takes a condition, which is a callable object.
@@ -366,9 +381,10 @@ class Trade:
         start on the new (later) entry day.
         '''
         if self.duration > entry_day:
-            self.entry = self.daily_returns.index[entry_day]
-            self.daily_returns = self.daily_returns[self.entry:]
-            self.normalised = Series((self.normalised[entry_day:] - self.normalised[entry_day]).values)
+            self.entry = self.base_returns.index[entry_day]
+            self.base_returns = self.base_returns[self.entry:]
+            self.weighted_returns = self.weighted_returns[self.entry:]
+            self.cumulative = Series((self.cumulative[entry_day:] - self.cumulative[entry_day]).values)
             return self
         else:
             return None
@@ -379,10 +395,11 @@ class Trade:
         end on the new exit day.
         '''
         if exit_day > 0:
-            self.exit = self.daily_returns.index[exit_day]
+            self.exit = self.base_returns.index[exit_day]
             self.exit_price = self.prices[self.exit]
-            self.daily_returns = self.daily_returns[:self.exit]
-            self.normalised = self.normalised[:(exit_day + 1)]
+            self.base_returns = self.base_returns[:self.exit]
+            self.weighted_returns = self.weighted_returns[:self.exit]
+            self.cumulative = self.cumulative[:(exit_day + 1)]
             return self
         else:
             return None

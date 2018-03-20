@@ -94,8 +94,8 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
     strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
-#print("Preparing strat...")
-#strat = signalStratSetup('O', 'C')
+print("Preparing strat...")
+strat = signalStratSetup('O', 'C')
 ##strat = createBreakoutStrategy(window = 60)
 
 #adjusted = ValueRatio('EPV', 'Adjusted')(strat)
@@ -104,17 +104,17 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
 #strat.filters.append(HighPassFilter(adjusted, 0.7))
 #strat.filters.append(HighPassFilter(cyclic, 0.0))
 
-#print("Running base strat...")
-#strat.run()
-#print("Generated", strat.trades.count, "trades.")
+print("Running base strat...")
+strat.run()
+print("Generated", strat.trades.count, "trades.")
 
 #print("Applying stops...")
 #strat.apply_exit_condition(StopLoss(0.15))
 #strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
 #strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 
-###with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
-###strat = pickle.load(file)
+#with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
+#    strat = pickle.load(file)
 
 ###print("Creating ewmac strat...")
 ###strat = createEwmacStrategy(store)
@@ -122,18 +122,18 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
 ###strat.run()
 ###strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
 
-print("Loading strat...")
-with open(r'D:\Investing\Workspace\test_strat.pkl', 'rb') as file:
-    strat = pickle.load(file)
+#print("Loading strat...")
+#with open(r'D:\Investing\Workspace\test_strat.pkl', 'rb') as file:
+#    strat = pickle.load(file)
 
-print("Preparing portfolio...")
-port = Portfolio(strat, 15000)
-port.position_checks.append(PositionCostThreshold(0.02))
-#vol_method = StdDevEMA(40)
-#volatilities = vol_method(strat.indicator_prices.at(strat.trade_entry))
-#port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
-print("Running portfolio...")
-port.run()
-print("Done...")
+#print("Preparing portfolio...")
+#port = Portfolio(strat, 15000)
+#port.position_checks.append(PositionCostThreshold(0.02))
+##vol_method = StdDevEMA(40)
+##volatilities = vol_method(strat.indicator_prices.at(strat.trade_entry))
+##port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
+#print("Running portfolio...")
+#port.run()
+#print("Done...")
 
 print("Ready...")

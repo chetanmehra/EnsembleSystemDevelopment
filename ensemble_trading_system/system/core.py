@@ -10,7 +10,8 @@ from pandas import DateOffset, Panel, DataFrame, Series
 
 from system.interfaces import IndexerFactory
 from data_types.trades import TradeCollection
-from data_types.positions import Position, Returns
+from data_types.positions import Position
+from data_types.returns import Returns
 from data_types.constants import TradeSelected
 from data_types.events import EventCollection, ExitEvent
 from measures.volatility import StdDevEMA

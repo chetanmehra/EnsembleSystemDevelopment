@@ -11,7 +11,7 @@ class TradeSelected(Enum):
     YES = 1
     NO = -1
 
-
+TRADING_DAYS_PER_YEAR = 260
 
 ASX20 = ["AMP", "ANZ", "BHP", "BXB", "CBA", "CSL", "IAG", "MQG", "NAB", "ORG", "QBE", 
          "RIO", "SCG", "SUN", "TLS", "WBC", "WES", "WFD", "WOW", "WPL"]

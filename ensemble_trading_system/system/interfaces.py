@@ -72,6 +72,9 @@ class DataElement:
     def __getitem__(self, key):
         return self.data[key]
 
+    def head(self, *args, **kwargs):
+        return self.data.head(*args, **kwargs)
+
     @property
     def loc(self):
         return self.data.loc
