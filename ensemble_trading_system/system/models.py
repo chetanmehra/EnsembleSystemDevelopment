@@ -8,64 +8,129 @@ from sklearn.metrics import classification_report, confusion_matrix
 
 from measures.valuations import ValueRatio
 
+def build_data_table(strat, 
+                     epv = ['Adjusted', 'Cyclic', 'Base'], 
+                     metrics = ['ROIC (%)', 'Growth mult.', 'Dilution (%)']):
+
+    filter_names = epv[:]
+    filter_names.extend(metrics)
+
+    print('Loading filter data', end='')
+    filters = []
+    for filt in filter_names:
+        if filt in epv:
+            filters.append(ValueRatio('EPV', filt)(strat))
+        elif filt in metrics:
+            filters.append(strat.market.get_valuations('Metrics', filt))
+        print('.', end = '')
+
+    print('\nBuilding data table', end = '')
+    trade_df = strat.trades.as_dataframe(); print('.', end='')
+    filter_names = []
+    for filter in filters:
+        trade_df = strat.trades.add_to_df(trade_df, filter)
+        filter_names.append(filter.name)
+        print('.', end='')
+    print('')
+
+    print('\nCleaning data')
+    # Drop any rows with NA values.
+    len_before = len(trade_df)
+    print('- starting rows: {}'.format(len_before))
+    trade_df = trade_df.dropna()
+    print('- dropped {} NA rows'.format(len_before - len(trade_df)))
+    # Drop rows where filter values are > 2 std devs from mean.
+    len_before = len(trade_df)
+    for filter_col in filter_names:
+        filter_col = trade_df[filter_col]
+        filt_mean = filter_col.mean()
+        filt_sd = filter_col.std()
+        lower_bnd = (filt_mean - 2 * filt_sd)
+        upper_bnd = (filt_mean + 2 * filt_sd)
+        trade_df = trade_df[(filter_col > lower_bnd) & (filter_col < upper_bnd)]
+    print('- dropped {} Outlier rows'.format(len_before - len(trade_df)))
+    
+    trade_df.filter_names = filter_names
+    return trade_df
+
+
+def prepare_x_y_data(trade_df, filter_names, model_metric, metric_threshold):
+    x_table = trade_df[filter_names]
+    y_data = trade_df[model_metric].copy()
+    y_data.loc[y_data > metric_threshold] = 1
+    y_data.loc[y_data <= metric_threshold] = 0
+    return (x_table.values, y_data.values)
+
+
 def build_model_data(strat, 
                      epv = ['Adjusted', 'Cyclic', 'Base'], 
                      metrics = ['ROIC (%)', 'Growth mult.', 'Dilution (%)'], 
                      model_metric = 'normalised_return', 
                      metric_threshold = 0.15):
     
-    filter_names = epv[:]
-    filter_names.extend(metrics)
-
-    print('Loading filter data', end='')
-    filters = {}
-    for filt in filter_names:
-        if filt in epv:
-            filters[filt] = ValueRatio('EPV', filt)(strat)
-        elif filt in metrics:
-            filters[filt] = strat.market.get_valuations('Metrics', filt)
-        print('.', end = '')
-
-    print('\nBuilding data table', end = '')
-    trade_df = strat.trades.as_dataframe(); print('.', end='')
-    processed_filter_names = []
-    for key, val in filters.items():
-        trade_df = strat.trades.add_to_df(trade_df, val)
-        processed_filter_names.append(val.name)
-        print('.', end='')
-    print('')
-
-    print('\nCleaning data')
-    # Drop any rows with NA values.
-    trade_df = trade_df.dropna()
-    # Drop rows with annualised returns which might skew the results.
-    trade_df = trade_df[trade_df.annualised_return < 1000]
-
+    trade_df = build_data_table(strat, epv, metrics)
     print('Preparing model data')
-    x_table = trade_df[processed_filter_names]
-    y_data = trade_df[model_metric]
-    y_data[y_data > metric_threshold] = 1
-    y_data[y_data <= metric_threshold] = 0
-
-    return (x_table.values, y_data.values)
+    x_data, y_data = prepare_x_y_data(trade_df, trade_df.filter_names, model_metric, metric_threshold)
+    return (trade_df, x_data, y_data)
 
 
-def example(x, y):
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.3)
-    from sklearn.linear_model import LogisticRegression
-    lr = LogisticRegression()
-    lr.fit(x_train, y_train)
-    lr_train_pred = lr.predict(x_train)
-    lr_test_pred = lr.predict(x_test)
+def assess_classifier(model, x, y, split_test = 0.3):
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = split_test)
+    model.fit(x_train, y_train)
+    train_pred = model.predict(x_train)
+    test_pred = model.predict(x_test)
 
     print('Confusion matrix train\n')
-    print(confusion_matrix(y_train, lr_train_pred))
+    print(confusion_matrix(y_train, train_pred))
     print('\nConfusion matrix test\n')
-    print(confusion_matrix(y_test, lr_test_pred))
+    print(confusion_matrix(y_test, test_pred))
     print('\nClassification report train\n')
-    print(classification_report(y_train, lr_train_pred))
+    print(classification_report(y_train, train_pred))
     print('\nClassification report test\n')
-    print(classification_report(y_test, lr_test_pred))
+    print(classification_report(y_test, test_pred))
+    return model
 
-    
+def assess_regressor(model, x, y, split_test = 0.3, threshold = 0):
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = split_test)
 
+    if isinstance(model, list):
+        first_model = model[0]
+        first_model.fit(x_train, y_train)
+        train_pred = first_model.predict(x_train)
+        test_pred = first_model.predict(x_test)
+        for m in model[1:]:
+            m.fit(x_train, y_train)
+            train_pred += m.predict(x_train)
+            test_pred += m.predict(x_test)
+        train_pred /= len(model)
+        test_pred /= len(model)
+    else:
+        model.fit(x_train, y_train)
+        train_pred = model.predict(x_train)
+        test_pred = model.predict(x_test)
+
+    train_pred_id = train_pred[:]
+    train_pred_id[train_pred_id <= threshold] = -1
+    train_pred_id[train_pred_id > threshold] = 1
+
+    test_pred_id = test_pred[:]
+    test_pred_id[test_pred_id <= threshold] = -1
+    test_pred_id[test_pred_id > threshold] = 1
+
+    train_id = y_train[:]
+    train_id[train_id <= threshold] = -1
+    train_id[train_id > threshold] = 1
+
+    test_id = y_test[:]
+    test_id[test_id <= threshold] = -1
+    test_id[test_id > threshold] = 1
+
+    print('Confusion matrix train\n')
+    print(confusion_matrix(train_id, train_pred_id))
+    print('\nConfusion matrix test\n')
+    print(confusion_matrix(test_id, test_pred_id))
+    print('\nClassification report train\n')
+    print(classification_report(train_id, train_pred_id))
+    print('\nClassification report test\n')
+    print(classification_report(test_id, test_pred_id))
+    return model
