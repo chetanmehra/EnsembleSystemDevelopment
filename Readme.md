@@ -1,22 +1,24 @@
+# Ensemble System Development
 
- High level work
+## About
+Ensemble System Development is a framework for researching, building, and testing trading
+strategies. The 'ensemble' in the name is a legacy as originally the packages main purpose
+was to investigate the performance of groups of strategies. While this is still possible in
+the framework, it is now more of a general purpose set of research tools.
+
+## TODO
+
+### Analysis
+*Investigate drawdown profile for moves of a certain magnitude
+ 
+### Design and Refactoring
+#### Architecture
 - DONE - Define process for strategy execution
 - DONE - Construct strategy with measure parameter set.
 - DONE - Construct strategy with model parameter set
 - DONE - Construct strategy with model and measure parameter sets
 *Clean up modules names and associated classes
-
- New Features
-- DONE - Add ability to plot long only, and short only results
-- DONE - Strategy does not redo existing components on initialise
-*Plot long and short results together
-*Calculate performance metrics
-- DONE - Strategy to produce label for self
-
- Error proofing
-*Ensemble forecast mean to handle missing values.
-
- Refactoring
+#### Refactoring
 - DONE - Replace DataFrame and Panel builds with helper method constructions
 - DONE - Weight for positions to be renamed to PositionSelector
 - DONE - Move ind_timing from Measure to Strategy. Have strategy return required prices.
@@ -25,20 +27,28 @@
 *Maybe change strategy initialisation to require market input.
 *Abstract out a data container object for use by market, models etc.
 
- Testing assertions specific to object type
-- DONE - Indicator levels are appropriate data type (e.g. string)
-- DONE - Testing for IndicatorMeasure
-- DONE - Measure object must implement ind_timing parameter
-- DONE - Confirm Forecast data is same content (ticker and dates) as input
-
- Interface definitions
+#### Interface definitions
 - DONE - Indicator class definition
 - DONE - Indicator implements __getitem__ method to allow index by ticker
 - DONE - Supply indicator data when initiating
 - DONE - PositionModel must return Position object
 - DONE - Strategy to provide strat returns series.
 
- FIXES
+### New Features
+- DONE - Add ability to plot long only, and short only results
+- DONE - Strategy does not redo existing components on initialise
+*Plot long and short results together
+*Calculate performance metrics
+- DONE - Strategy to produce label for self
+
+### Error proofing
+*Ensemble forecast mean to handle missing values.
+- DONE - Indicator levels are appropriate data type (e.g. string)
+- DONE - Testing for IndicatorMeasure
+- DONE - Measure object must implement ind_timing parameter
+- DONE - Confirm Forecast data is same content (ticker and dates) as input
+
+### FIXES
 - DONE - Change BlockForecaster execute method not require ticker
 - DONE - Change Crossover execute method not require ticker
 - DONE - PositionModel expects Forecast, whereas Strategy provides itself when calling model.

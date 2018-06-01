@@ -24,6 +24,7 @@ class Strategy:
     '''
     def __init__(self, trade_timing, ind_timing):
         self.name = None
+        self.market = None
         # Calculation results
         self.signal = None
         self.positions = None
@@ -268,7 +269,7 @@ class Portfolio:
         self.trade_size = (2000, 3500) # Min and max by dollar size
         self.rebalancing_strategy = NoRebalancing()
         vol_method = StdDevEMA(40)
-        volatilities = vol_method(strategy.indicator_prices).shift(1)
+        volatilities = vol_method(strategy.indicator_prices.at(strategy.trade_entry))
         self.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
         self.conditions = [MinimimumPositionSize()]
         self.position_checks = [PositionNaCheck(), PositionCostThreshold(0.02)]
