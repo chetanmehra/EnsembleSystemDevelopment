@@ -371,7 +371,7 @@ class Portfolio:
 
     def apply(self, positions):
         date = positions.date
-        self.cash[date:] -= positions.txns.total_cost
+        self.cash.loc[date:] -= positions.txns.total_cost
         self.costs.loc[date:, "Commissions"] += positions.txns.total_commissions
         self.costs.loc[date:, "Slippage"] += positions.txns.total_slippage
         self.share_holdings.loc[date] = positions.current_shares

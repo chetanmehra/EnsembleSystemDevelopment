@@ -9,7 +9,26 @@ the framework, it is now more of a general purpose set of research tools.
 ## TODO
 
 ### Analysis
-*Investigate drawdown profile for moves of a certain magnitude
+* Investigate drawdown profile for moves of a certain magnitude
+* Neural network trial
+* Getting more data
+    + Extraction from pdfs
+    + Using simplified fundamentals (i.e. CMC summary data)
+* Define system testing process
+    + In-sample exploration
+        - Subset NYSE data
+        - Parameter sensitivity
+        - Use of stops
+        - Cross-validation across market constituents
+        - Performance report
+        - Equity curve
+    + Portfolio testing
+        - Effect of starting capital
+        - Cross-validation across market constituents
+        - Different money management strategies
+    + Out of sample testing
+        - Extended NYSE data
+        - ASX data
  
 ### Design and Refactoring
 #### Architecture
@@ -17,7 +36,7 @@ the framework, it is now more of a general purpose set of research tools.
 - DONE - Construct strategy with measure parameter set.
 - DONE - Construct strategy with model parameter set
 - DONE - Construct strategy with model and measure parameter sets
-*Clean up modules names and associated classes
+- DONE - Clean up modules names and associated classes
 #### Refactoring
 - DONE - Replace DataFrame and Panel builds with helper method constructions
 - DONE - Weight for positions to be renamed to PositionSelector

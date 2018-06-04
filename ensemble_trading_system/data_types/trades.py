@@ -332,15 +332,15 @@ class Trade:
 
     @property
     def base_return(self):
-        return self.cumulative.iloc[-1]
+        return self.weighted_returns.final()
 
     @property
     def annualised_return(self):
-        return (1 + self.base_return) ** (TRADING_DAYS_PER_YEAR / self.duration) - 1
+        return self.weighted_returns.annualised()
 
     @property
     def normalised_return(self):
-        return self.annualised_return / self.base_returns.volatility()
+        return self.weighted_returns.normalised()
 
     @property
     def MAE(self):

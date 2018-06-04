@@ -2,9 +2,10 @@
 The returns module contains classes for dealing with different
 types of returns data.
 '''
-from math import log
+from math import log, exp
 from pandas import DataFrame, Series, Categorical
 from pandas.core.common import isnull
+from numpy import NaN
 import matplotlib.pyplot as plt
 
 from system.interfaces import DataElement
@@ -38,11 +39,14 @@ class Returns(DataElement):
         self.data[other.data.columns] = other.data
 
     def final(self):
-        return self.log().sum()
+        '''
+        Returns the final cumulative return of the series
+        '''
+        return exp(self.log().sum()) - 1
     
     def cumulative(self):
         returns = self.log()
-        return returns.cumsum()
+        return returns.cumsum().apply(exp) - 1
     
     def log(self):
         returns = self.data
@@ -59,7 +63,7 @@ class Returns(DataElement):
         returns[start:].plot(**kwargs)
         
     def annualised(self):
-        return (1 + self.final) ** (TRADING_DAYS_PER_YEAR / len(self)) - 1
+        return (1 + self.final()) ** (TRADING_DAYS_PER_YEAR / len(self)) - 1
 
     def drawdowns(self):
         return Drawdowns(self.cumulative())
@@ -71,6 +75,13 @@ class Returns(DataElement):
 
     def volatility(self):
         return self.data.std() * (TRADING_DAYS_PER_YEAR ** 0.5)
+
+    def normalised(self):
+        volatility = self.volatility()
+        if volatility == 0:
+            return NaN
+        else:
+            return self.annualised() / volatility
 
     def monthly(self):
         returns = DataFrame(self.data, index = self.data.index, columns = ["Returns"])

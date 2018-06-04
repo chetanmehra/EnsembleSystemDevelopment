@@ -27,7 +27,7 @@ class Position(DataElement):
     def create_trades(self, strategy):
         prices = strategy.trade_prices
         trades = []
-        for ticker in strategy.events.tickers:
+        for ticker in self.events.tickers:
             # Note we loop through by ticker and subset the events here so 
             # we don't have to search the full set of tickers every time.
             # The EventCollection caches the subset for each ticker behind the

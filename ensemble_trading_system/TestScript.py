@@ -137,3 +137,5 @@ port.run()
 print("Done...")
 
 print("Ready...")
+
+summary_report(BH = strat.buy_and_hold_trades(), Strat = strat.trades)
