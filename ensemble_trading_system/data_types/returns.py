@@ -84,7 +84,7 @@ class Returns(DataElement):
             return self.annualised() / volatility
 
     def monthly(self):
-        returns = DataFrame(self.data, index = self.data.index, columns = ["Returns"])
+        returns = DataFrame(self.data.values, index = self.data.index, columns = ["Returns"])
         returns['Month'] = returns.index.strftime("%b")
         returns['Month'] = Categorical(returns['Month'], ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
                                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"])

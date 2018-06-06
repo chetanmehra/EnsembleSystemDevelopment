@@ -101,7 +101,7 @@ strat = signalStratSetup('O', 'C')
 adjusted = ValueRatio('EPV', 'Adjusted')(strat)
 #base = ValueRatio('EPV', 'Base')(strat)
 cyclic = ValueRatio('EPV', 'Cyclic')(strat)
-strat.filters.append(HighPassFilter(adjusted, 0.5))
+strat.filters.append(HighPassFilter(adjusted, 0.3))
 strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 print("Running base strat...")

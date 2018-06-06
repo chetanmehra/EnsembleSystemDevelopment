@@ -17,7 +17,7 @@ import sys
 sys.path.append(os.path.join("C:\\Users", os.getlogin(), "Source\\Repos\\FinancialDataHandling\\financial_data_handling"))
 
 from system.interfaces import DataElement
-from data_types.returns import AverageReturns
+from data_types.returns import AverageReturns, Returns
 
 class Market:
     '''
@@ -35,6 +35,7 @@ class Market:
         self.end = instruments.end
         self.exchange = instruments.exchange
         self.instruments = instruments.data
+        self.indices = []
         
     @property
     def tickers(self):
@@ -104,6 +105,20 @@ class Market:
         ax.xaxis_date()
         fig.autofmt_xdate()
         return (fig, ax)
+
+    def add_indice(self, ticker):
+        indice = self.store.get_indice(ticker)
+        self.indices[indice.ticker] = indice.data
+
+    def plot_indice(self, ticker, timing, start, **kwargs):
+        indice = self.indices[ticker]
+        if timing.target == "O":
+            prices = indice.open
+        elif timing.target == "C":
+            prices = indice.close
+        returns = Returns(prices / prices.shift(1) - 1)
+        returns.plot(label = ticker, start = start, **kwargs)
+        
 
     def get_valuations(self, type, sub_type, date = None):
         values = self.store.get_valuations(type, date)

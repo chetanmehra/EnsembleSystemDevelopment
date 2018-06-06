@@ -167,8 +167,7 @@ class Strategy:
         '''
         Gets the dataframe of market returns relevant for the trade timing.
         '''
-        trade_timing = {"O" : "open", "C" : "close"}[self.trade_timing]
-        return self.market.returns(trade_timing)
+        return self.market.at(self.trade_timing).returns()
 
     @property
     def returns(self):
