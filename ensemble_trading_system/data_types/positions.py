@@ -52,6 +52,11 @@ class Position(DataElement):
         self.events = self.create_events()
         self.trades = trades
 
+    def subset(self, subset_tickers):
+        new_data = self.data[subset_tickers]
+        new_positions = Position(new_data)
+        new_positions.trades = self.trades.find(lambda T: T.ticker in subset_tickers)
+        return new_positions
 
     def applied_to(self, market_returns):
         return StrategyReturns(self.data * market_returns.data, self)

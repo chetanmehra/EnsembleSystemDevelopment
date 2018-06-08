@@ -437,6 +437,27 @@ def cross_validate_trades(trades, N = 20, subset_fraction = 0.7):
 
     return (result, summary)
 
+def cross_validate_portfolio(portfolio, N = 20, subset_fraction = 0.7):
+    tickers = portfolio.strategy.market.tickers
+    sample_size = round(len(tickers) * subset_fraction)
+    summary = {
+        'market' : DataFrame(dtype = float), 
+        'portfolio' : DataFrame(dtype = float)
+    }
+
+    for n in range(N):
+        sample_tickers = list(random.choice(tickers, sample_size, replace = False))
+        strat_subset = portfolio.strategy.subset(sample_tickers)
+        sub_portfolio = Portfolio(strat_subset, portfolio.starting_capital)
+        sub_portfolio.run()
+        summary['market'][n] = strat_subset.market_returns.combined().data
+        summary['portfolio'][n] = sub_portfolio.returns.data
+    
+    summary['market']['base'] = portfolio.strategy.market_returns.combined().data
+    summary['porfolio']['base'] = portfolio.returns.data
+    return summary
+
+
 
 def cross_validate_positions(strategy, N = 20, subset_fraction = 0.7):
 

@@ -4,23 +4,22 @@ position changes, e.g. entries, exits, or adjustments.
 """
 import pandas as pd
 
+from data_types import Collection, CollectionItem
 from data_types.constants import TradeSelected
-from datetime import datetime
 
-class EventCollection:
+
+class EventCollection(Collection):
 
     def __init__(self, events, tickers, index):
         self.factory = EventFactory()
-        self.events = events
+        self.items = events
         self.tickers = tickers
         self.index = index
         self._related_entries = {} # Dict of entries by ticker
         self._related_exits = {} # Dict of exits by ticker
         
-        
     @staticmethod
     def from_position_data(pos_data):
-
         # Creation of events
         delta = pos_data - pos_data.shift(1)
         delta.iloc[0] = 0
@@ -52,25 +51,9 @@ class EventCollection:
 
         return EventCollection(events, tickers, delta.index)
 
+    def copy_with(self, items):
+        return EventCollection(items, self.tickers, self.index)
     
-    def find(self, condition):
-        '''
-        Accepts a callable condition object (e.g. lambda expression), which 
-        must accept an Event. Returns a list of events which meet the condition.
-        '''
-        return [event for event in self.events if condition(event)]
-
-    def __getitem__(self, key):
-
-        if isinstance(key, datetime):
-            return self.find(lambda e: e.date == key)
-        elif isinstance(key, str):
-            return self.find(lambda e: e.ticker == key)
-        elif isinstance(key, int):
-            return self.events[key]
-        else:
-            raise ValueError("key must be a date, ticker (string), or integer")
-
     @property
     def last_date(self):
         return self.index[-1]
@@ -121,12 +104,13 @@ class EventFactory:
         return self.event[type](ticker, date, size)
 
 
-class TradeEvent:
+class TradeEvent(CollectionItem):
 
     def __init__(self, ticker, date, size):
         self.ticker = ticker
         self.date = date
         self.size = size
+        self.tuple_fields = ['ticker', 'Label', 'date', 'size']
 
     def __str__(self):
         first_line = '{0:^10}\n'.format(self.ticker)

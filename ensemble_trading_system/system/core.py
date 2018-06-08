@@ -153,6 +153,17 @@ class Strategy:
         '''
         return self.market.get_empty_dataframe(fill_data)
 
+    def subset(self, subset_tickers):
+        '''
+        subset supports cross validation across market constituents.
+        The idea being multiple subsets are taken and performance is 
+        compared to determine sensitivity of the strategy to the tickers
+        included in the market.
+        '''
+        new_strat = Strategy(self.trade_timing, self.ind_timing)
+        new_strat.market = self.market.subset(subset_tickers)
+        new_strat.positions = self.positions.subset(subset_tickers)
+
     def buy_and_hold_trades(self):
         '''
         Return the TradeCollection assuming all tickers are bought and held

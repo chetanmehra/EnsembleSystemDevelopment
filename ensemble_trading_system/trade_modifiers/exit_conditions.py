@@ -27,7 +27,7 @@ class StopLoss(ExitCondition):
         self.stop = -1 * abs(stop_level)
 
     def get_limit_hits(self, trade):
-        returns = trade.normalised
+        returns = trade.cumulative
         return returns.index[returns <= self.stop]
 
 class ReturnTriggeredTrailingStop(ExitCondition):

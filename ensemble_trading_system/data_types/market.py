@@ -60,6 +60,10 @@ class Market:
             data_type = float
         return DataFrame(fill_data, index = self.index, columns = self.tickers, dtype = data_type)
 
+    def subset(self, subset_tickers):
+        excluded_tickers = [t for t in self.tickers if t not in subset_tickers]
+        return Market(self.store, excluded_tickers)
+
     @property
     def open(self):
         return Prices(self._get_series("Open"), ["open"])
@@ -119,7 +123,6 @@ class Market:
         returns = Returns(prices / prices.shift(1) - 1)
         returns.plot(label = ticker, start = start, **kwargs)
         
-
     def get_valuations(self, type, sub_type, date = None):
         values = self.store.get_valuations(type, date)
         try:

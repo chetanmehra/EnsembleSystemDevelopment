@@ -6,34 +6,25 @@ import matplotlib.pyplot as plt
 
 
 from system.metrics import Drawdowns
+from data_types import Collection, CollectionItem
 from data_types.returns import Returns
 from data_types.constants import TRADING_DAYS_PER_YEAR
 
 # TODO Apply exit condition and apply entry condition are effectively the same.
 
-class TradeCollection:
+class TradeCollection(Collection):
 
-    def __init__(self, data):
-        self.tickers = list(set([trade.ticker for trade in data]))
+    def __init__(self, items):
+        self.tickers = list(set([trade.ticker for trade in items]))
         self.tickers.sort()
-        self.trades = data
+        self.items = items
         self.slippage = 0.011
         self._returns = None
         self._durations = None
         self._daily_returns = None
 
-    def __getitem__(self, key):
-        if isinstance(key, str):
-            return [trade for trade in self.trades if trade.ticker == key]
-        else:
-            return self.trades[key]            
-
-    def as_list(self):
-        return self.trades
-
-    def as_dataframe(self):
-        data = [trade.as_tuple() for trade in self.trades]
-        return DataFrame(data, columns = self.trades[0].cols)
+    def copy_with(self, items):
+        return TradeCollection(items)
 
     def as_dataframe_with(self, *args):
         '''
@@ -58,13 +49,9 @@ class TradeCollection:
         return df
 
     @property
-    def count(self):
-        return len(self.trades)
-
-    @property
     def returns(self):
         if self._returns is None:
-            self._returns = Series([trade.base_return for trade in self.trades])
+            self._returns = Series([trade.base_return for trade in self.items])
         return self._returns
 
     @property
@@ -74,23 +61,23 @@ class TradeCollection:
     @property
     def durations(self):
         if self._durations is None:
-            self._durations = Series([trade.duration for trade in self.trades])
+            self._durations = Series([trade.duration for trade in self.items])
         return self._durations
 
     @property
     def MAEs(self):
-        return [trade.MAE for trade in self.trades]
+        return [trade.MAE for trade in self.items]
 
     @property
     def MFEs(self):
-        return [trade.MFE for trade in self.trades]
+        return [trade.MFE for trade in self.items]
 
     @property
     def ETDs(self):
         '''
         End Trade Drawdown is defined as the difference between the MFE and the end return
         '''
-        return [trade.MFE - trade.base_return for trade in self.trades]
+        return [trade.MFE - trade.base_return for trade in self.items]
 
     @property
     def mean_return(self):
@@ -102,7 +89,11 @@ class TradeCollection:
 
     @property
     def Sharpe(self):
-        return self.mean_return / self.std_return
+        try:
+            sharpe = self.mean_return / self.std_return
+        except ZeroDivisionError:
+            sharpe = NaN
+        return sharpe
 
     @property
     def Sharpe_annual(self):
@@ -161,16 +152,6 @@ class TradeCollection:
         negative_runs = neg_ends - neg_starts
         return (positive_runs, negative_runs)
 
-    def find(self, condition):
-        '''
-        find accepts a lambda expression which must accept a Trade object as its input and return True/False.
-        A TradeCollection of trades meeting the condition is returned.
-        '''
-        trades = [trade for trade in self.trades if condition(trade)]
-        return TradeCollection(trades)
-
-    def index(self, trade):
-        return self.trades.index(trade)
         
     def trade_frame(self, compacted = True, cumulative = True):
         '''
@@ -178,7 +159,7 @@ class TradeCollection:
         Each row is a trade, and columns are days in trade.
         '''
         df = DataFrame(None, index = range(self.count), columns = range(self.max_duration), dtype = float)
-        for i, trade in enumerate(self.trades):
+        for i, trade in enumerate(self.items):
             df.loc[i] = trade.cumulative
         if not cumulative:
             df = ((df + 1).T / (df + 1).T.shift(1)).T - 1
@@ -274,7 +255,7 @@ class TradeCollection:
 
 
 # TODO Instead of Trade holding prices, consider retaining a reference to the Market
-class Trade:
+class Trade(CollectionItem):
 
     def __init__(self, ticker, entry_date, exit_date, prices, position_size = 1.0):
         self.ticker = ticker
@@ -284,7 +265,7 @@ class Trade:
         self.exit_price = self.get_price(exit_date, prices)
 
         self.prices = prices[self.entry:self.exit]
-        daily_returns = Series(self.prices / self.prices.shift(1)) - 1
+        daily_returns = Series((self.prices / self.prices.shift(1)).values) - 1
         daily_returns[0] = (self.prices[0] / self.entry_price) - 1
         self.base_returns = Returns(daily_returns)
         # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
@@ -296,7 +277,7 @@ class Trade:
             daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size[1]) - 1
             self.weighted_returns = Returns(daily_returns)
         self.cumulative = Series(self.weighted_returns.cumulative().values)
-        self.cols = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration", "annualised_return", "normalised_return"]
+        self.tuple_fields = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration", "annualised_return", "normalised_return"]
 
     def __str__(self):
         first_line = '{0:^23}\n'.format(self.ticker)
@@ -320,8 +301,12 @@ class Trade:
         dd.Highwater.plot(ax = axarr[0], color = 'red')
         dd.Drawdown.plot(ax = axarr[1])
 
-    def as_tuple(self):
-        return tuple(getattr(self, name) for name in self.cols)
+    @property
+    def date(self):
+        '''
+        Supports searching the collection by date.
+        '''
+        return self.entry
 
     @property
     def duration(self):
