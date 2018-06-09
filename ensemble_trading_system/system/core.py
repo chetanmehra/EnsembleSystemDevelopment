@@ -276,13 +276,11 @@ class Portfolio:
         self.summary["Cash"] = starting_cash
         self.costs = DataFrame(0, index = self.share_holdings.index, columns = ["Commissions", "Slippage", "Total"])
 
-        self.trade_size = (2000, 3500) # Min and max by dollar size
         self.rebalancing_strategy = NoRebalancing()
         self.sizing_strategy = SizingStrategy()
         self.sizing_strategy.base_dollar_ratio = VariablePositionSizing()
         volatilities = StdDevEMA(40)(strategy.indicator_prices.at(strategy.trade_entry))
         self.sizing_strategy.multipliers.append(VolatilityMultiplier(0.2, volatilities))
-        self.conditions = [MinimimumPositionSize()]
         self.position_checks = [PositionNaCheck(), PositionCostThreshold(0.02)]
         
         self.trades = None
@@ -301,7 +299,7 @@ class Portfolio:
         starting_cash = self.starting_capital
         self.share_holdings = self.strategy.get_empty_dataframe() # Number of shares
         self.dollar_holdings = self.strategy.get_empty_dataframe(0) # Dollar value of positions
-        self.positions = self.strategy.get_empty_dataframe(0) # Nominal positions
+        self.positions = self.strategy.get_empty_dataframe() # Nominal positions
         self.position_states = PositionState(self.share_holdings.columns, starting_cash)
         self.summary = DataFrame(0, index = self.share_holdings.index, columns = ["Cash", "Holdings", "Total"])
         self.summary["Cash"] = starting_cash
