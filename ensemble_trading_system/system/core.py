@@ -178,7 +178,7 @@ class Strategy:
         '''
         Gets the dataframe of market returns relevant for the trade timing.
         '''
-        return self.market.at(self.trade_timing).returns()
+        return self.market.at(self.trade_entry).returns()
 
     @property
     def returns(self):
@@ -278,9 +278,10 @@ class Portfolio:
 
         self.trade_size = (2000, 3500) # Min and max by dollar size
         self.rebalancing_strategy = NoRebalancing()
-        vol_method = StdDevEMA(40)
-        volatilities = vol_method(strategy.indicator_prices.at(strategy.trade_entry))
-        self.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
+        self.sizing_strategy = SizingStrategy()
+        self.sizing_strategy.base_dollar_ratio = VariablePositionSizing()
+        volatilities = StdDevEMA(40)(strategy.indicator_prices.at(strategy.trade_entry))
+        self.sizing_strategy.multipliers.append(VolatilityMultiplier(0.2, volatilities))
         self.conditions = [MinimimumPositionSize()]
         self.position_checks = [PositionNaCheck(), PositionCostThreshold(0.02)]
         
@@ -338,8 +339,8 @@ class Portfolio:
             self.apply(self.position_states)
             #progress.print(trading_days.get_loc(date))
 
-        self.positions = self.positions.ffill()
-        self.share_holdings = self.share_holdings.ffill()
+        self.positions = self.positions.ffill().fillna(0)
+        self.share_holdings = self.share_holdings.ffill().fillna(0)
         self.dollar_holdings = trade_prices.data * self.share_holdings
         self.dollar_holdings = self.dollar_holdings.ffill()
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
@@ -511,7 +512,7 @@ class PositionState:
         # applied_size represents the nominal size that the portfolio has moved towards
         # this may be different from the target_size if, for example, an adjustment or entry wasn't 
         # acted upon.
-        self.applied_size[self.selected_mask] = self.target_size[self.selected_mask]
+        self.applied_size.loc[self.selected_mask] = self.target_size[self.selected_mask]
 
     @property
     def exit_mask(self):
@@ -580,6 +581,81 @@ class PositionState:
         return self.trade_size[self.selected_mask].sum() + self.cost[self.selected_mask].sum()
 
 
+class SizingStrategy:
+    '''
+    The SizingStrategy is responsible for providing the dollar ratio to turn
+    the strategy's nominal size into the size in dollars.
+    There are basically two components:
+        1. The base dollar size - this is basically determined by the target
+        number of positions to be held (i.e. capital / number of positions)
+        2. Multipliers - there can be an arbitrary number of multipliers which
+        modify the size for each instrument (e.g. for volatility scaling)
+    '''
+    def __init__(self):
+        self.multipliers = []
+        self.base_dollar_ratio = None
+
+    def __call__(self, portfolio, date):
+        dollar_ratio = self.base_dollar_ratio(portfolio, date)
+        for multiplier in self.multipliers:
+            dollar_ratio *= multiplier(portfolio, date)
+        return dollar_ratio
+
+
+# BASE SIZING STRATEGIES
+class FixedNumberOfPositionsSizing:
+
+    def __init__(self, target_positions = 5):
+        self.target_positions = target_positions
+
+    def __call__(self, portfolio, date):
+        nominal_dollar_position_size = portfolio.current_value / self.target_positions
+        return nominal_dollar_position_size
+
+    def update_target_positions(self, target_positions):
+        self.target_positions = target_positions
+
+
+class VariablePositionSizing:
+    '''
+    The VariablePositionSizing strategy aims to increase the number of positions
+    as capital allows. The rate at which positions are added is dictated by the
+    diversifier parameter which must be in the range 0-1. A diversifier close 
+    to zero will hold the minimum number of positions possible while still
+    satisfying the maximum size constraint (as a proportion of total capital). 
+    A diversifier close to 1 will increase the number of positions as soon as 
+    the minimum position size constraint can be met (as a dollar size).
+    '''
+    def __init__(self, diversifier = 0.5, min_size = 2500, max_size = 0.25):
+        self.diversifier = diversifier
+        self.min_size = min_size
+        self.max_size = max_size
+
+    def __call__(self, portfolio, date):
+        max_num_positions = portfolio.current_value / self.min_size
+        min_num_positions = (1 / self.max_size)
+        target = min_num_positions + self.diversifier * (max_num_positions - min_num_positions)
+        # Note: we convert target to an int to round down the target number
+        # of positions, and bump up the nominal dollar size to provide some 
+        # leeway for multipliers which may want to reduce the size.
+        return portfolio.current_value / int(target)
+
+
+class VolatilityMultiplier:
+    '''
+    Adjusts the position multiplier based on the current volatility
+    up or down towards the specified target.
+    '''
+
+    def __init__(self, vol_target, volatilities):
+        self.target = vol_target
+        self.volatilities = volatilities
+        self.ratio = vol_target / volatilities
+
+    def __call__(self, portfolio, date):
+        return self.ratio.loc[date]
+
+
 # REBALANCING STRATEGIES
 class NoRebalancing:
 
@@ -608,36 +684,6 @@ class FixedRebalanceDates:
     def __call__(self, positions, date):
         if date in self.rebalancing_dates:
             positions.apply_rebalancing()
-
-
-# SIZING STRATEGIES
-class FixedNumberOfPositionsSizing:
-
-    def __init__(self, target_positions = 5):
-        self.target_positions = target_positions
-
-    def __call__(self, portfolio, date):
-        nominal_dollar_position_size = portfolio.current_value / self.target_positions
-        return nominal_dollar_position_size
-
-    def update_target_positions(self, target_positions):
-        self.target_positions = target_positions
-
-
-class VolatilitySizingDecorator:
-
-    def __init__(self, vol_target, volatilities, base_sizing_strategy):
-        self.target = vol_target
-        self.volatilities = volatilities
-        self.base_strategy = base_sizing_strategy
-
-    def __call__(self, portfolio, date):
-        volatility_ratio = self.target / self.volatilities.loc[date]
-        base_size = self.base_strategy(portfolio, date)
-        return volatility_ratio * base_size
-
-    def update_target_positions(self, target_positions):
-        self.base_strategy.update_target_positions(target_positions)
 
 
 # Portfolio Trade Acceptance Criteria

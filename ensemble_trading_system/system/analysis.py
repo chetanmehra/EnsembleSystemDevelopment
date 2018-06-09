@@ -387,10 +387,7 @@ def summary_report(trades = None, **kwargs):
     else:
         df = DataFrame()
         for label, trades in kwargs.items():
-            trade_volume = summary_trade_volume(trades)
-            returns = summary_returns(trades)
-            duration = summary_duration(trades)
-            df[label] = concat((trade_volume, returns, duration))
+            df[label] = summary_report(trades)
         return df
 
 

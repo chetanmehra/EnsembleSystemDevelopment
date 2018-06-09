@@ -9,7 +9,7 @@ from numpy import NaN
 import matplotlib.pyplot as plt
 
 from system.interfaces import DataElement
-from system.metrics import Drawdowns
+from system.metrics import Drawdowns, OptF
 from data_types.constants import TRADING_DAYS_PER_YEAR
 
 
@@ -37,6 +37,12 @@ class Returns(DataElement):
     
     def append(self, other):
         self.data[other.data.columns] = other.data
+
+    def int_indexed(self):
+        '''
+        Converts to integer based index.
+        '''
+        return Returns(Series(self.data.values))
 
     def final(self):
         '''
@@ -71,7 +77,14 @@ class Returns(DataElement):
     def sharpe(self):
         mean = self.data.mean()
         std = self.data.std()
-        return (mean / std) * (TRADING_DAYS_PER_YEAR ** 0.5)
+        try:
+            sharpe = (mean / std) * (TRADING_DAYS_PER_YEAR ** 0.5)
+        except ZeroDivisionError:
+            sharpe = NaN
+        return sharpe
+
+    def optf(self):
+        return OptF(self.data)
 
     def volatility(self):
         return self.data.std() * (TRADING_DAYS_PER_YEAR ** 0.5)

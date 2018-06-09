@@ -98,7 +98,7 @@ class TradeCollection(Collection):
     @property
     def Sharpe_annual(self):
         returns = self.daily_returns
-        return (TRADING_DAYS_PER_YEAR ** 0.5) * (returns.mean() / returns.std())
+        return Returns(returns).sharpe()
 
     @property
     def Sharpe_annual_slippage(self):
@@ -106,7 +106,7 @@ class TradeCollection(Collection):
         total_slippage = self.count * self.slippage
         slippage_per_day = total_slippage / len(returns)
         returns = returns - slippage_per_day
-        return (TRADING_DAYS_PER_YEAR ** 0.5) * (returns.mean() / returns.std())
+        return Returns(returns).sharpe()
 
     @property
     def G(self):
@@ -265,18 +265,16 @@ class Trade(CollectionItem):
         self.exit_price = self.get_price(exit_date, prices)
 
         self.prices = prices[self.entry:self.exit]
-        daily_returns = Series((self.prices / self.prices.shift(1)).values) - 1
+        daily_returns = (self.prices / self.prices.shift(1)) - 1
         daily_returns[0] = (self.prices[0] / self.entry_price) - 1
         self.base_returns = Returns(daily_returns)
         # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
         if isinstance(position_size, int) or isinstance(position_size, float):
             daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size) - 1
-            self.weighted_returns = Returns(daily_returns)
         else:
             position_size = position_size.shift(1)[self.entry:self.exit]
             daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size[1]) - 1
-            self.weighted_returns = Returns(daily_returns)
-        self.cumulative = Series(self.weighted_returns.cumulative().values)
+        self.weighted_returns = Returns(daily_returns)
         self.tuple_fields = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration", "annualised_return", "normalised_return"]
 
     def __str__(self):
@@ -320,6 +318,10 @@ class Trade(CollectionItem):
         return self.weighted_returns.final()
 
     @property
+    def cumulative(self):
+        return Series(self.weighted_returns.cumulative().values)
+
+    @property
     def annualised_return(self):
         return self.weighted_returns.annualised()
 
@@ -343,7 +345,9 @@ class Trade(CollectionItem):
         return (1 + self.base_return) / (1 + self.MFE) - 1
 
     def drawdowns(self):
-        return self.weighted_returns.drawdowns()
+        # Note we want to return drawdowns with integer index, not
+        # date indexed
+        return self.weighted_returns.int_indexed().drawdowns()
 
     # Trade modifiers
     def apply_exit_condition(self, condition):
@@ -367,9 +371,8 @@ class Trade(CollectionItem):
         '''
         if self.duration > entry_day:
             self.entry = self.base_returns.index[entry_day]
-            self.base_returns = self.base_returns[self.entry:]
-            self.weighted_returns = self.weighted_returns[self.entry:]
-            self.cumulative = Series((self.cumulative[entry_day:] - self.cumulative[entry_day]).values)
+            self.base_returns = Returns(self.base_returns[self.entry:])
+            self.weighted_returns = Returns(self.weighted_returns[self.entry:])
             return self
         else:
             return None
@@ -382,9 +385,8 @@ class Trade(CollectionItem):
         if exit_day > 0:
             self.exit = self.base_returns.index[exit_day]
             self.exit_price = self.prices[self.exit]
-            self.base_returns = self.base_returns[:self.exit]
-            self.weighted_returns = self.weighted_returns[:self.exit]
-            self.cumulative = self.cumulative[:(exit_day + 1)]
+            self.base_returns = Returns(self.base_returns[:self.exit])
+            self.weighted_returns = Returns(self.weighted_returns[:self.exit])
             return self
         else:
             return None

@@ -1,4 +1,5 @@
 
+from pandas import Series
 
 class ExitCondition:
 

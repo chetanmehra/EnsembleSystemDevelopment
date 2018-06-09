@@ -11,7 +11,6 @@ class Collection:
     '''
 
     def __getitem__(self, key):
-
         if isinstance(key, datetime):
             return self.find(lambda e: e.date == key)
         elif isinstance(key, str):
@@ -23,6 +22,9 @@ class Collection:
 
     def __iter__(self):
         return self.items.__iter__()
+
+    def __len__(self):
+        return len(self.items)
 
     @property
     def count(self):

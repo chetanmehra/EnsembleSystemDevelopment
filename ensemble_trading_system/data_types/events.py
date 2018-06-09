@@ -77,10 +77,8 @@ class EventCollection(Collection):
     def next_exit(self, entry, exits = None):
         if exits is None:
             # Find all exits related to the entry.ticker and after the entry.date
-            exits = [exit for exit in self.exits if exit.date > entry.date and exit.ticker == entry.ticker]
-        else:
-            # We assume the supplied exits are related to the entry.ticker
-            exits = [exit for exit in exits if exit.date > entry.date]
+            exits = self.related_exits(entry.ticker)
+        exits = [exit for exit in exits if exit.date > entry.date]
         if len(exits):
             # sort exits by date ascending (i.e. earliest first).
             # and return the soonest

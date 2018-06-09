@@ -3,14 +3,22 @@
 # Each of these methods expect a pandas Series.
 
 from pandas import Series, DataFrame
-from numpy import sign, log
+from numpy import sign, log, NaN
 from sklearn.linear_model import LinearRegression
 
 def Sharpe(returns):
-    return returns.mean() / returns.std()
+    try:
+        sharpe = returns.mean() / returns.std()
+    except ZeroDivisionError:
+        sharpe = NaN
+    return sharpe
 
 def OptF(returns):
-    return returns.mean() / (returns.std() ** 2)
+    try:
+        optf = returns.mean() / (returns.std() ** 2)
+    except ZeroDivisionError:
+        optf = NaN
+    return optf
 
 def G(returns):
     S_sqd = Sharpe(returns) ** 2

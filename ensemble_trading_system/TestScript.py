@@ -24,7 +24,7 @@ from data_types.market import Market
 from data_types.trades import TradeCollection
 
 from system.core import Strategy, Portfolio
-from system.core import VolatilitySizingDecorator, FixedNumberOfPositionsSizing
+from system.core import VolatilityMultiplier, FixedNumberOfPositionsSizing
 
 from measures.moving_averages import EMA, KAMA, LinearTrend
 from measures.volatility import StdDevEMA
@@ -116,11 +116,11 @@ strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 #with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
 #    strat = pickle.load(file)
 
-###print("Creating ewmac strat...")
-###strat = createEwmacStrategy(store)
-###print("Running ewmac strat...")
-###strat.run()
-###strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
+#print("Creating ewmac strat...")
+#strat = createEwmacStrategy(store)
+#print("Running ewmac strat...")
+#strat.run()
+#strat.positions = strat.positions.discretise(min_size = 0.7, max_size = 2.0, step = 0.5)
 
 #print("Loading strat...")
 #with open(r'D:\Investing\Workspace\test_strat.pkl', 'rb') as file:
@@ -138,4 +138,4 @@ print("Done...")
 
 print("Ready...")
 
-summary_report(BH = strat.buy_and_hold_trades(), Strat = strat.trades)
+# summary_report(BH = strat.buy_and_hold_trades(), Strat = strat.trades)

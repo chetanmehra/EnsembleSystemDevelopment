@@ -37,8 +37,8 @@ class Position(DataElement):
             ticker_entries = self.events.related_entries(ticker)
             ticker_exits = self.events.related_exits(ticker)
             for entry in ticker_entries:
-                exit = self.events.next_exit(entry, ticker_exits)
-                trades.append(Trade(entry.ticker, entry.date, exit.date, 
+                trade_exit = self.events.next_exit(entry, ticker_exits)
+                trades.append(Trade(entry.ticker, entry.date, trade_exit.date, 
                                     prices[entry.ticker], self.data[entry.ticker]))
         return TradeCollection(trades)
 
