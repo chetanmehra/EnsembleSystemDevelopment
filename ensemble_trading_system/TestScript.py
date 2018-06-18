@@ -24,7 +24,7 @@ from data_types.market import Market
 from data_types.trades import TradeCollection
 
 from system.core import Strategy, Portfolio
-from system.core import VolatilityMultiplier, FixedNumberOfPositionsSizing
+from system.core import VolatilityMultiplier, SizingStrategy
 
 from measures.moving_averages import EMA, KAMA, LinearTrend
 from measures.volatility import StdDevEMA
@@ -101,7 +101,7 @@ strat = signalStratSetup('O', 'C')
 adjusted = ValueRatio('EPV', 'Adjusted')(strat)
 #base = ValueRatio('EPV', 'Base')(strat)
 cyclic = ValueRatio('EPV', 'Cyclic')(strat)
-strat.filters.append(HighPassFilter(adjusted, 0.3))
+strat.filters.append(HighPassFilter(adjusted, 0.0))
 strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 print("Running base strat...")
@@ -109,9 +109,10 @@ strat.run()
 print("Generated", strat.trades.count, "trades.")
 
 print("Applying stops...")
-strat.apply_exit_condition(StopLoss(0.15))
-strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
-strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
+strat.apply_exit_condition(TrailingStop(0.15))
+# strat.apply_exit_condition(StopLoss(0.15))
+# strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
+# strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 
 #with open(r'D:\Investing\Workspace\signal_strat.pkl', 'rb') as file:
 #    strat = pickle.load(file)
@@ -128,10 +129,10 @@ strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
 
 print("Preparing portfolio...")
 port = Portfolio(strat, 15000)
+port.sizing_strategy = SizingStrategy(diversifier = 0.5)
+volatilities = StdDevEMA(40)(strat.indicator_prices.at(strat.trade_entry))
+port.sizing_strategy.multipliers.append(VolatilityMultiplier(0.25, volatilities))
 port.position_checks.append(PositionCostThreshold(0.02))
-#vol_method = StdDevEMA(40)
-#volatilities = vol_method(strat.indicator_prices.at(strat.trade_entry))
-#port.sizing_strategy = VolatilitySizingDecorator(0.2, volatilities, FixedNumberOfPositionsSizing(target_positions = 5))
 print("Running portfolio...")
 port.run()
 print("Done...")

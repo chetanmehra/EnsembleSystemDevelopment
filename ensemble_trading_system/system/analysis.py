@@ -5,6 +5,7 @@ from pandas import qcut, cut, concat, DataFrame, Series
 from numpy import log, random
 from multiprocessing import Pool
 
+from data_types.returns import Returns
 from system.core import Portfolio
 from system.metrics import *
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop
@@ -451,7 +452,10 @@ def cross_validate_portfolio(portfolio, N = 20, subset_fraction = 0.7):
         summary['portfolio'][n] = sub_portfolio.returns.data
     
     summary['market']['base'] = portfolio.strategy.market_returns.combined().data
-    summary['porfolio']['base'] = portfolio.returns.data
+    summary['portfolio']['base'] = portfolio.returns.data
+    summary['market'] = Returns(summary['market'])
+    summary['portfolio'] = Returns(summary['portfolio'])
+    
     return summary
 
 

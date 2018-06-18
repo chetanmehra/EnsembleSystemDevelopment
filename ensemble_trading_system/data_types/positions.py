@@ -78,7 +78,7 @@ class Position(DataElement):
 
     def remove(self, excluded):
         for trade in excluded:
-            self.data[trade.ticker][trade.entry:trade.exit] = 0
+            self.data.loc[trade.entry:trade.exit, trade.ticker] = 0
 
     def num_concurrent(self):
         '''

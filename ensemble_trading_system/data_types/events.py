@@ -117,15 +117,15 @@ class TradeEvent(CollectionItem):
         return first_line + second_line + third_line
 
     def update(self, positions):
-        positions.type[self.ticker] = self.Label
-        positions.selected[self.ticker] = TradeSelected.UNDECIDED
+        positions.type.loc[self.ticker] = self.Label
+        positions.selected.loc[self.ticker] = TradeSelected.UNDECIDED
 
 
 class EntryEvent(TradeEvent):
     Label = "entry"
 
     def update(self, positions):
-        positions.target_size[self.ticker] = self.size
+        positions.target_size.loc[self.ticker] = self.size
         super().update(positions)
         
 
@@ -133,7 +133,7 @@ class ExitEvent(TradeEvent):
     Label = "exit"
 
     def update(self, positions):
-        positions.target_size[self.ticker] = 0
+        positions.target_size.loc[self.ticker] = 0
         super().update(positions)
         
 
@@ -141,11 +141,11 @@ class AdjustmentEvent(TradeEvent):
     Label = "adjustment"
 
     def update(self, positions):
-        positions.target_size[self.ticker] += self.size
-        positions.type[self.ticker] = self.Label
+        positions.target_size.loc[self.ticker] += self.size
+        positions.type.loc[self.ticker] = self.Label
         if positions.applied_size[self.ticker] != 0:
-            positions.selected[self.ticker] = TradeSelected.UNDECIDED
+            positions.selected.loc[self.ticker] = TradeSelected.UNDECIDED
         else:
-            positions.selected[self.ticker] = TradeSelected.NO
+            positions.selected.loc[self.ticker] = TradeSelected.NO
         
  

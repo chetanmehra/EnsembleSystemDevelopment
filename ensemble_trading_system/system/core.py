@@ -163,6 +163,7 @@ class Strategy:
         new_strat = Strategy(self.trade_timing, self.ind_timing)
         new_strat.market = self.market.subset(subset_tickers)
         new_strat.positions = self.positions.subset(subset_tickers)
+        return new_strat
 
     def buy_and_hold_trades(self):
         '''
@@ -208,7 +209,7 @@ class Strategy:
     def plot_measures(self, ticker, start, end, ax):
         self.signal.plot_measures(ticker, start, end, ax)
 
-    def plot_returns(self, long_only = False, short_only = False, color = "blue", **kwargs):
+    def plot_result(self, long_only = False, short_only = False, color = "blue", **kwargs):
         '''
         Plots the returns of the strategy vs the market returns.
         '''
@@ -257,7 +258,6 @@ class Strategy:
 # TODO Clean up unused Portfolio attributes and methods
 # TODO consider merging Transactions and PositionChanges
 # TODO find a better way to update Portfolio positions from PositionChanges
-# TODO add method to rerun a portfolio (e.g. after updating the position selection strategy).
 class Portfolio:
     '''
     The portfolio class manages cash and stock positions, as well as rules 
@@ -278,7 +278,6 @@ class Portfolio:
 
         self.rebalancing_strategy = NoRebalancing()
         self.sizing_strategy = SizingStrategy()
-        self.sizing_strategy.base_dollar_ratio = VariablePositionSizing()
         volatilities = StdDevEMA(40)(strategy.indicator_prices.at(strategy.trade_entry))
         self.sizing_strategy.multipliers.append(VolatilityMultiplier(0.2, volatilities))
         self.position_checks = [PositionNaCheck(), PositionCostThreshold(0.02)]
@@ -337,14 +336,15 @@ class Portfolio:
             self.apply(self.position_states)
             #progress.print(trading_days.get_loc(date))
 
-        self.positions = self.positions.ffill().fillna(0)
+        self.positions = Position(self.positions.ffill().fillna(0))
+        self.trades = self.positions.create_trades(self.strategy)
         self.share_holdings = self.share_holdings.ffill().fillna(0)
         self.dollar_holdings = trade_prices.data * self.share_holdings
         self.dollar_holdings = self.dollar_holdings.ffill()
         self.summary["Holdings"] = self.dollar_holdings.sum(axis = 1)
         self.summary["Total"] = self.cash + self.holdings_total
         self.costs["Total"] = self.costs["Commissions"] + self.costs["Slippage"]
-        self.trades = Position(self.positions).create_trades(self.strategy)
+        
 
     def process_exits(self, positions):
         positions.select_exits()
@@ -394,7 +394,7 @@ class Portfolio:
         '''
         Returns the series of dollar value of cash held over time.
         '''
-        return self.summary["Cash"]
+        return self.summary.loc[:, "Cash"]
 
     @property
     def holdings_total(self):
@@ -456,6 +456,10 @@ class Portfolio:
         Returns the calculated drawdowns and highwater series for the portfolio returns.
         '''
         return self.returns.drawdowns()
+
+    def max_position_percent(self):
+        pct_holdings = self.dollar_holdings.divide(self.value, axis = 0)
+        return pct_holdings.max(axis = 1)
 
     @property
     def trade_start_date(self):
@@ -538,9 +542,9 @@ class PositionState:
         if tickers is None:
             # All tickers which have not been touched by an event are rebalanced.
             tickers = np.isnan(self.target_size)
-        self.target_size[tickers] = self.applied_size[tickers]
+        self.target_size.loc[tickers] = self.applied_size[tickers]
         #TODO below should use a RebalanceEvent.Label not string.
-        self.type[tickers] = "rebalance"
+        self.type.loc[tickers] = "rebalance"
 
     def estimate_transactions(self):
         num_shares = (self.dollar_ratio * self.target_size / self.prices)
@@ -561,13 +565,13 @@ class PositionState:
         return self.txns.num_shares
 
     def select(self, tickers):
-        self.selected[tickers] = TradeSelected.YES
+        self.selected.loc[tickers] = TradeSelected.YES
 
     def deselect(self, tickers):
-        self.selected[tickers] = TradeSelected.NO
-        self.trade_size[tickers] = 0
-        self.num_shares[tickers] = 0
-        self.cost[tickers] = 0
+        self.selected.loc[tickers] = TradeSelected.NO
+        self.trade_size.loc[tickers] = 0
+        self.num_shares.loc[tickers] = 0
+        self.cost.loc[tickers] = 0
     
     def select_exits(self):
         self.select(self.exit_mask)
@@ -588,48 +592,28 @@ class SizingStrategy:
         number of positions to be held (i.e. capital / number of positions)
         2. Multipliers - there can be an arbitrary number of multipliers which
         modify the size for each instrument (e.g. for volatility scaling)
+    The strategy aims to increase the number of positions as capital allows. 
+    The rate at which positions are added is dictated by the
+    diversifier parameter which must be in the range 0-1. A diversifier close 
+    to zero will hold the minimum number of positions possible while still
+    satisfying the maximum size constraint (as a proportion of total capital).
+    This would therefore act as targeting a fixed number of positions (1 / max_size). 
+    A diversifier close to 1 will increase the number of positions as soon as 
+    the minimum position size constraint can be met (as a dollar size).
     '''
-    def __init__(self):
+    def __init__(self, diversifier = 0.5, min_size = 2500, max_size = 0.3):
+        self.diversifier = diversifier
+        self.min_size = min_size
+        self.max_size = max_size
         self.multipliers = []
-        self.base_dollar_ratio = None
 
     def __call__(self, portfolio, date):
-        dollar_ratio = self.base_dollar_ratio(portfolio, date)
+        dollar_ratio = self.dollar_ratio(portfolio, date)
         for multiplier in self.multipliers:
             dollar_ratio *= multiplier(portfolio, date)
         return dollar_ratio
 
-
-# BASE SIZING STRATEGIES
-class FixedNumberOfPositionsSizing:
-
-    def __init__(self, target_positions = 5):
-        self.target_positions = target_positions
-
-    def __call__(self, portfolio, date):
-        nominal_dollar_position_size = portfolio.current_value / self.target_positions
-        return nominal_dollar_position_size
-
-    def update_target_positions(self, target_positions):
-        self.target_positions = target_positions
-
-
-class VariablePositionSizing:
-    '''
-    The VariablePositionSizing strategy aims to increase the number of positions
-    as capital allows. The rate at which positions are added is dictated by the
-    diversifier parameter which must be in the range 0-1. A diversifier close 
-    to zero will hold the minimum number of positions possible while still
-    satisfying the maximum size constraint (as a proportion of total capital). 
-    A diversifier close to 1 will increase the number of positions as soon as 
-    the minimum position size constraint can be met (as a dollar size).
-    '''
-    def __init__(self, diversifier = 0.5, min_size = 2500, max_size = 0.25):
-        self.diversifier = diversifier
-        self.min_size = min_size
-        self.max_size = max_size
-
-    def __call__(self, portfolio, date):
+    def dollar_ratio(self, portfolio, date):
         max_num_positions = portfolio.current_value / self.min_size
         min_num_positions = (1 / self.max_size)
         target = min_num_positions + self.diversifier * (max_num_positions - min_num_positions)
@@ -745,10 +729,10 @@ class Transactions:
         return abs(slippage)
 
     def remove(self, tickers):
-        self.num_shares[tickers] = 0
-        self.dollar_positions[tickers] = 0
-        self.slippage[tickers] = 0
-        self.commissions[tickers] = 0
+        self.num_shares.loc[tickers] = 0
+        self.dollar_positions.loc[tickers] = 0
+        self.slippage.loc[tickers] = 0
+        self.commissions.loc[tickers] = 0
 
     @property
     def active(self):

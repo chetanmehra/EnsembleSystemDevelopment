@@ -1,7 +1,6 @@
 
 from pandas import Series, DataFrame, qcut, cut, concat
 from numpy import sign, log, exp, hstack, NaN
-from sklearn.linear_model import LinearRegression
 import matplotlib.pyplot as plt
 
 
@@ -263,6 +262,7 @@ class Trade(CollectionItem):
         self.exit = exit_date
         self.entry_price = self.get_price(entry_date, prices)
         self.exit_price = self.get_price(exit_date, prices)
+        self.position_size = position_size
 
         self.prices = prices[self.entry:self.exit]
         daily_returns = (self.prices / self.prices.shift(1)) - 1
@@ -289,15 +289,20 @@ class Trade(CollectionItem):
         #    price = prices[prices.index >= date].dropna()[0]
         return price
 
-    def plot_cumulative(self):
+    def plot_result(self):
         f, axarr = plt.subplots(2, 1, sharex = True)
         axarr[0].set_ylabel('Return')
         axarr[1].set_ylabel('Drawdown')
         axarr[1].set_xlabel('Days in trade')
         self.cumulative.plot(ax = axarr[0])
-        dd = self.drawdowns()
-        dd.Highwater.plot(ax = axarr[0], color = 'red')
-        dd.Drawdown.plot(ax = axarr[1])
+        self.plot_highwater(ax = axarr[0], color = 'red')
+        self.plot_drawdowns(ax = axarr[1])
+
+    def plot_drawdowns(self, **kwargs):
+        self.drawdowns().Drawdown.plot(**kwargs)
+
+    def plot_highwater(self, **kwargs):
+        self.drawdowns().Highwater.plot(**kwargs)
 
     @property
     def date(self):
@@ -370,10 +375,9 @@ class Trade(CollectionItem):
         start on the new (later) entry day.
         '''
         if self.duration > entry_day:
-            self.entry = self.base_returns.index[entry_day]
-            self.base_returns = Returns(self.base_returns[self.entry:])
-            self.weighted_returns = Returns(self.weighted_returns[self.entry:])
-            return self
+            new_entry = self.base_returns.index[entry_day]
+            revised = Trade(self.ticker, new_entry, self.exit, self.prices, self.position_size)
+            return revised
         else:
             return None
 
@@ -383,11 +387,9 @@ class Trade(CollectionItem):
         end on the new exit day.
         '''
         if exit_day > 0:
-            self.exit = self.base_returns.index[exit_day]
-            self.exit_price = self.prices[self.exit]
-            self.base_returns = Returns(self.base_returns[:self.exit])
-            self.weighted_returns = Returns(self.weighted_returns[:self.exit])
-            return self
+            new_exit = self.base_returns.index[exit_day]
+            revised = Trade(self.ticker, self.entry, new_exit, self.prices, self.position_size)
+            return revised
         else:
             return None
 
