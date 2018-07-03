@@ -95,21 +95,21 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
     return strategy
 
 print("Preparing strat...")
-strat = signalStratSetup('O', 'C')
+strat = signalStratSetup('O', 'C', params = (150, 75))
 ##strat = createBreakoutStrategy(window = 60)
 
-adjusted = ValueRatio('EPV', 'Adjusted')(strat)
-#base = ValueRatio('EPV', 'Base')(strat)
-cyclic = ValueRatio('EPV', 'Cyclic')(strat)
-strat.filters.append(HighPassFilter(adjusted, 0.0))
-strat.filters.append(HighPassFilter(cyclic, 0.0))
+# adjusted = ValueRatio('EPV', 'Adjusted')(strat)
+# base = ValueRatio('EPV', 'Base')(strat)
+# cyclic = ValueRatio('EPV', 'Cyclic')(strat)
+# strat.filters.append(HighPassFilter(adjusted, -0.5))
+# strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 print("Running base strat...")
 strat.run()
 print("Generated", strat.trades.count, "trades.")
 
-print("Applying stops...")
-strat.apply_exit_condition(TrailingStop(0.15))
+# print("Applying stops...")
+# strat.apply_exit_condition(TrailingStop(0.15))
 # strat.apply_exit_condition(StopLoss(0.15))
 # strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.2, 0.3))
 # strat.apply_exit_condition(ReturnTriggeredTrailingStop(0.1, 0.5))
@@ -127,15 +127,28 @@ strat.apply_exit_condition(TrailingStop(0.15))
 #with open(r'D:\Investing\Workspace\test_strat.pkl', 'rb') as file:
 #    strat = pickle.load(file)
 
-print("Preparing portfolio...")
-port = Portfolio(strat, 15000)
-port.sizing_strategy = SizingStrategy(diversifier = 0.5)
-volatilities = StdDevEMA(40)(strat.indicator_prices.at(strat.trade_entry))
-port.sizing_strategy.multipliers.append(VolatilityMultiplier(0.25, volatilities))
-port.position_checks.append(PositionCostThreshold(0.02))
-print("Running portfolio...")
-port.run()
-print("Done...")
+# print("Preparing portfolio...")
+# port = Portfolio(strat, 15000)
+# port.sizing_strategy = SizingStrategy(diversifier = 0.5)
+# volatilities = StdDevEMA(40)(strat.indicator_prices.at(strat.trade_entry))
+# port.sizing_strategy.multipliers.append(VolatilityMultiplier(0.3, volatilities))
+# port.position_checks.append(PositionCostThreshold(0.02))
+# print("Running portfolio...")
+# port.run()
+# print("Done...")
+
+
+# from system.analysis import ParameterFuzzer
+
+# fuzzer = ParameterFuzzer(strat, (150, 75))
+# fuzzer.fuzzed_pars = [(200, 160), (200, 100), (200, 40), (150, 120), (150, 30), (100, 80), (100, 50), (100, 20)]
+# fuzzer.fuzz()
+
+# from system.analysis import Sampler
+# sampler = Sampler(N = 30)
+# strat_returns = strat.returns
+# mkt_returns = strat.market_returns
+# sampler.check_robustness(strat_returns, mkt_returns)
 
 print("Ready...")
 

@@ -12,15 +12,13 @@ from system.metrics import Drawdowns, OptF
 from data_types.constants import TRADING_DAYS_PER_YEAR
 
 
-
 class Returns(DataElement):
     """
     Returns represents a returns Series, and provides methods for summarising
     and plotting.
     """
     def __init__(self, data):
-        data[isnull(data)] = 0
-        self.data = data
+        self.data = data.fillna(0)
         self.lag = 1
         self.calculation_timing = ["entry", "exit"]
         self.indexer = None
@@ -132,7 +130,6 @@ class Returns(DataElement):
             self.plot_heatmap(data.values, x_labels, y_labels, title, ax)
         
         fig.tight_layout()
-
 
     def plot_heatmap(self, values, x_labs, y_labs, title, ax):
         im = ax.imshow(values, cmap = "RdYlGn")

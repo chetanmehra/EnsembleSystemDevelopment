@@ -48,6 +48,15 @@ class Collection:
         new_items = [item for item in self.items if condition(item)]
         return self.copy_with(new_items)
 
+    def subset(self, selection):
+        '''
+        Returns a new collection containing only items in the selection.
+        selection is typically a list of integers representing the index
+        of the item to select, although a list of tickers will also work.
+        '''
+        new_items = [self[s] for s in selection]
+        return self.copy_with(new_items)
+
     def copy_with(self, items):
         '''
         Collection classes need to implement copy_with to create new

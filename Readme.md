@@ -7,6 +7,13 @@ was to investigate the performance of groups of strategies. While this is still 
 the framework, it is now more of a general purpose set of research tools.
 
 ## TODO
+* Strategy to hold base trades and positions
+* Strategy position weighting (using trade modifier)
+* Assess weighted vs unweighted positions
+* ETD vs Max Drawdown, Volatility adjusted MAE plot
+* Portfolio events for logging
+* Review summary_report
+* Fix Fuzzer multiprocessing
 
 ### Analysis
 * Investigate drawdown profile for moves of a certain magnitude
@@ -18,7 +25,9 @@ the framework, it is now more of a general purpose set of research tools.
     + In-sample exploration
         - Subset NYSE data
         - Parameter sensitivity
+        - Filters
         - Use of stops
+        - Position weighting
         - Cross-validation across market constituents
         - Performance report
         - Equity curve

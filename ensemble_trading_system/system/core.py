@@ -91,6 +91,14 @@ class Strategy:
     def trade_prices(self):
         return self.prices.at(self.trade_entry)
 
+    def copy(self):
+        strat_copy = Strategy(self.trade_timing, self.ind_timing)
+        strat_copy.market = self.market
+        strat_copy.signal_generator = self.signal_generator
+        strat_copy.position_rules = self.position_rules
+        strat_copy.filters = self.filters
+        return strat_copy
+
     def run(self):
         '''
         Run the strategy with the current settings.

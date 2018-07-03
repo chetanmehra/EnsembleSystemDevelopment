@@ -5,7 +5,7 @@ from numpy import sign
 
 from system.interfaces import DataElement
 
-from data_types.returns import StrategyReturns
+from data_types.returns import AggregateReturns
 from data_types.trades import Trade, TradeCollection
 from data_types.events import EventCollection
 
@@ -38,7 +38,10 @@ class Position(DataElement):
             ticker_exits = self.events.related_exits(ticker)
             for entry in ticker_entries:
                 trade_exit = self.events.next_exit(entry, ticker_exits)
-                trades.append(Trade(entry.ticker, entry.date, trade_exit.date, 
+                # If an entry is generated on the last day, the the entry
+                # and exit date will be the same which will cause issues.
+                if entry.date < trade_exit.date:
+                    trades.append(Trade(entry.ticker, entry.date, trade_exit.date, 
                                     prices[entry.ticker], self.data[entry.ticker]))
         return TradeCollection(trades)
 
@@ -59,7 +62,9 @@ class Position(DataElement):
         return new_positions
 
     def applied_to(self, market_returns):
-        return StrategyReturns(self.data * market_returns.data, self)
+        data = self.data * market_returns.data
+        data = data.div(self.num_concurrent(), axis = 'rows')
+        return AggregateReturns(data)
 
     @property
     def start(self):
