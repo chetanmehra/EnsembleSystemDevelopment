@@ -197,24 +197,6 @@ class TradeCollection(Collection):
             self._daily_returns = returns.dropna()
         return self._daily_returns
 
-    def apply_exit_condition(self, condition):
-        '''
-        Applies a given exit condition to each trade in the collection.
-        A new TradeCollection is returned with the modified trades.
-        '''
-        adjusted_trades = []
-        for trade in self.as_list():
-            adjusted_trades.append(trade.apply_exit_condition(condition))
-        return TradeCollection(adjusted_trades)
-
-    def apply_delay(self, delay):
-        delayed_trades = []
-        for T in self.as_list():
-            new_T = T.apply_delay(delay)
-            if new_T is not None:
-                delayed_trades.append(new_T)
-        return TradeCollection(delayed_trades)
-
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
             trade.plot_cumulative()
@@ -262,19 +244,14 @@ class Trade(CollectionItem):
         self.exit = exit_date
         self.entry_price = self.get_price(entry_date, prices)
         self.exit_price = self.get_price(exit_date, prices)
-        self.position_size = position_size
+        self._position_size = position_size
 
         self.prices = prices[self.entry:self.exit]
         daily_returns = (self.prices / self.prices.shift(1)) - 1
         daily_returns[0] = (self.prices[0] / self.entry_price) - 1
         self.base_returns = Returns(daily_returns)
-        # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
-        if isinstance(position_size, int) or isinstance(position_size, float):
-            daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size) - 1
-        else:
-            position_size = position_size.shift(1)[self.entry:self.exit]
-            daily_returns = (1 + (daily_returns * abs(position_size))) ** sign(position_size[1]) - 1
-        self.weighted_returns = Returns(daily_returns)
+        self.calculate_weighted_returns()
+        # Fields to use when converting to a tuple
         self.tuple_fields = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration", "annualised_return", "normalised_return"]
 
     def __str__(self):
@@ -288,21 +265,6 @@ class Trade(CollectionItem):
         #if isnull(price):
         #    price = prices[prices.index >= date].dropna()[0]
         return price
-
-    def plot_result(self):
-        f, axarr = plt.subplots(2, 1, sharex = True)
-        axarr[0].set_ylabel('Return')
-        axarr[1].set_ylabel('Drawdown')
-        axarr[1].set_xlabel('Days in trade')
-        self.cumulative.plot(ax = axarr[0])
-        self.plot_highwater(ax = axarr[0], color = 'red')
-        self.plot_drawdowns(ax = axarr[1])
-
-    def plot_drawdowns(self, **kwargs):
-        self.drawdowns().Drawdown.plot(**kwargs)
-
-    def plot_highwater(self, **kwargs):
-        self.drawdowns().Highwater.plot(**kwargs)
 
     @property
     def date(self):
@@ -319,7 +281,20 @@ class Trade(CollectionItem):
         return len(self.cumulative)
 
     @property
+    def position_size(self):
+        return self._position_size
+
+    @position_size.setter
+    def position_size(self, size):
+        self._position_size = size
+        self.calculate_weighted_returns()
+
+    @property
     def base_return(self):
+        return self.base_returns.final()
+
+    @property
+    def weighted_return(self):
         return self.weighted_returns.final()
 
     @property
@@ -354,21 +329,21 @@ class Trade(CollectionItem):
         # date indexed
         return self.weighted_returns.int_indexed().drawdowns()
 
-    # Trade modifiers
-    def apply_exit_condition(self, condition):
-        '''
-        apply_exit_condition takes a condition, which is a callable object.
-        The condition receives the trade and calculates the new exit day.
-        '''
-        new_exit_day = condition(self)
-        if new_exit_day is not None:
-            return self.revise_exit(new_exit_day)
+    def calculate_weighted_returns(self):
+        # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
+        base_returns = self.base_returns.data
+        position_size = self.position_size
+        if isinstance(position_size, int) or isinstance(position_size, float):
+            weighted_returns = (1 + (base_returns * abs(position_size))) ** sign(self.position_size) - 1
+        elif isinstance(position_size, Series):
+            position_size = position_size.shift(1)[self.entry:self.exit]
+            weighted_returns = (1 + (base_returns * abs(position_size))) ** sign(position_size[1]) - 1
         else:
-            return self
+            weighted_returns = None
+        self.weighted_returns = Returns(weighted_returns)
 
-    def apply_delay(self, delay):
-        return self.revise_entry(delay)
-
+    # Trade modifiers
+    # TODO - revise_entry and revise_exit could be parameter setters
     def revise_entry(self, entry_day):
         '''
         revise_entry accepts an entry_day (integer), and readjusts the trade to
@@ -393,3 +368,18 @@ class Trade(CollectionItem):
         else:
             return None
 
+    # Plotting
+    def plot_result(self):
+        f, axarr = plt.subplots(2, 1, sharex = True)
+        axarr[0].set_ylabel('Return')
+        axarr[1].set_ylabel('Drawdown')
+        axarr[1].set_xlabel('Days in trade')
+        self.cumulative.plot(ax = axarr[0])
+        self.plot_highwater(ax = axarr[0], color = 'red')
+        self.plot_drawdowns(ax = axarr[1])
+
+    def plot_drawdowns(self, **kwargs):
+        self.drawdowns().Drawdown.plot(**kwargs)
+
+    def plot_highwater(self, **kwargs):
+        self.drawdowns().Highwater.plot(**kwargs)

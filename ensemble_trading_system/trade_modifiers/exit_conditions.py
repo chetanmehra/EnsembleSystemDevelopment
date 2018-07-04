@@ -9,9 +9,9 @@ class ExitCondition:
     def __call__(self, trade):
         limit_hits = self.get_limit_hits(trade)
         if len(limit_hits):
-            return min(limit_hits)
+            return trade.revise_exit(min(limit_hits))
         else:
-            return None
+            return trade
 
 class TrailingStop(ExitCondition):
 

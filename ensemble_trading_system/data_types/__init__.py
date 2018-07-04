@@ -48,6 +48,14 @@ class Collection:
         new_items = [item for item in self.items if condition(item)]
         return self.copy_with(new_items)
 
+    def apply(self, modifier):
+        modified_trades = []
+        for trade in self.items:
+            new_trade = modifier(trade)
+            if new_trade is not None:
+                modified_trades.append(new_trade)
+        return self.copy_with(modified_trades)
+
     def subset(self, selection):
         '''
         Returns a new collection containing only items in the selection.

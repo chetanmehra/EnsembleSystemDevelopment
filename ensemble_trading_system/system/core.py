@@ -108,6 +108,7 @@ class Strategy:
         self.generate_signals()
         self.apply_rules()
         self.apply_filters()
+        self.rebase()
         
     def rerun(self):
         '''
@@ -124,6 +125,13 @@ class Strategy:
         '''
         self.signal = None
         self.positions = None
+
+    def rebase(self):
+        '''
+        rebase makes a copy of the positions (and trades) as base reference.
+        Any further changes to these can then be compared with the base result.
+        '''
+        self.base_positions = self.positions
         
     def generate_signals(self):
         self.signal = self.signal_generator(self)
@@ -152,7 +160,7 @@ class Strategy:
         Accepts an exit condition object e.g. StopLoss, which is
         passed to the Trade Collection to be applied to each trade.
         '''
-        self.trades = self.trades.apply_exit_condition(condition)
+        self.trades = self.trades.apply(condition)
 
     def get_empty_dataframe(self, fill_data = None):
         '''

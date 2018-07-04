@@ -3,7 +3,7 @@
 import matplotlib.pyplot as plt
 from pandas import qcut, cut, concat, DataFrame, Series
 from numpy import log, random, arange, NaN
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
 from data_types.returns import Returns, AverageReturns
 from system.core import Strategy, Portfolio
@@ -588,16 +588,36 @@ def cross_validate_positions(strategy, N = 20, subset_fraction = 0.7):
 
 class ParameterFuzzer:
 
-    def __init__(self, strategy, base_parameters, processes = 8):
+    def __init__(self, strategy, base_parameters, processes = None):
         self.strategy = strategy
         if strategy.trades is None:
             strategy.run()
         self.base = summary_report(strategy.trades)
         self.base_pars = base_parameters
+        if processes is None:
+            processes = cpu_count()
         self.processes = processes
         self._fuzzed_pars = None
         self.results = None
         self.summary = None
+
+    @property
+    def metrics(self):
+        return self.base.index
+
+    @property
+    def parameter_tuples(self):
+        # Note: below assumes last column in fuzzed_pars is 'Fuzz size'
+        return [tuple(pars) for pars in self.fuzzed_pars[self.fuzzed_pars.columns[:-1]].values]
+
+    @property
+    def fuzzed_strategies(self):
+        output = []
+        for pars in self.parameter_tuples:
+            strategy = self.strategy.copy()
+            strategy.signal_generator.update_param(pars)
+            output.append((pars, strategy))
+        return output
 
     @property
     def fuzzed_pars(self):
@@ -622,24 +642,45 @@ class ParameterFuzzer:
         '''
         fuzz runs the strategy with the fuzzed_pars and collates the results
         '''
-        # Note: below assumes last column in fuzzed_pars is 'Fuzz size'
-        par_tuples = [tuple(pars) for pars in self.fuzzed_pars[self.fuzzed_pars.columns[:-1]].values]
-    
         pool = Pool(processes = self.processes)
-        self.results = pool.map(self.runner, par_tuples)
+        self.results = pool.map(self.strategy_runner, self.fuzzed_strategies)
+
+
+    def strategy_runner(self, inputs):
+        '''
+        strategy_runner is designed to be run in parallel processing.
+        It runs the strategy with the provided parameters
+        inputs - a tuple (parameters, strategy)
+        '''
+        pars = inputs[0]
+        strategy = inputs[1]
+        try:
+            strategy.run()
+        except:
+            pass
+        return (pars, strategy)
         
     def summarise(self):
         if self.results is None:
             self.fuzz()
-        summaries = {}
-        for R in self.results:
-            # R[0] will be the parameter tuple
-            # R[1] will be the strategy
-            label = ':'.join(['{:0.1f}'] * len(R[0])).format(*R[0])
-            summaries[label] = summary_report(R[1].trades)
-        summary_table = DataFrame(summaries)
+        pool = Pool(processes = self.processes)
+        summaries = pool.map(self.summary_runner, self.results)
+        summary_table = DataFrame(dict(summaries))
+        # TODO there's no guarantee that the results are in the same order as fuzz size
         summary_table.loc['Fuzz size'] = self.fuzzed_pars['Fuzz size'].values
         self.summary = summary_table
+
+    def summary_runner(self, result):
+        '''
+        summary_runner is designed to support parallel processing
+        It takes the strategy results and calculates the summary report 
+        outputting a tuple of (label, summary_report).
+        The result input should contain the parameter tuple, and strategy.
+        '''
+        # result[0] will be the parameter tuple
+        # result[1] will be the strategy
+        label = ':'.join(['{:0.1f}'] * len(result[0])).format(*result[0])
+        return (label, summary_report(result[1].trades))
 
     def fuzz_parameters(self, fuzz_range = 0.15, num_trials = 20):
         '''
@@ -691,22 +732,10 @@ class ParameterFuzzer:
         return ax
 
 
-    @property
-    def metrics(self):
-        return self.base.index
-
     def plot(self, metric):
         plt.scatter(self.summary.loc['Fuzz size'], self.summary.loc[metric])
         plt.scatter(0, self.base.loc[metric], color = 'red')
 
-    def runner(self, pars):
-        strategy = self.strategy.copy()
-        strategy.signal_generator.update_param(pars)
-        try:
-            strategy.run()
-        except:
-            pass
-        return (pars, strategy)
 
     def signal_coincidence(self, strategy):
         '''
