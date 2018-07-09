@@ -4,9 +4,8 @@ Created on 6 Dec 2014
 @author: Mark
 '''
 from pandas import DateOffset, Panel, DataFrame
-from pandas.stats.moments import ewma
 import pandas as pd
-from matplotlib.finance import candlestick_ohlc
+from mpl_finance import candlestick_ohlc
 from matplotlib.dates import date2num
 import matplotlib.pyplot as plt
 import datetime

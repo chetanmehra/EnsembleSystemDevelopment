@@ -74,14 +74,17 @@ class Returns(DataElement):
     def sharpe(self):
         mean = self.data.mean()
         std = self.data.std()
-        try:
-            sharpe = (mean / std) * (TRADING_DAYS_PER_YEAR ** 0.5)
-        except ZeroDivisionError:
-            sharpe = NaN
-        return sharpe
+        if isinstance(std, Series):
+            std[std == 0] = NaN
+        else:
+            std = NaN
+        return (mean / std) * (TRADING_DAYS_PER_YEAR ** 0.5)
 
     def optf(self):
         return OptF(self.data)
+
+    def annual_mean(self):
+        return self.data.mean() * TRADING_DAYS_PER_YEAR
 
     def volatility(self):
         return self.data.std() * (TRADING_DAYS_PER_YEAR ** 0.5)

@@ -7,9 +7,8 @@ was to investigate the performance of groups of strategies. While this is still 
 the framework, it is now more of a general purpose set of research tools.
 
 ## TODO
-* Strategy position weighting (using trade modifier)
 * Assess weighted vs unweighted positions
-* Variable stop sizing (i.e. with position size) 
+* Variable stop sizing (i.e. with position size)
 * ETD vs Max Drawdown, Volatility adjusted MAE plot
 * Portfolio events for logging
 * Review summary_report

@@ -19,7 +19,7 @@ class Position(DataElement):
         if not isinstance(data, DataFrame):
             raise TypeError
         self.data = data
-        self.events = EventCollection.from_position_data(data)
+        self.events = self.create_events()
 
     def create_events(self):
         return EventCollection.from_position_data(self.data)
@@ -63,7 +63,7 @@ class Position(DataElement):
 
     def applied_to(self, market_returns):
         data = self.data * market_returns.data
-        data = data.div(self.num_concurrent(), axis = 'rows')
+        #data = data.div(self.num_concurrent(), axis = 'rows')
         return AggregateReturns(data)
 
     @property

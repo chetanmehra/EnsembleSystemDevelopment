@@ -377,8 +377,8 @@ def summary_returns(trades):
     returns['Ratio average win to loss'] = round(winners.mean_return / abs(losers.mean_return), 2)
     returns['Largest winner'] = round(100 * max(trades.returns), 2)
     returns['Largest loser'] = round(100 * min(trades.returns), 2) 
-    returns['Sharpe by trade'] = round(trades.Sharpe, 2)
-    returns['Sharpe by trade inc slippage'] = round(trades.returns_slippage.mean() / trades.returns_slippage.std(), 2)
+    #returns['Sharpe by trade'] = round(trades.Sharpe, 2)
+    #returns['Sharpe by trade inc slippage'] = round(trades.returns_slippage.mean() / trades.returns_slippage.std(), 2)
     returns['Sharpe annualised'] = round(trades.Sharpe_annual, 2)
     returns['Sharpe annualised inc slippage'] = round(trades.Sharpe_annual_slippage, 2)
     returns['Opt F'] = round(OptF(trades.returns), 2)
@@ -398,10 +398,12 @@ def summary_duration(trades):
     duration['Average duration'] = round(trades.durations.mean(), 2)
     duration['Average duration winners'] = round(winners.durations.mean(), 2)
     duration['Average duration losers'] = round(losers.durations.mean(), 2)
-    duration['Max consecutive winners'] = positive_runs.max()
-    duration['Max consecutive losers'] = negative_runs.max()
-    duration['Avg consecutive winners'] = round(positive_runs.mean(), 2)
-    duration['Avg consecutive losers'] = round(negative_runs.mean(), 2)
+    # Whilst consecutive winners/losers is interesting I'm not confident
+    # that this is being calculated by the TradeCollection in a meaningful way.
+    # duration['Max consecutive winners'] = positive_runs.max()
+    # duration['Max consecutive losers'] = negative_runs.max()
+    # duration['Avg consecutive winners'] = round(positive_runs.mean(), 2)
+    # duration['Avg consecutive losers'] = round(negative_runs.mean(), 2)
     return duration
 
 def summary_report(trades = None, **kwargs):
@@ -467,6 +469,7 @@ class Sampler:
             subset = ReturnsClass(returns[sample_tickers])
             self.sampled_returns[n] = subset.combined().data
             print('.', end = '')
+        self.sampled_returns = AverageReturns(self.sampled_returns)
         print('\ndone.')
 
     def check_selection_skill(self, selected, base):
@@ -494,10 +497,9 @@ class Sampler:
         the mean, std dev, and Sharpe.
         '''
         keys = ['mean', 'std. dev.', 'Sharpe']
-        mean = self.sampled_returns.mean()
-        std = self.sampled_returns.std()
-        std[std == 0] = NaN
-        sharpe = mean / std
+        mean = self.sampled_returns.annual_mean()
+        std = self.sampled_returns.volatility()
+        sharpe = self.sampled_returns.sharpe()
         results = [mean, std, sharpe]
         fig, axarr = plt.subplots(1, 3, sharey=True)
         for i in range(3):

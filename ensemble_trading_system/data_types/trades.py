@@ -9,7 +9,6 @@ from data_types import Collection, CollectionItem
 from data_types.returns import Returns
 from data_types.constants import TRADING_DAYS_PER_YEAR
 
-# TODO Apply exit condition and apply entry condition are effectively the same.
 
 class TradeCollection(Collection):
 
@@ -50,7 +49,7 @@ class TradeCollection(Collection):
     @property
     def returns(self):
         if self._returns is None:
-            self._returns = Series([trade.base_return for trade in self.items])
+            self._returns = Series([trade.weighted_return for trade in self.items])
         return self._returns
 
     @property
@@ -76,7 +75,7 @@ class TradeCollection(Collection):
         '''
         End Trade Drawdown is defined as the difference between the MFE and the end return
         '''
-        return [trade.MFE - trade.base_return for trade in self.items]
+        return [trade.MFE - trade.weighted_return for trade in self.items]
 
     @property
     def mean_return(self):

@@ -43,3 +43,24 @@ class ReturnTriggeredTrailingStop(ExitCondition):
         highwater = dd.Highwater
         return highwater.index[(highwater >= self.return_level) & (drawdowns <= self.stop)]
 
+class PositionBasedStop(StopLoss):
+    '''
+    The PositionBasedStop varies its stop level based on the position size
+    of the trade it is applied to. This accounts for adjustments such as 
+    volatility sizing applied to the position, where you would have a stop
+    placement inversely proportional to the position (proportional to vol).
+    In this case stop_level refers to the base stop percentage for a position 
+    size of one.
+    '''
+    def __init___(self, stop_level):
+        self.base_stop = -1 * abs(stop_level)
+        self.stop = self.base_stop
+
+    def get_limit_hits(self, trade):
+        '''
+        This stop is not designed for strategies with daily variable
+        position sizes (i.e. where trade.position_size is a series)
+        '''
+        self.stop = self.base_stop / trade.position_size
+        super().get_limit_hits(trade)
+

@@ -5,15 +5,14 @@ Created on 21 Dec 2014
 '''
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy.optimize
-from pandas import DateOffset, Panel, DataFrame, Series
+from pandas import DateOffset, DataFrame, Series
 
 from system.interfaces import IndexerFactory
 from data_types.trades import TradeCollection
 from data_types.positions import Position
 from data_types.returns import Returns
 from data_types.constants import TradeSelected
-from data_types.events import EventCollection, ExitEvent
+from data_types.events import ExitEvent
 from measures.volatility import StdDevEMA
 
 
@@ -131,7 +130,7 @@ class Strategy:
         rebase makes a copy of the positions (and trades) as base reference.
         Any further changes to these can then be compared with the base result.
         '''
-        self.base_positions = self.positions
+        self.base_positions = self.positions.copy()
         
     def generate_signals(self):
         self.signal = self.signal_generator(self)

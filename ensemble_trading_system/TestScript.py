@@ -130,8 +130,6 @@ print("Generated", strat.trades.count, "trades.")
 # print("Preparing portfolio...")
 # port = Portfolio(strat, 15000)
 # port.sizing_strategy = SizingStrategy(diversifier = 0.5)
-# volatilities = StdDevEMA(40)(strat.indicator_prices.at(strat.trade_entry))
-# port.sizing_strategy.multipliers.append(VolatilityMultiplier(0.3, volatilities))
 # port.position_checks.append(PositionCostThreshold(0.02))
 # print("Running portfolio...")
 # port.run()
@@ -139,17 +137,20 @@ print("Generated", strat.trades.count, "trades.")
 
 
 # from system.analysis import ParameterFuzzer
+# fuzzer = ParameterFuzzer(strategy, base_parameters = (150, 75), processes = 2)
+# fuzzer.fuzzed_pars = [(200, 160), (200, 100), (200, 40), (150, 120), (150, 75), (150, 30), (100, 80), (100, 50), (100, 20)]
+# fuzzer.summarise()
+# fig, axarr = plt.subplots(1, 3)
+# fuzzer.plot_metric('Number of trades', ax = axarr[0])
+# fuzzer.plot_metric('Percent winners', ax = axarr[1])
+# fuzzer.plot_metric('Ratio average win to loss', ax = axarr[2])
+# plt.tight_layout()
 
-# fuzzer = ParameterFuzzer(strat, (150, 75))
-# fuzzer.fuzzed_pars = [(200, 160), (200, 100), (200, 40), (150, 120), (150, 30), (100, 80), (100, 50), (100, 20)]
-# fuzzer.fuzz()
+# print("Applying weights...")
+# from trade_modifiers.weighting import TradeWeighting
+# volatilities = StdDevEMA(40)(strat.indicator_prices)
+# strat.trades = strat.trades.apply(TradeWeighting(0.3 / volatilities))
 
-# from system.analysis import Sampler
-# sampler = Sampler(N = 30)
-# strat_returns = strat.returns
-# mkt_returns = strat.market_returns
-# sampler.check_robustness(strat_returns, mkt_returns)
 
 print("Ready...")
 
-# summary_report(BH = strat.buy_and_hold_trades(), Strat = strat.trades)
