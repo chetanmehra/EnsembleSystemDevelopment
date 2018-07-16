@@ -16,4 +16,4 @@ class PositionFromDiscreteSignal(PositionRuleElement):
         signal = strategy.signal.at(strategy.trade_entry)
         for level, position_size in self.level_sizes.items():
             pos_data[signal.data == level] = position_size
-        return Position(pos_data)
+        return Position(pos_data, strategy)

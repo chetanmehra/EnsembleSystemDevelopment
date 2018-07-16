@@ -5,7 +5,7 @@ from numpy import sign
 
 from system.interfaces import DataElement
 
-from data_types.returns import AggregateReturns
+from data_types.returns import AggregateReturns, StrategyReturns
 from data_types.trades import Trade, TradeCollection
 from data_types.events import EventCollection
 
@@ -15,17 +15,32 @@ class Position(DataElement):
     Position objects hold the dual role of keeping the position data for the strategy, as well as 
     calculating the returns from holding those positions.
     '''
-    def __init__(self, data):
+    def __init__(self, data, strategy = None):
         if not isinstance(data, DataFrame):
             raise TypeError
         self.data = data
-        self.events = self.create_events()
+        if strategy is not None:
+            self.base_returns = strategy.market_returns.data
+            self._returns = self.calculate_returns()
+            self.events = self.create_events()
+            self.trades = self.create_trades()
+
+    @staticmethod
+    def from_copy(data, trades, base_returns):
+        '''
+        from_copy is a constructor which is designed to be used when conducting
+        trials of trade_modifiers. This will create a "lightweight" version of 
+        positions, with the supplied data.
+        '''
+        positions = Position(data)
+        positions.trades = trades
+        positions.base_returns = base_returns
+        return positions
 
     def create_events(self):
         return EventCollection.from_position_data(self.data)
 
-    def create_trades(self, strategy):
-        prices = strategy.trade_prices
+    def create_trades(self):
         trades = []
         for ticker in self.events.tickers:
             # Note we loop through by ticker and subset the events here so 
@@ -38,14 +53,54 @@ class Position(DataElement):
             ticker_exits = self.events.related_exits(ticker)
             for entry in ticker_entries:
                 trade_exit = self.events.next_exit(entry, ticker_exits)
-                # If an entry is generated on the last day, the the entry
+                # If an entry is generated on the last day, then the entry
                 # and exit date will be the same which will cause issues.
                 if entry.date < trade_exit.date:
-                    trades.append(Trade(entry.ticker, entry.date, trade_exit.date, 
-                                    prices[entry.ticker], self.data[entry.ticker]))
+                    trades.append(Trade(entry, trade_exit, self.data.loc, 
+                                    self.base_returns.loc, self._returns.loc))
         return TradeCollection(trades)
 
+    def calculate_returns(self):
+        # TODO make sure this can handle short positions.
+        return (self.base_returns * self.data.shift(1)).fillna(0)
 
+    @property
+    def returns(self):
+        return StrategyReturns(self._returns)
+
+    def update_returns(self):
+        '''
+        update_returns recalculates the returns as per calculate_returns
+        however it also updates references to the returns where needed.
+        '''
+        self._returns = self.calculate_returns()
+        for trade in self.trades:
+            trade.weighted_returns = self._returns.loc
+
+    def copy(self):
+        new_data = self.data.copy()
+        new_trades = self.trades.copy()
+        for trade in new_trades:
+            trade._position_loc = new_data.loc
+        return Position.from_copy(new_data, new_trades, self.base_returns)
+
+    def apply(self, trade_modifier):
+        '''
+        apply accepts a trade_modifier, which is used to update the positions, 
+        trades, and returns.
+        '''
+        self.trades.apply(trade_modifier)
+        self.update_returns()
+        
+    def trial(self, trade_modifier):
+        '''
+        trial accepts a trade_modifier and performs the update as per apply, 
+        but returns a copy.
+        '''
+        new_positions = self.copy()
+        new_positions.apply(trade_modifier)
+        return new_positions
+        
     def update_from_trades(self, trades):
         new_pos_data = deepcopy(self.data)
         new_pos_data[:] = 0

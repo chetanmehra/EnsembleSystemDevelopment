@@ -3,25 +3,25 @@ from pandas import Series, DataFrame, qcut, cut, concat
 from numpy import sign, log, exp, hstack, NaN
 import matplotlib.pyplot as plt
 
-
-from system.metrics import Drawdowns
+from system.metrics import Drawdowns, GroupDrawdowns
 from data_types import Collection, CollectionItem
 from data_types.returns import Returns
-from data_types.constants import TRADING_DAYS_PER_YEAR
 
 
 class TradeCollection(Collection):
 
     def __init__(self, items):
+        super().__init__(items)
         self.tickers = list(set([trade.ticker for trade in items]))
         self.tickers.sort()
-        self.items = items
         self.slippage = 0.011
         self._returns = None
         self._durations = None
         self._daily_returns = None
 
-    def copy_with(self, items):
+    def copy(self, items = None, **kwargs):
+        if items is None:
+            items = [item.copy() for item in self.items]
         return TradeCollection(items)
 
     def as_dataframe_with(self, *args):
@@ -134,7 +134,7 @@ class TradeCollection(Collection):
         Calculates the positive and negative runs in the trade series.
         '''
         trade_df = self.as_dataframe().sort_values(by = 'exit')
-        win_loss = sign(trade_df.base_return)
+        win_loss = sign(returns)
         # Create series which has just 1's and 0's
         positive = Series(hstack(([0], ((win_loss > 0) * 1).values, [0])))
         negative = Series(hstack(([0], ((win_loss < 0) * 1).values, [0])))
@@ -196,6 +196,34 @@ class TradeCollection(Collection):
             self._daily_returns = returns.dropna()
         return self._daily_returns
 
+    def summary(self):
+        '''
+        Returns a Series with summary trade return statistics
+        '''
+        winners = self.returns > 0
+        losers = self.returns < 0
+        summary = Series(dtype = float)
+        summary['Number of trades'] = self.count
+        summary['Percent winners'] = round(100 * winners.sum() / self.count, 2)
+        summary['Number of winners'] = winners.sum()
+        summary['Number of losers'] = losers.sum()
+        summary['Number even'] = (self.returns == 0).sum()
+        summary['Avg return'] = round(100 * self.returns.mean(), 2)
+        summary['Avg return inc slippage'] = round(100 * (self.returns - self.slippage).mean(), 2)
+        summary['Median return'] = round(100 * self.returns.median(), 2)
+        summary['Average winner'] = round(100 * self.returns[winners].mean(), 2)
+        summary['Average loser'] = round(100 * self.returns[losers].mean(), 2)
+        summary['Win/Loss ratio'] = round(self.returns[winners].mean() / self.returns[losers].mean(), 2)
+        summary['Largest winner'] = round(100 * self.returns[winners].max(), 2)
+        summary['Largest loser'] = round(100 * self.returns[losers].min(), 2)
+        summary['Average duration'] = round(self.durations.mean(), 1)
+        summary['Average duration winners'] = round(self.durations[winners].mean(), 1)
+        summary['Average duration losers'] = round(self.durations[losers].mean(), 1)
+        return summary
+        
+
+
+
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
             trade.plot_cumulative()
@@ -234,36 +262,27 @@ class TradeCollection(Collection):
         plt.ylim(y_range)
 
 
-# TODO Instead of Trade holding prices, consider retaining a reference to the Market
 class Trade(CollectionItem):
 
-    def __init__(self, ticker, entry_date, exit_date, prices, position_size = 1.0):
-        self.ticker = ticker
-        self.entry = entry_date
-        self.exit = exit_date
-        self.entry_price = self.get_price(entry_date, prices)
-        self.exit_price = self.get_price(exit_date, prices)
-        self._position_size = position_size
-
-        self.prices = prices[self.entry:self.exit]
-        daily_returns = (self.prices / self.prices.shift(1)) - 1
-        daily_returns[0] = (self.prices[0] / self.entry_price) - 1
-        self.base_returns = Returns(daily_returns)
-        self.calculate_weighted_returns()
+    def __init__(self, entry_event, exit_event, position_loc, base_returns_loc, returns_loc):
+        self.ticker = entry_event.ticker
+        self.entry = entry_event.date
+        self.exit = exit_event.date
+        self.entry_event = entry_event
+        self.exit_event = exit_event
+        self._position_loc = position_loc
+        self._base_returns = base_returns_loc
+        self.weighted_returns = returns_loc
+        # self.calculate_weighted_returns()
         # Fields to use when converting to a tuple
-        self.tuple_fields = ["ticker", "entry", "exit", "entry_price", "exit_price", "base_return", "duration", "annualised_return", "normalised_return"]
+        self.tuple_fields = ["ticker", "entry", "exit", "duration", "weighted_return", "base_return", "annualised_return", "normalised_return"]
 
     def __str__(self):
-        first_line = '{0:^23}\n'.format(self.ticker)
-        second_line = '{0:10} : {1:10} ({2} days)\n'.format(str(self.entry.date()), str(self.exit.date()), self.duration)
-        third_line = '{0:^10.2f} : {1:^10.2f} ({2:.1f} %)\n'.format(self.entry_price, self.exit_price, self.base_return * 100)
-        return first_line + second_line + third_line
-
-    def get_price(self, date, prices):
-        price = prices[date]
-        #if isnull(price):
-        #    price = prices[prices.index >= date].dropna()[0]
-        return price
+        values = list(self.as_tuple())
+        for i, v in enumerate(values):
+            if isinstance(v, float):
+                values[i] = round(v, 3)
+        return Series(values, index = self.tuple_fields).__str__()
 
     @property
     def date(self):
@@ -281,16 +300,27 @@ class Trade(CollectionItem):
 
     @property
     def position_size(self):
-        return self._position_size
+        self._position_loc[self.entry:self.exit.previous_date, self.ticker]
 
     @position_size.setter
     def position_size(self, size):
-        self._position_size = size
-        self.calculate_weighted_returns()
+        self._position_loc[self.entry:self.exit.previous_date, self.ticker] = size
+
+    @property
+    def base_returns(self):
+        return Returns(self._base_returns[self.entry:self.exit, self.ticker])
 
     @property
     def base_return(self):
         return self.base_returns.final()
+
+    @property
+    def weighted_returns(self):
+        return Returns(self._weighted_returns[self.entry:self.exit, self.ticker])
+
+    @weighted_returns.setter
+    def weighted_returns(self, returns_loc):
+        self._weighted_returns = returns_loc
 
     @property
     def weighted_return(self):
@@ -339,7 +369,7 @@ class Trade(CollectionItem):
             weighted_returns = (1 + (base_returns * abs(position_size))) ** sign(position_size[1]) - 1
         else:
             weighted_returns = None
-        self.weighted_returns = Returns(weighted_returns)
+        self._weighted_returns[self.entry:self.exit, self.ticker] = weighted_returns
 
     # Trade modifiers
     # TODO - revise_entry and revise_exit could be parameter setters
@@ -348,10 +378,13 @@ class Trade(CollectionItem):
         revise_entry accepts an entry_day (integer), and readjusts the trade to
         start on the new (later) entry day.
         '''
-        if self.duration > entry_day:
-            new_entry = self.base_returns.index[entry_day]
-            revised = Trade(self.ticker, new_entry, self.exit, self.prices, self.position_size)
-            return revised
+        if 0 < entry_day < self.duration:
+            # entry is delayed
+            old_entry = self.entry
+            day_before_new_entry = self.entry_event.offset(entry_day - 1)
+            self.entry = self.entry_event.offset(entry_day)
+            self._position_loc[old_entry:day_before_new_entry, self.ticker] = 0
+            return self
         else:
             return None
 
@@ -360,10 +393,12 @@ class Trade(CollectionItem):
         revise_exit accepts an exit_day (integer), and readjusts the trade to
         end on the new exit day.
         '''
-        if exit_day > 0:
-            new_exit = self.base_returns.index[exit_day]
-            revised = Trade(self.ticker, self.entry, new_exit, self.prices, self.position_size)
-            return revised
+        if 0 < exit_day < self.duration:
+            # trade has been shortened
+            old_exit = self.exit
+            self.exit = self.exit_event.offset(exit_day - self.duration)
+            self._position_loc[self.exit:old_exit, self.ticker] = 0
+            return self
         else:
             return None
 

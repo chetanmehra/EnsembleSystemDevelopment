@@ -11,8 +11,8 @@ from data_types.constants import TradeSelected
 class EventCollection(Collection):
 
     def __init__(self, events, tickers, index):
+        super().__init__(events)
         self.factory = EventFactory()
-        self.items = events
         self.tickers = tickers
         self.index = index
         self._related_entries = {} # Dict of entries by ticker
@@ -46,12 +46,15 @@ class EventCollection(Collection):
             event_dates = ticker_events.index[ticker_events != "-"]
             event_types = ticker_events[event_dates]
             event_sizes = ticker_deltas[event_dates]
-            event_data = list(zip(event_types, [ticker] * len(event_types), event_dates, event_sizes))
+            event_indexes = [pos_data.index] * len(event_dates)
+            event_data = list(zip(event_types, [ticker] * len(event_types), event_dates, event_sizes, event_indexes))
             events.extend([factory.build(*event) for event in event_data])
 
         return EventCollection(events, tickers, delta.index)
 
-    def copy_with(self, items):
+    def copy(self, items = None, **kwargs):
+        if items is None:
+            items = [item.copy() for item in self.items]
         return EventCollection(items, self.tickers, self.index)
     
     @property
@@ -87,7 +90,7 @@ class EventCollection(Collection):
         else:
             # create an exit event for on the last day
             exit_date = self.last_date
-            return self.factory.build(ExitEvent.Label, entry.ticker, exit_date, -entry.size) 
+            return self.factory.build(ExitEvent.Label, entry.ticker, exit_date, -entry.size, self.index) 
 
 
 class EventFactory:
@@ -98,15 +101,18 @@ class EventFactory:
             ExitEvent.Label : ExitEvent, 
             AdjustmentEvent.Label : AdjustmentEvent}
 
-    def build(self, type, ticker, date, size):
-        return self.event[type](ticker, date, size)
+    def build(self, type, ticker, date, size, index):
+        return self.event[type](ticker, date, size, index)
 
 
 class TradeEvent(CollectionItem):
+    Label = ""
 
-    def __init__(self, ticker, date, size):
+    def __init__(self, ticker, date, size, index):
         self.ticker = ticker
         self.date = date
+        self.day = list(index).index(date)
+        self.index = index
         self.size = size
         self.tuple_fields = ['ticker', 'Label', 'date', 'size']
 
@@ -115,6 +121,17 @@ class TradeEvent(CollectionItem):
         second_line = 'Date: {0:10}\n'.format(str(self.date))
         third_line = 'Size: {0:^10.1f}\n'.format(self.size)
         return first_line + second_line + third_line
+
+    @property
+    def previous_date(self):
+        return self.index[self.day - 1]
+
+    def offset(self, adjustment):
+        '''
+        The day_offset accepts an integer offset of the number of 
+        days to move the event.
+        '''
+        return self.index[self.day + adjustment]
 
     def update(self, positions):
         positions.type.loc[self.ticker] = self.Label

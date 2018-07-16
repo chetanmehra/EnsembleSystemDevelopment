@@ -5,6 +5,7 @@ from pandas import qcut, cut, concat, DataFrame, Series
 from numpy import log, random, arange, NaN
 from multiprocessing import Pool, cpu_count
 
+from data_types.constants import TRADING_DAYS_PER_YEAR
 from data_types.returns import Returns, AverageReturns
 from system.core import Strategy, Portfolio
 from system.metrics import *
@@ -265,7 +266,7 @@ class FilterPerformance():
         sd = self.trade_df.groupby(type_bins).base_return.std()
         N = self.trade_df.groupby(type_bins).base_return.count()
         self.result = {"mean" : mu, "std" : sd, "count" : N}
-        return result
+        return self.result
         
     def group(self, filter, bins):
         '''
@@ -274,7 +275,7 @@ class FilterPerformance():
         '''
         if isinstance(bins, int):
             raise ValueError("Bins must be a sequence for filter grouping")
-        self.add_filter_to_df(filter)
+        self.add(filter)
         mu = DataFrame()
         sd = DataFrame()
         N = DataFrame()

@@ -8,7 +8,7 @@ from numpy import NaN, arange, log, exp
 import matplotlib.pyplot as plt
 
 from system.interfaces import DataElement
-from system.metrics import Drawdowns, OptF
+from system.metrics import Drawdowns, GroupDrawdowns, OptF, GeometricGrowth
 from data_types.constants import TRADING_DAYS_PER_YEAR
 
 
@@ -31,6 +31,19 @@ class Returns(DataElement):
 
     def __sub__(self, other):
         return Returns(self.data - other.data)
+
+    # Casting attributes
+    @property
+    def average(self):
+        return AverageReturns(self.data)
+
+    @property
+    def aggregate(self):
+        return AggregateReturns(self.data)
+
+    @property
+    def group(self):
+        return GroupReturns(self.data)
     
     def append(self, other):
         self.data[other.data.columns] = other.data
@@ -55,16 +68,7 @@ class Returns(DataElement):
         returns = self.data
         returns[returns <= -1.0] = -0.9999999999
         return log(returns + 1)
-        
-    def plot(self, start = None, **kwargs):
-        returns = self.cumulative()
-        if start is not None:
-            start_value = returns[start]
-            if isinstance(start_value, Series):
-                start_value = start_value[0]
-            returns = returns - start_value
-        returns[start:].plot(**kwargs)
-        
+
     def annualised(self):
         return (1 + self.final()) ** (TRADING_DAYS_PER_YEAR / len(self)) - 1
 
@@ -76,9 +80,12 @@ class Returns(DataElement):
         std = self.data.std()
         if isinstance(std, Series):
             std[std == 0] = NaN
-        else:
+        elif std == 0:
             std = NaN
         return (mean / std) * (TRADING_DAYS_PER_YEAR ** 0.5)
+
+    def skew(self):
+        return self.data.skew()
 
     def optf(self):
         return OptF(self.data)
@@ -89,12 +96,24 @@ class Returns(DataElement):
     def volatility(self):
         return self.data.std() * (TRADING_DAYS_PER_YEAR ** 0.5)
 
+    def geometric_growth(self):
+        return GeometricGrowth(self.data, TRADING_DAYS_PER_YEAR)
+
     def normalised(self):
         volatility = self.volatility()
         if volatility == 0:
             return NaN
         else:
             return self.annualised() / volatility
+        
+    def plot(self, start = None, **kwargs):
+        returns = self.cumulative()
+        if start is not None:
+            start_value = returns[start]
+            if isinstance(start_value, Series):
+                start_value = start_value[0]
+            returns = returns - start_value
+        returns[start:].plot(**kwargs)
 
     def monthly(self, start = None):
         '''
@@ -186,15 +205,74 @@ class AverageReturns(Returns):
         return self.combined().annualised()
 
 
-class StrategyReturns(AggregateReturns):
+class GroupReturns(Returns):
     """
-    StrategyReturns is a hypothetical result of the strategy assuming that rebalancing
-    can happen daily at no cost, to ensure that the strategy is fully invested. Positions 
-    are divided by the number of concurrent positions for the day to normalise.
+    GroupReturns contains the returns for a collection of tickers (e.g. for a
+    strategy). Given position selection has not come into play yet, it does 
+    not make sense to plot these combined. Instead we have available a statistic
+    summary across all of the tickers.
     """
-    def __init__(self, data, positions):
-        data = data.div(positions.num_concurrent(), axis = 'rows')
+    def __init__(self, data):
         super().__init__(data)
+
+    def format_pct(self, pct):
+        return round(100 * pct, 2)
+
+    def summary_returns(self):
+        # Turn the return dataframe into a series to compute the aggregate
+        # daily statistics. We assume any zero days are when we didn't have a 
+        # position so we remove those from the series.
+        daily_returns = Series(self.data.T.values.flatten())
+        daily_returns[daily_returns == 0] = NaN
+        daily_returns = Returns(daily_returns.dropna())
+
+        summary = Series(dtype = float)
+        summary['Yearly mean'] = self.format_pct(daily_returns.annual_mean())
+        summary['Volatility'] = self.format_pct(daily_returns.volatility())
+        summary['Sharpe'] = round(daily_returns.sharpe(), 2)
+        summary['Skew'] = round(daily_returns.skew(), 2)
+        summary['Geometric growth'] = self.format_pct(daily_returns.geometric_growth())
+        return summary
+        
+    def summary_drawdowns(self):
+        '''
+        Returns a Serise with summary drawdown statistics
+        '''
+        summary = Series(dtype = float)
+        drawdowns = GroupDrawdowns(self.data)
+        summary['Max drawdown'] = drawdowns.max()
+        summary['Mean drawdown'] = drawdowns.mean()
+        summary['Max drawdown duration'] = drawdowns.max_duration()
+        summary['Avg drawdown duration'] = drawdowns.avg_duration()
+        return summary
+
+    def max_series(self):
+        cumulative = self.cumulative()
+        biggest_result = cumulative.iloc[-1, :].max()
+        biggest_ix = list(cumulative.iloc[-1, :]).index(biggest_result)
+        return cumulative.iloc[:, biggest_ix]
+
+    def min_series(self):
+        cumulative = self.cumulative()
+        smallest_result = cumulative.iloc[-1, :].min()
+        smallest_ix = list(cumulative.iloc[-1, :]).index(smallest_result)
+        return cumulative.iloc[:, smallest_ix]
+
+    def mean_series(self):
+        return self.cumulative().mean(axis = 1)
+
+    def std_series(self):
+        return self.cumulative().std(axis = 1)
+
+    def plot(self, **kwargs):
+        ax = self.mean_series().plot()
+        (self.mean_series() + self.std_series()).plot(ax = ax, style = "--", **kwargs)
+        (self.mean_series() - self.std_series()).plot(ax = ax, style = "--", **kwargs)
+        self.max_series().plot(ax = ax, style = ":", **kwargs)
+        self.min_series().plot(ax = ax, style = ":", **kwargs)
+        return ax
+
+
 
 
 

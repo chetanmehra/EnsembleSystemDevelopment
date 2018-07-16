@@ -22,7 +22,7 @@ class CarterPositions(PositionRuleElement):
         positions = (forecasts.data * volatility_scalar) / 10
         if self.long_only:
             positions[positions < 0] = 0
-        return Position(positions)
+        return Position(positions, strategy)
 
 
 class OptimalFSign(PositionRuleElement):
@@ -36,7 +36,7 @@ class OptimalFSign(PositionRuleElement):
     def execute(self, strategy):
         forecasts = self.forecast(strategy)
         optimal_size = forecasts.optF()
-        positions = Position(sign(optimal_size))
+        positions = Position(sign(optimal_size), strategy)
         positions.forecasts = forecasts
         return positions
 
@@ -53,7 +53,7 @@ class OptimalPositions(PositionRuleElement):
     def execute(self, strategy):
         forecasts = self.forecast(strategy)
         optimal_size = forecasts.optF()
-        positions = Position(optimal_size)
+        positions = Position(optimal_size, strategy)
         positions.forecasts = forecasts
         return positions
 
@@ -81,7 +81,7 @@ class SingleLargestF(PositionRuleElement):
             else:
                 result[col][row] = directions[col][row] 
         
-        positions = Position(result)
+        positions = Position(result, strategy)
         positions.forecasts = forecasts
         return positions
     
@@ -107,7 +107,7 @@ class HighestRankedFs(PositionRuleElement):
         result[ranks <= self.num_positions] = 1
         result *= sign(optimal_size)
         result /= self.num_positions
-        positions = Position(result)
+        positions = Position(result, strategy)
         positions.forecasts = forecasts
         return positions
 

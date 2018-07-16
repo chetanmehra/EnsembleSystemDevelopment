@@ -5,7 +5,7 @@ Created on 21 Dec 2014
 '''
 import matplotlib.pyplot as plt
 import numpy as np
-from pandas import DateOffset, DataFrame, Series
+from pandas import DateOffset, DataFrame, Series, concat
 
 from system.interfaces import IndexerFactory
 from data_types.trades import TradeCollection
@@ -30,7 +30,8 @@ class Strategy:
         # Component methods
         self.signal_generator = None
         self.position_rules = None
-        self.filters = []
+        self.modifiers = []
+        self.trials = {}
         # Timing parameters
         self.indexer = IndexerFactory(trade_timing, ind_timing)
         self.decision = self.indexer("decision")
@@ -45,8 +46,8 @@ class Strategy:
             first_line = ''
         second_line = 'Signal:\t{}\n'.format(self.signal_generator.name)
         third_line = 'Position Rule:\t{}\n'.format(self.position_rules.name)
-        if len(self.filters) > 0:
-            fourth_line = 'Filter:\t{}\n'.format('\n'.join([f.name for f in self.filters]))
+        if len(self.modifiers) > 0:
+            fourth_line = 'Modifier:\t{}\n'.format('\n'.join([m.name for m in self.modifiers]))
         else:
             fourth_line = 'No filter specified.\n'
         return first_line + second_line + third_line + fourth_line
@@ -95,7 +96,7 @@ class Strategy:
         strat_copy.market = self.market
         strat_copy.signal_generator = self.signal_generator
         strat_copy.position_rules = self.position_rules
-        strat_copy.filters = self.filters
+        strat_copy.modifiers = self.modifiers
         return strat_copy
 
     def run(self):
@@ -106,7 +107,7 @@ class Strategy:
         '''
         self.generate_signals()
         self.apply_rules()
-        self.apply_filters()
+        self.apply_modifiers()
         self.rebase()
         
     def rerun(self):
@@ -137,29 +138,28 @@ class Strategy:
 
     def apply_rules(self):
         self.positions = self.position_rules(self)
-        self.positions.trades = self.positions.create_trades(self)
 
-    def apply_filters(self):
-        if len(self.filters) == 0:
+    def apply_modifiers(self):
+        if len(self.modifiers) == 0:
             return
-        for filter in self.filters:
-            self.trades = filter(self)
+        for modifier in self.modifiers:
+            self.positions.apply(modifier)
 
-    def apply_filter(self, filter):
+    def apply(self, modifier):
         '''
-        Add a filter to a strategy which has already been run.
-        This will run the filter, and add it to the list of 
-        existing filters for the strategy.
+        Add a trade modifier to a strategy which has already been run.
+        This will run the modifier, and add it to the list of 
+        existing modifiers for the strategy.
         '''
-        self.filters += [filter]
-        self.trades = filter(self)
+        self.modifiers += [modifier]
+        self.positions.apply(modifier)
 
-    def apply_exit_condition(self, condition):
+    def trial(self, modifier):
         '''
-        Accepts an exit condition object e.g. StopLoss, which is
-        passed to the Trade Collection to be applied to each trade.
+        trial is analogous to apply, however it does not modify the base
+        results, instead storing a copy for later comparison.
         '''
-        self.trades = self.trades.apply(condition)
+        self.trials[modifier.name] = self.positions.trial(modifier)
 
     def get_empty_dataframe(self, fill_data = None):
         '''
@@ -187,7 +187,7 @@ class Strategy:
         '''
         signal_data = self.get_empty_dataframe()
         signal_data[:] = 1
-        return Position(signal_data).create_trades(self)
+        return Position(signal_data, self).trades
 
     @property
     def market_returns(self):
@@ -202,7 +202,7 @@ class Strategy:
         Gets the dataframe of strategy returns, i.e. positions applied to the market
         returns.
         '''
-        return self.positions.applied_to(self.market_returns)
+        return self.positions.returns
     
     @property
     def long_returns(self):
@@ -221,6 +221,12 @@ class Strategy:
         return positions.applied_to(self.market_returns)
 
     # Reporting methods
+    def summary(self):
+        overall_returns = self.returns.summary_returns()
+        drawdowns = self.returns.summary_drawdowns()
+        trades = self.trades.summary()
+        return concat((overall_returns, drawdowns, trades))
+
     def plot_measures(self, ticker, start, end, ax):
         self.signal.plot_measures(ticker, start, end, ax)
 
@@ -261,7 +267,7 @@ class Strategy:
         end = max(exits) + DateOffset(10)
         fig, ax = self.market.candlestick(ticker, start, end)
         self.plot_measures(ticker, start, end, ax)
-        for filter in self.filters:
+        for filter in self.modifiers:
             filter.plot(ticker, start, end, ax)
         lo_entry = self.market.low[ticker][entries] * 0.95
         hi_exit = self.market.high[ticker][exits] * 1.05
@@ -492,8 +498,8 @@ class Portfolio:
         self.cumulative_returns[start:].plot(ax = axarr[0], ylim = rets_ylim)
         self.returns_ex_cost.cumulative()[start:].plot(ax = axarr[0], color = 'cyan', linewidth = 0.5)
         dd = self.drawdowns
-        dd.Highwater[start:].plot(ax = axarr[0], color = 'red')
-        dd.Drawdown[start:].plot(ax = axarr[1], ylim = dd_ylim)
+        dd.highwater[start:].plot(ax = axarr[0], color = 'red')
+        dd.series[start:].plot(ax = axarr[1], ylim = dd_ylim)
         mkt_returns = self.strategy.market_returns
         mkt_dd = mkt_returns.drawdowns().Drawdown
         mkt_returns.plot(start = start, ax = axarr[0], color = 'black')
@@ -703,7 +709,7 @@ class MinimumTradePrice:
         Accepts trades provided the entry price is above a defined threshold.
         The idea is to stop positions taken in shares which would incur excessive slippage.
         """
-        return trade.entry_price >= min_price
+        return trade.entry_price >= self.min_price
 
 
 class Transactions:

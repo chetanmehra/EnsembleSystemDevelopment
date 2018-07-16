@@ -40,6 +40,8 @@ from trade_modifiers.filters import HighPassFilter
 from system.core import PositionCostThreshold, PositionMaxSize, PositionMinSize
 from system.analysis import summary_report, ParameterFuzzer
 
+from tests.TestHelpers import Timer
+
 
 # TODO Strategy should keep full list of trades after filter, to allow easy reapplication of filters without having to
 # run full strategy again.
@@ -105,7 +107,10 @@ strat = signalStratSetup('O', 'C', params = (150, 75))
 # strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 print("Running base strat...")
-strat.run()
+with Timer() as t:
+        strat.run()
+print("Strategy ran in: %s s" % round(t.secs, 2))
+
 print("Generated", strat.trades.count, "trades.")
 
 # print("Applying stops...")

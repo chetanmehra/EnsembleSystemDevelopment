@@ -193,26 +193,3 @@ class PositionRuleElement(StrategyElement):
         return ["entry"]
 
 
-class FilterInterface:
-
-    def __call__(self, strategy):
-        return strategy.trades.find(self.accepted_trade)
-
-    def get(self, date, ticker):
-        try:
-            value = self.values.loc[date, ticker]
-        except KeyError:
-            value = None
-        return value
-
-    def accepted_trade(self, trade):
-        '''
-        Each filter must implement a method accepted_trade which accepts a trade object
-        and returns a boolean to determine if the trade should be kept.
-        '''
-        raise NotImplementedError("Filter must implement 'accepted_trade' method")
-
-    def plot(self, ticker, start, end, ax):
-        raise NotImplementedError("Filter must implement 'plot' method")
-
-

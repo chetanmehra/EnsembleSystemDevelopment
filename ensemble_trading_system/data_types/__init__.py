@@ -1,6 +1,7 @@
 
 from pandas import DataFrame
 from datetime import datetime
+from copy import copy
 
 class Collection:
     '''
@@ -9,6 +10,8 @@ class Collection:
     It holds a list of 'items' and provides an interface for interacting with
     them.
     '''
+    def __init__(self, items):
+        self.items = items
 
     def __getitem__(self, key):
         if isinstance(key, datetime):
@@ -46,15 +49,13 @@ class Collection:
         must accept a CollectionItem. Returns a new Collection which meet the condition.
         '''
         new_items = [item for item in self.items if condition(item)]
-        return self.copy_with(new_items)
+        return self.copy(new_items)
 
     def apply(self, modifier):
-        modified_trades = []
-        for trade in self.items:
-            new_trade = modifier(trade)
-            if new_trade is not None:
-                modified_trades.append(new_trade)
-        return self.copy_with(modified_trades)
+        modified_items = [modifier(item) for item in self.items]
+        # Remove None values from the list
+        modified_items = list(filter(None.__ne__, modified_items))
+        self.items = modified_items
 
     def subset(self, selection):
         '''
@@ -63,9 +64,9 @@ class Collection:
         of the item to select, although a list of tickers will also work.
         '''
         new_items = [self[s] for s in selection]
-        return self.copy_with(new_items)
+        return self.copy(new_items)
 
-    def copy_with(self, items):
+    def copy(self, items = None, **kwargs):
         '''
         Collection classes need to implement copy_with to create new
         instances with revised items.
@@ -78,3 +79,6 @@ class CollectionItem:
 
     def as_tuple(self):
         return tuple(getattr(self, name) for name in self.tuple_fields)
+
+    def copy(self):
+        return copy(self)
