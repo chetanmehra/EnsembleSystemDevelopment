@@ -5,7 +5,7 @@ from numpy import sign
 
 from system.interfaces import DataElement
 
-from data_types.returns import AggregateReturns, StrategyReturns
+from data_types.returns import AggregateReturns, GroupReturns
 from data_types.trades import Trade, TradeCollection
 from data_types.events import EventCollection
 
@@ -66,7 +66,7 @@ class Position(DataElement):
 
     @property
     def returns(self):
-        return StrategyReturns(self._returns)
+        return GroupReturns(self._returns)
 
     def update_returns(self):
         '''

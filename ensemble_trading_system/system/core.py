@@ -222,10 +222,10 @@ class Strategy:
 
     # Reporting methods
     def summary(self):
-        overall_returns = self.returns.summary_returns()
-        drawdowns = self.returns.summary_drawdowns()
         trades = self.trades.summary()
-        return concat((overall_returns, drawdowns, trades))
+        overall_returns = self.returns.summary()
+        drawdowns = self.returns.summary_drawdowns()
+        return concat((trades, overall_returns, drawdowns))
 
     def plot_measures(self, ticker, start, end, ax):
         self.signal.plot_measures(ticker, start, end, ax)

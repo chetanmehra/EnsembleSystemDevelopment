@@ -218,7 +218,7 @@ class GroupReturns(Returns):
     def format_pct(self, pct):
         return round(100 * pct, 2)
 
-    def summary_returns(self):
+    def summary(self):
         # Turn the return dataframe into a series to compute the aggregate
         # daily statistics. We assume any zero days are when we didn't have a 
         # position so we remove those from the series.
@@ -246,6 +246,10 @@ class GroupReturns(Returns):
         summary['Avg drawdown duration'] = drawdowns.avg_duration()
         return summary
 
+    def drop_zeroes(self):
+        new_data = self.data.loc[:, (self.data.sum() != 0)]
+        return GroupReturns(new_data)
+
     def max_series(self):
         cumulative = self.cumulative()
         biggest_result = cumulative.iloc[-1, :].max()
@@ -259,17 +263,17 @@ class GroupReturns(Returns):
         return cumulative.iloc[:, smallest_ix]
 
     def mean_series(self):
-        return self.cumulative().mean(axis = 1)
+        return self.drop_zeroes().cumulative().mean(axis = 1)
 
     def std_series(self):
-        return self.cumulative().std(axis = 1)
+        return self.drop_zeroes().cumulative().std(axis = 1)
 
     def plot(self, **kwargs):
-        ax = self.mean_series().plot()
+        if 'color' not in kwargs:
+            kwargs['color'] = 'blue'
+        ax = self.mean_series().plot(**kwargs)
         (self.mean_series() + self.std_series()).plot(ax = ax, style = "--", **kwargs)
         (self.mean_series() - self.std_series()).plot(ax = ax, style = "--", **kwargs)
-        self.max_series().plot(ax = ax, style = ":", **kwargs)
-        self.min_series().plot(ax = ax, style = ":", **kwargs)
         return ax
 
 

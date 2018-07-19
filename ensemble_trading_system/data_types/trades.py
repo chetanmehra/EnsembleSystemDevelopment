@@ -72,10 +72,11 @@ class TradeCollection(Collection):
 
     @property
     def ETDs(self):
-        '''
-        End Trade Drawdown is defined as the difference between the MFE and the end return
-        '''
-        return [trade.MFE - trade.weighted_return for trade in self.items]
+        return [trade.ETD for trade in self.items]
+
+    @property
+    def max_drawdowns(self):
+        return [trade.maxDD for trade in self.items]
 
     @property
     def mean_return(self):
@@ -129,28 +130,6 @@ class TradeCollection(Collection):
     def max_MFE(self):
         return max(self.MFEs)
 
-    def consecutive_wins_losses(self):
-        '''
-        Calculates the positive and negative runs in the trade series.
-        '''
-        trade_df = self.as_dataframe().sort_values(by = 'exit')
-        win_loss = sign(returns)
-        # Create series which has just 1's and 0's
-        positive = Series(hstack(([0], ((win_loss > 0) * 1).values, [0])))
-        negative = Series(hstack(([0], ((win_loss < 0) * 1).values, [0])))
-        pos_starts = positive.where(positive.diff() > 0)
-        pos_starts = Series(pos_starts.dropna().index.tolist())
-        pos_ends = positive.where(positive.diff() < 0)
-        pos_ends = Series(pos_ends.dropna().index.tolist())
-        positive_runs = pos_ends - pos_starts
-        neg_starts = negative.where(negative.diff() > 0)
-        neg_starts = Series(neg_starts.dropna().index.tolist())
-        neg_ends = negative.where(negative.diff() < 0)
-        neg_ends = Series(neg_ends.dropna().index.tolist())
-        negative_runs = neg_ends - neg_starts
-        return (positive_runs, negative_runs)
-
-        
     def trade_frame(self, compacted = True, cumulative = True):
         '''
         Returns a dataframe of daily cumulative return for each trade.
@@ -213,16 +192,13 @@ class TradeCollection(Collection):
         summary['Median return'] = round(100 * self.returns.median(), 2)
         summary['Average winner'] = round(100 * self.returns[winners].mean(), 2)
         summary['Average loser'] = round(100 * self.returns[losers].mean(), 2)
-        summary['Win/Loss ratio'] = round(self.returns[winners].mean() / self.returns[losers].mean(), 2)
+        summary['Win/Loss ratio'] = round(abs(self.returns[winners].mean() / self.returns[losers].mean()), 2)
         summary['Largest winner'] = round(100 * self.returns[winners].max(), 2)
         summary['Largest loser'] = round(100 * self.returns[losers].min(), 2)
         summary['Average duration'] = round(self.durations.mean(), 1)
         summary['Average duration winners'] = round(self.durations[winners].mean(), 1)
         summary['Average duration losers'] = round(self.durations[losers].mean(), 1)
         return summary
-        
-
-
 
     def plot_ticker(self, ticker):
         for trade in self[ticker]:
@@ -234,33 +210,30 @@ class TradeCollection(Collection):
         plt.hist(returns, **kwargs)
 
     def plot_MAE(self):
-        MAEs = self.MAEs
-        returns = self.returns
-        x_range = (min(MAEs) -0.05, 0.05)
-        y_range = (min(returns) - 0.05, max(returns) + 0.05)
-        plt.scatter(self.MAEs, self.returns)
-        plt.plot((0, 0), y_range, color = 'black')
-        plt.plot(x_range, (0, 0), color = 'black')
-        plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
-        plt.xlabel('MAE')
-        plt.ylabel('Return')
-        plt.xlim(x_range)
-        plt.ylim(y_range)
+        self._scatterplot(self.MAEs, self.returns, 'MAE', 'Return')
 
     def plot_MFE(self):
-        MFEs = self.MFEs
-        returns = self.returns
-        x_range = (-0.05, max(MFEs) + 0.05)
-        y_range = (min(returns) - 0.05, max(returns) + 0.05)
-        plt.scatter(MFEs, returns)
+        self._scatterplot(self.MFEs, self.returns, 'MFE', 'Return')
+
+    def plot_ETD_vs_DD(self):
+        '''
+        Plotting the end trade drawdown vs the max drawdown in the trade will
+        give an indication of if a trailing stop will improve the end return
+        or just cut the trade early.
+        '''
+        self._scatterplot(self.ETDs, self.max_drawdowns, 'ETD', 'Max DD')
+
+    def _scatterplot(self, X, Y, xlabel, ylabel):
+        x_range = (-0.05, max(X) + 0.05)
+        y_range = (min(Y) - 0.05, max(Y) + 0.05)
+        plt.scatter(X, Y)
         plt.plot((0, 0), y_range, color = 'black')
         plt.plot(x_range, (0, 0), color = 'black')
         plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
-        plt.xlabel('MFE')
-        plt.ylabel('Return')
+        plt.xlabel(xlabel)
+        plt.ylabel(ylabel)
         plt.xlim(x_range)
         plt.ylim(y_range)
-
 
 class Trade(CollectionItem):
 
@@ -351,25 +324,29 @@ class Trade(CollectionItem):
     @property
     def ETD(self):
         # End trade drawdown
-        return (1 + self.base_return) / (1 + self.MFE) - 1
+        return (1 + self.weighted_return) / (1 + self.MFE) - 1
+
+    @property
+    def maxDD(self):
+        return self.drawdowns().max
 
     def drawdowns(self):
         # Note we want to return drawdowns with integer index, not
         # date indexed
         return self.weighted_returns.int_indexed().drawdowns()
 
-    def calculate_weighted_returns(self):
-        # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
-        base_returns = self.base_returns.data
-        position_size = self.position_size
-        if isinstance(position_size, int) or isinstance(position_size, float):
-            weighted_returns = (1 + (base_returns * abs(position_size))) ** sign(self.position_size) - 1
-        elif isinstance(position_size, Series):
-            position_size = position_size.shift(1)[self.entry:self.exit]
-            weighted_returns = (1 + (base_returns * abs(position_size))) ** sign(position_size[1]) - 1
-        else:
-            weighted_returns = None
-        self._weighted_returns[self.entry:self.exit, self.ticker] = weighted_returns
+    # def calculate_weighted_returns(self):
+    #     # Short returns are the inverse of daily returns, hence the exponent to the sign of position size.
+    #     base_returns = self.base_returns.data
+    #     position_size = self.position_size
+    #     if isinstance(position_size, int) or isinstance(position_size, float):
+    #         weighted_returns = (1 + (base_returns * abs(position_size))) ** sign(self.position_size) - 1
+    #     elif isinstance(position_size, Series):
+    #         position_size = position_size.shift(1)[self.entry:self.exit]
+    #         weighted_returns = (1 + (base_returns * abs(position_size))) ** sign(position_size[1]) - 1
+    #     else:
+    #         weighted_returns = None
+    #     self._weighted_returns[self.entry:self.exit, self.ticker] = weighted_returns
 
     # Trade modifiers
     # TODO - revise_entry and revise_exit could be parameter setters
@@ -413,7 +390,7 @@ class Trade(CollectionItem):
         self.plot_drawdowns(ax = axarr[1])
 
     def plot_drawdowns(self, **kwargs):
-        self.drawdowns().Drawdown.plot(**kwargs)
+        self.drawdowns().series.plot(**kwargs)
 
     def plot_highwater(self, **kwargs):
-        self.drawdowns().Highwater.plot(**kwargs)
+        self.drawdowns().highwater.plot(**kwargs)

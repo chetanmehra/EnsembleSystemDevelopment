@@ -1,18 +1,16 @@
 # Ensemble System Development
 
 ## About
-Ensemble System Development is a framework for researching, building, and testing trading
-strategies. The 'ensemble' in the name is a legacy as originally the packages main purpose
-was to investigate the performance of groups of strategies. While this is still possible in
-the framework, it is now more of a general purpose set of research tools.
+Ensemble System Development is a framework for researching, building, and testing trading strategies. The 'ensemble' in the name is a legacy as originally the package's main purpose was to investigate the performance of groups of strategies. While this is still possible in the framework, it is now more of a general purpose set of research tools.
 
 ## TODO
 * Assess weighted vs unweighted positions
 * Variable stop sizing (i.e. with position size)
-* ETD vs Max Drawdown, Volatility adjusted MAE plot
+* Volatility adjusted MAE plot
 * Portfolio events for logging
 * Review summary_report
 * Fix Fuzzer multiprocessing
+* Remove usage of deprecated pandas.Panel
 
 ### Analysis
 * Investigate drawdown profile for moves of a certain magnitude

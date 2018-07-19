@@ -58,76 +58,99 @@ class Drawdowns:
         Drawdowns accepts a cumulative returns series, and returns a drawdowns
         object with Drawdowns, Highwater, and summary statistics
         '''
-        high_water = Series(0, index = returns.index, dtype = float)
-        for i in range(1, len(returns)):
-            high_water[i] = max(high_water[i - 1], returns[i])
+        high_water = returns.rolling(len(returns), min_periods = 1).max()
         dd = ((returns + 1) / (high_water + 1)) - 1
         self.data = DataFrame({'Drawdown' : dd, 'Highwater' : high_water})
-        self._groups = None
-
+        self._labels = None
 
     @property
     def series(self):
         return self.data['Drawdown']
 
     @property
+    def max(self):
+        return self.series.min()
+
+    @property
     def highwater(self):
         return self.data['Highwater']
 
     @property
-    def dips(self):
-        return self.series.groupby(self.groups()).min()[1:]
+    def minimums(self):
+        return self.series.groupby(self.drawdown_labels).min()[1:]
 
     @property
     def durations(self):
-        return self.series.groupby(self.groups()).count()[1:]
+        return self.series.groupby(self.drawdown_labels).count()[1:]
 
-    def groups(self):
+
+    def label_drawdowns(self, dd_series):
+        below_water = 1 * (dd_series < 0)
+        dd_starts = below_water - below_water.shift(1)
+        dd_starts.iloc[0] = 0
+        dd_starts[dd_starts < 0] = 0
+        return dd_starts.cumsum() * below_water
+
+    @property
+    def drawdown_labels(self):
         '''
-        groups assigns a number to each each drawdown. A drawdonw will
+        drawdown_labels assigns a number to each each drawdown. A drawdown will
         then have the same number from start to finish. This can then
         be used in groupby function to produce summary statistics.
         '''
-        if self._groups is None:
-            below_water = 1 * (self.series < 0)
-            dd_starts = below_water - below_water.shift(1)
-            dd_starts.iloc[0] = 0
-            dd_starts[dd_starts < 0] = 0
-            self._groups = dd_starts.cumsum() * below_water
-        return self._groups
+        if self._labels is None:
+            self._labels = self.label_drawdowns(self.series)
+        return self._labels
 
     def summary(self):
         summary = Series(dtype = float)
-        summary['Max'] = round(-100 * self.series.min(), 2)
-        summary['Mean'] = round(-100 * self.dips.mean(), 2)
+        summary['Max'] = round(-100 * self.max, 2)
+        summary['Mean'] = round(-100 * self.minimums.mean(), 2)
         summary['Max duration'] = self.durations.max()
         summary['Avg duration'] = round(self.durations.mean(), 1)
         return summary
 
 
-class GroupDrawdowns:
+class GroupDrawdowns(Drawdowns):
     '''
     GroupDrawdowns provides summary drawdown statistics across a set
     of return series (e.g. market constituents).
     '''
 
     def __init__(self, returns):
-        result = Drawdowns(returns[ticker]).summary()
-        self.data = returns.apply(self.get_summary)
+        high_water = returns.rolling(len(returns), min_periods = 1).max()
+        dd = ((returns + 1) / (high_water + 1)) - 1
+        self.data = {'Drawdown' : dd, 'Highwater' : high_water}
+        self.summary = dd.apply(self.get_summary)
 
     def get_summary(self, series):
-        return Drawdowns(series).summary()
+        labels = self.label_drawdowns(series)
+        minimums = self.get_minimums(series, labels)
+        durations = self.get_durations(series, labels)
+
+        summary = Series(dtype = float)
+        summary['Max'] = round(-100 * series.min(), 2)
+        summary['Mean'] = round(-100 * minimums.mean(), 2)
+        summary['Max duration'] = durations.max()
+        summary['Avg duration'] = round(durations.mean(), 1)
+        return summary
+
+    def get_minimums(self, series, labels):
+        return series.groupby(labels).min()[1:]
+
+    def get_durations(self, series, labels):
+        return series.groupby(labels).count()[1:]
 
     def max(self):
-        return self.data.loc['Max'].max()
+        return self.summary.loc['Max'].max()
 
     def mean(self):
-        return self.data.loc['Mean'].mean()
+        return round(self.summary.loc['Mean'].mean(), 2)
 
     def max_duration(self):
-        return self.data.loc['Max duration'].max()
+        return self.summary.loc['Max duration'].max()
 
     def avg_duration(self):
-        return self.data.loc['Avg duration'].mean()
+        return round(self.summary.loc['Avg duration'].mean(), 2)
 
 

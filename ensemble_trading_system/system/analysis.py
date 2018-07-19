@@ -595,7 +595,7 @@ class ParameterFuzzer:
         self.strategy = strategy
         if strategy.trades is None:
             strategy.run()
-        self.base = summary_report(strategy.trades)
+        self.base = strategy.summary()
         self.base_pars = base_parameters
         if processes is None:
             processes = cpu_count()
@@ -683,7 +683,7 @@ class ParameterFuzzer:
         # result[0] will be the parameter tuple
         # result[1] will be the strategy
         label = ':'.join(['{:0.1f}'] * len(result[0])).format(*result[0])
-        return (label, summary_report(result[1].trades))
+        return (label, result[1].summary())
 
     def fuzz_parameters(self, fuzz_range = 0.15, num_trials = 20):
         '''
