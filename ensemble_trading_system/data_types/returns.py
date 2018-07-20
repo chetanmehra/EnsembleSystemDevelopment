@@ -240,10 +240,10 @@ class GroupReturns(Returns):
         '''
         summary = Series(dtype = float)
         drawdowns = GroupDrawdowns(self.data)
-        summary['Max drawdown'] = drawdowns.max()
-        summary['Mean drawdown'] = drawdowns.mean()
-        summary['Max drawdown duration'] = drawdowns.max_duration()
-        summary['Avg drawdown duration'] = drawdowns.avg_duration()
+        summary['Max drawdown'] = drawdowns.max
+        summary['Mean drawdown'] = drawdowns.mean
+        summary['Max drawdown duration'] = drawdowns.max_duration
+        summary['Avg drawdown duration'] = drawdowns.avg_duration
         return summary
 
     def drop_zeroes(self):

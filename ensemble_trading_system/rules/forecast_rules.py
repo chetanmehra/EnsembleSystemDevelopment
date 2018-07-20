@@ -5,10 +5,11 @@ from numpy import sign
 from rules import PositionRuleElement, Position
 
 
-class CarterPositions(PositionRuleElement):
+class CarverPositions(PositionRuleElement):
     """
     Calculates positions based on the normalised forecast (-20 to 20), 
     and the current standard deviation of the instrument.
+    Idea taken from Robert Carver's book, also his project pysystemtrade.
     """
     def __init__(self, volatility_method, target_volatility, long_only = True):
         self.volatility_method = volatility_method

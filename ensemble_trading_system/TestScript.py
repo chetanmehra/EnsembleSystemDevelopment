@@ -31,9 +31,9 @@ from measures.volatility import StdDevEMA
 from measures.breakout import TrailingHighLow
 from measures.valuations import ValueRatio, ValueRank
 from signals.level_signals import Crossover, Breakout
-from signals.carter_forecasters import PriceCrossover, EWMAC, CarterForecastFamily
+from signals.carver_forecasters import PriceCrossover, EWMAC, CarverForecastFamily
 from rules.signal_rules import PositionFromDiscreteSignal
-from rules.forecast_rules import CarterPositions
+from rules.forecast_rules import CarverPositions
 
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop, ReturnTriggeredTrailingStop
 from trade_modifiers.filters import HighPassFilter
@@ -74,7 +74,7 @@ def createEwmacStrategy(ema_params = (120, 50), store = store):
     strategy = Strategy("O", "C")
     strategy.market = Market(store)
     strategy.signal_generator = EWMAC(EMA(max(ema_params)), EMA(min(ema_params)), StdDevEMA(36))
-    strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
+    strategy.position_rules = CarverPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
 def createBreakoutStrategy(window = 20, store = store):
@@ -92,8 +92,8 @@ def createValueRatioStrategy(ema_pd = 90, valuations = ["Adjusted", "Base", "Min
         value_ratio = ValueRatio("EPV", valuation)
         value_ratios = value_ratio(strategy)
         signal_generators.append(PriceCrossover(value_ratios, EMA(ema_pd), StdDevEMA(36)))
-    strategy.signal_generator = CarterForecastFamily(*signal_generators)
-    strategy.position_rules = CarterPositions(StdDevEMA(36), 0.25, long_only = True)
+    strategy.signal_generator = CarverForecastFamily(*signal_generators)
+    strategy.position_rules = CarverPositions(StdDevEMA(36), 0.25, long_only = True)
     return strategy
 
 print("Preparing strat...")
@@ -142,13 +142,13 @@ print("Generated", strat.trades.count, "trades.")
 
 
 # from system.analysis import ParameterFuzzer
-# fuzzer = ParameterFuzzer(strategy, base_parameters = (150, 75), processes = 2)
+# fuzzer = ParameterFuzzer(strat, base_parameters = (150, 75))
 # fuzzer.fuzzed_pars = [(200, 160), (200, 100), (200, 40), (150, 120), (150, 75), (150, 30), (100, 80), (100, 50), (100, 20)]
 # fuzzer.summarise()
 # fig, axarr = plt.subplots(1, 3)
 # fuzzer.plot_metric('Number of trades', ax = axarr[0])
 # fuzzer.plot_metric('Percent winners', ax = axarr[1])
-# fuzzer.plot_metric('Ratio average win to loss', ax = axarr[2])
+# fuzzer.plot_metric('Win/Loss ratio', ax = axarr[2])
 # plt.tight_layout()
 
 # print("Applying weights...")

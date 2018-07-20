@@ -27,7 +27,7 @@ class EwmacFamily(SignalElement):
         return Signal(measures.mean(axis = 'items'), [-20, 20], measures)
 
 
-class CarterForecast(SignalElement):
+class CarverForecast(SignalElement):
     """
     Interface for creating normalised forecasts.
     """
@@ -45,7 +45,7 @@ class CarterForecast(SignalElement):
         return forecast
 
 
-class CarterForecastFamily(CarterForecast):
+class CarverForecastFamily(CarverForecast):
     """
     Holds multiple forecasters and returns the mean forecast.
     """
@@ -61,7 +61,7 @@ class CarterForecastFamily(CarterForecast):
         return Signal(mean_fcst, [-20, 20], forecasts)
 
 
-class EWMAC(CarterForecast):
+class EWMAC(CarverForecast):
     """
     Exponentially Weighted Moving Average Crossover.
     Creates a forecast based on the separation between two EMA measures.
@@ -83,7 +83,7 @@ class EWMAC(CarterForecast):
         return Signal(forecast, [-20, 20], Panel({"Fast" : fast, "Slow" : slow, "Volatility" : vol}))
 
 
-class PriceCrossover(CarterForecast):
+class PriceCrossover(CarverForecast):
     """
     Calculates the forecast based on the difference between a set of base values (e.g. valuations), 
     and those of a measure derived from market prices.

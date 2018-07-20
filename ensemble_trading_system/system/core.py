@@ -5,7 +5,8 @@ Created on 21 Dec 2014
 '''
 import matplotlib.pyplot as plt
 import numpy as np
-from pandas import DateOffset, DataFrame, Series, concat
+from pandas import DateOffset, DataFrame, Series
+from copy import copy
 
 from system.interfaces import IndexerFactory
 from data_types.trades import TradeCollection
@@ -94,8 +95,8 @@ class Strategy:
     def copy(self):
         strat_copy = Strategy(self.trade_timing, self.ind_timing)
         strat_copy.market = self.market
-        strat_copy.signal_generator = self.signal_generator
-        strat_copy.position_rules = self.position_rules
+        strat_copy.signal_generator = copy(self.signal_generator)
+        strat_copy.position_rules = copy(self.position_rules)
         strat_copy.modifiers = self.modifiers
         return strat_copy
 
@@ -222,10 +223,7 @@ class Strategy:
 
     # Reporting methods
     def summary(self):
-        trades = self.trades.summary()
-        overall_returns = self.returns.summary()
-        drawdowns = self.returns.summary_drawdowns()
-        return concat((trades, overall_returns, drawdowns))
+        return self.positions.summary()
 
     def plot_measures(self, ticker, start, end, ax):
         self.signal.plot_measures(ticker, start, end, ax)

@@ -1,6 +1,4 @@
 
-from pandas import Series
-
 class ExitCondition:
 
     def get_limit_hits(self, trade):

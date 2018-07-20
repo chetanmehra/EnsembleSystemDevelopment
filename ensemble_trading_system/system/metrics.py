@@ -141,15 +141,19 @@ class GroupDrawdowns(Drawdowns):
     def get_durations(self, series, labels):
         return series.groupby(labels).count()[1:]
 
+    @property
     def max(self):
         return self.summary.loc['Max'].max()
 
+    @property
     def mean(self):
         return round(self.summary.loc['Mean'].mean(), 2)
 
+    @property
     def max_duration(self):
         return self.summary.loc['Max duration'].max()
 
+    @property
     def avg_duration(self):
         return round(self.summary.loc['Avg duration'].mean(), 2)
 

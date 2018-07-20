@@ -1,6 +1,6 @@
 
 from copy import deepcopy
-from pandas import DataFrame
+from pandas import DataFrame, concat
 from numpy import sign
 
 from system.interfaces import DataElement
@@ -184,4 +184,10 @@ class Position(DataElement):
             i += 1
         pos[pos > max_size] = max_size
         return Position(pos)
+   
+    def summary(self):
+        trades = self.trades.summary()
+        overall_returns = self.returns.summary()
+        drawdowns = self.returns.summary_drawdowns()
+        return concat((trades, overall_returns, drawdowns))
 

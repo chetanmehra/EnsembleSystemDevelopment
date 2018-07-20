@@ -130,7 +130,7 @@ class MultiLevelMACD(SignalElement):
 
     @property
     def name(self):
-        return "{}.lvl-MACD_".format(self.levels) + ".".join(self.fast.name, self.slow.name)
+        return "{}.lvl-MACD_".format(self.levels) + ".".join([self.fast.name, self.slow.name])
 
     def update_params(self, new_params):
         self.fast.update_param(min(new_params))
@@ -140,6 +140,6 @@ class MultiLevelMACD(SignalElement):
         prices = strategy.indicator_prices
         fast = self.fast(prices)
         slow = self.slow(prices)
-        return Signal(fast - slow)
+        return Signal((fast - slow), {'fast': fast, 'slow': slow})
 
 

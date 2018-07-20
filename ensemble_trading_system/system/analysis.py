@@ -618,7 +618,6 @@ class ParameterFuzzer:
         output = []
         for pars in self.parameter_tuples:
             strategy = self.strategy.copy()
-            strategy.signal_generator.update_param(pars)
             output.append((pars, strategy))
         return output
 
@@ -645,9 +644,13 @@ class ParameterFuzzer:
         '''
         fuzz runs the strategy with the fuzzed_pars and collates the results
         '''
-        pool = Pool(processes = self.processes)
-        self.results = pool.map(self.strategy_runner, self.fuzzed_strategies)
-
+        if self.processes > 1:
+            pool = Pool(processes = self.processes)
+            self.results = pool.map(self.strategy_runner, self.fuzzed_strategies)
+        else:
+            self.results = []
+            for pars, strat in self.fuzzed_strategies:
+                self.results.append(self.strategy_runner((pars, strat)))
 
     def strategy_runner(self, inputs):
         '''
@@ -657,17 +660,23 @@ class ParameterFuzzer:
         '''
         pars = inputs[0]
         strategy = inputs[1]
+        strategy.signal_generator.update_param(pars)
         try:
             strategy.run()
         except:
             pass
-        return (pars, strategy)
+        return (pars, strategy.positions)
         
     def summarise(self):
         if self.results is None:
             self.fuzz()
-        pool = Pool(processes = self.processes)
-        summaries = pool.map(self.summary_runner, self.results)
+        if self.processes > 1:
+            pool = Pool(processes = self.processes)
+            summaries = pool.map(self.summary_runner, self.results)
+        else:
+            summaries = []
+            for result in self.results:
+                summaries.append(self.summary_runner(result))
         summary_table = DataFrame(dict(summaries))
         # TODO there's no guarantee that the results are in the same order as fuzz size
         summary_table.loc['Fuzz size'] = self.fuzzed_pars['Fuzz size'].values
@@ -678,10 +687,10 @@ class ParameterFuzzer:
         summary_runner is designed to support parallel processing
         It takes the strategy results and calculates the summary report 
         outputting a tuple of (label, summary_report).
-        The result input should contain the parameter tuple, and strategy.
+        The result input should contain the parameter tuple, and strategy positions.
         '''
         # result[0] will be the parameter tuple
-        # result[1] will be the strategy
+        # result[1] will be the positions
         label = ':'.join(['{:0.1f}'] * len(result[0])).format(*result[0])
         return (label, result[1].summary())
 

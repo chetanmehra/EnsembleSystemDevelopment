@@ -15,9 +15,15 @@ class TradeCollection(Collection):
         self.tickers = list(set([trade.ticker for trade in items]))
         self.tickers.sort()
         self.slippage = 0.011
+        # Cache attributes
         self._returns = None
-        self._durations = None
         self._daily_returns = None
+        self._durations = None
+        self._MAEs = None
+        self._MFEs = None
+        self._ETDs = None
+        self._maxDDs = None
+        
 
     def copy(self, items = None, **kwargs):
         if items is None:
@@ -64,19 +70,27 @@ class TradeCollection(Collection):
 
     @property
     def MAEs(self):
-        return [trade.MAE for trade in self.items]
+        if self._MAEs is None:
+            self._MAEs = [trade.MAE for trade in self.items]
+        return self._MAEs
 
     @property
     def MFEs(self):
-        return [trade.MFE for trade in self.items]
+        if self._MFEs is None:
+            self._MFEs = [trade.MFE for trade in self.items]
+        return self._MFEs
 
     @property
     def ETDs(self):
-        return [trade.ETD for trade in self.items]
+        if self._ETDs is None:
+            self._ETDs = [trade.ETD for trade in self.items]
+        return self._ETDs
 
     @property
     def max_drawdowns(self):
-        return [trade.maxDD for trade in self.items]
+        if self._maxDDs is None:
+            self._maxDDs = [trade.maxDD for trade in self.items]
+        return self._maxDDs
 
     @property
     def mean_return(self):
@@ -209,37 +223,58 @@ class TradeCollection(Collection):
         returns = self.returns.dropna()
         plt.hist(returns, **kwargs)
 
-    def plot_MAE(self):
-        self._scatterplot(self.MAEs, self.returns, 'MAE', 'Return')
+    def plot_MAE(self, **kwargs):
+        self._scatterplot(self.MAEs, self.returns, 'MAE', 'Return', **kwargs)
 
-    def plot_MFE(self):
-        self._scatterplot(self.MFEs, self.returns, 'MFE', 'Return')
+    def plot_MFE(self, **kwargs):
+        self._scatterplot(self.MFEs, self.returns, 'MFE', 'Return', **kwargs)
 
-    def plot_ETD_vs_DD(self):
+    def plot_ETD_vs_DD(self, **kwargs):
         '''
         Plotting the end trade drawdown vs the max drawdown in the trade will
         give an indication of if a trailing stop will improve the end return
         or just cut the trade early.
         '''
-        self._scatterplot(self.ETDs, self.max_drawdowns, 'ETD', 'Max DD')
+        self._scatterplot(self.ETDs, self.max_drawdowns, 'ETD', 'Max DD', **kwargs)
 
-    def _scatterplot(self, X, Y, xlabel, ylabel):
-        x_range = (-0.05, max(X) + 0.05)
-        y_range = (min(Y) - 0.05, max(Y) + 0.05)
-        plt.scatter(X, Y)
-        plt.plot((0, 0), y_range, color = 'black')
-        plt.plot(x_range, (0, 0), color = 'black')
-        plt.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
-        plt.xlabel(xlabel)
-        plt.ylabel(ylabel)
-        plt.xlim(x_range)
-        plt.ylim(y_range)
+    def plot_MAE_vol_adjusted(self, volatility, **kwargs):
+        if not hasattr(volatility, 'name'):
+            volatility.name = 'volatility'
+        trade_df = self.as_dataframe_with(volatility)
+        MAE_Adjusted = self.MAEs / trade_df[volatility.name]
+        self._scatterplot(MAE_Adjusted, self.returns, 'MAE adj.', 'Return', **kwargs)
+
+    def _scatterplot(self, X, Y, xlabel, ylabel, **kwargs):
+        if 'x_range' not in kwargs:
+            x_range = (min(0, min(X) - 0.01), max(X) + 0.01)
+        else:
+            x_range = kwargs['x_range']
+        if 'y_range' not in kwargs:
+            y_range = (min(Y) - 0.01, max(Y) + 0.01)
+        else:
+            y_range = kwargs['y_range']
+        if 'ax' not in kwargs:
+            fig, ax = plt.subplots(1)
+        else:
+            ax = kwargs['ax']
+        
+        ax.plot(X, Y, '.', **kwargs) # produces a point scatter plot
+        ax.plot((0, 0), y_range, color = 'black')
+        ax.plot(x_range, (0, 0), color = 'black')
+        ax.plot((x_range[0], y_range[1]), (x_range[0], y_range[1]), color = 'red')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+        ax.set_xlim(x_range)
+        ax.set_ylim(y_range)
+        return (fig, ax)
 
 class Trade(CollectionItem):
 
     def __init__(self, entry_event, exit_event, position_loc, base_returns_loc, returns_loc):
         self.ticker = entry_event.ticker
         self.entry = entry_event.date
+        self.returns_start = entry_event.offset(1)
+        self.positions_end = exit_event.offset(-1)
         self.exit = exit_event.date
         self.entry_event = entry_event
         self.exit_event = exit_event
@@ -273,15 +308,15 @@ class Trade(CollectionItem):
 
     @property
     def position_size(self):
-        self._position_loc[self.entry:self.exit.previous_date, self.ticker]
+        self._position_loc[self.entry:self.positions_end, self.ticker]
 
     @position_size.setter
     def position_size(self, size):
-        self._position_loc[self.entry:self.exit.previous_date, self.ticker] = size
+        self._position_loc[self.entry:self.positions_end, self.ticker] = size
 
     @property
     def base_returns(self):
-        return Returns(self._base_returns[self.entry:self.exit, self.ticker])
+        return Returns(self._base_returns[self.returns_start:self.exit, self.ticker])
 
     @property
     def base_return(self):
@@ -289,7 +324,7 @@ class Trade(CollectionItem):
 
     @property
     def weighted_returns(self):
-        return Returns(self._weighted_returns[self.entry:self.exit, self.ticker])
+        return Returns(self._weighted_returns[self.returns_start:self.exit, self.ticker])
 
     @weighted_returns.setter
     def weighted_returns(self, returns_loc):
@@ -360,6 +395,7 @@ class Trade(CollectionItem):
             old_entry = self.entry
             day_before_new_entry = self.entry_event.offset(entry_day - 1)
             self.entry = self.entry_event.offset(entry_day)
+            self.returns_start = self.entry_event.offset(entry_day + 1)
             self._position_loc[old_entry:day_before_new_entry, self.ticker] = 0
             return self
         else:
@@ -374,6 +410,7 @@ class Trade(CollectionItem):
             # trade has been shortened
             old_exit = self.exit
             self.exit = self.exit_event.offset(exit_day - self.duration)
+            self.positions_end = self.exit_event.offset(exit_day - self.duration - 1)
             self._position_loc[self.exit:old_exit, self.ticker] = 0
             return self
         else:
