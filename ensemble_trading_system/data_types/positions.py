@@ -1,7 +1,7 @@
 
 from copy import deepcopy
-from pandas import DataFrame, concat
-from numpy import sign
+from pandas import DataFrame, Series, concat
+from numpy import sign, NaN
 
 from system.interfaces import DataElement
 
@@ -89,7 +89,7 @@ class Position(DataElement):
         apply accepts a trade_modifier, which is used to update the positions, 
         trades, and returns.
         '''
-        self.trades.apply(trade_modifier)
+        self.trades = self.trades.apply(trade_modifier)
         self.update_returns()
         
     def trial(self, trade_modifier):
@@ -190,4 +190,41 @@ class Position(DataElement):
         overall_returns = self.returns.summary()
         drawdowns = self.returns.summary_drawdowns()
         return concat((trades, overall_returns, drawdowns))
+
+class Positions2:
+    '''
+    Derivative of Positions. Attempts to keep all data as DataFrame's
+    using groupby to produce by-trade statistics.
+    '''
+    def __init__(self, data):
+        self.data = data
+
+    def get_trade_numbers(self):
+        pos_data = self.data
+        delta = pos_data - pos_data.shift(1)
+        delta.iloc[0] = 0
+        entries = (delta != 0) & (delta == pos_data)
+        exits = (delta != 0) & (pos_data == 0)
+        col_counts = (1 * entries).cumsum() * sign(pos_data)
+        # We have trade counts starting from one in each column
+        # Need to step each column up by the count from the previous
+        col_step = col_counts.max().cumsum().shift(1)
+        col_step.iloc[0] = 0
+        # Before we add the step, need to replace zeroes with NaN
+        # so that the zeroes don't get incremented
+        col_counts[col_counts == 0] = NaN
+        col_counts += col_step
+        trades = Series(col_counts.T.values.flatten())
+        return trades
+
+    def get_trade_groups(self, data):
+        '''
+        Returns a groupy object of the supplied dataframe
+        Note: We need to flatten the data into a Series to get a
+        continuous trade count, otherwise it would be by column.
+        '''
+        trades = self.get_trade_numbers()
+        return Series(data.T.values.flatten()).groupby(trades)
+
+
 

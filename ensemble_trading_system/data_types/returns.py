@@ -214,18 +214,24 @@ class GroupReturns(Returns):
     """
     def __init__(self, data):
         super().__init__(data)
+        self.columns = data.columns
+
+    def combined(self):
+        '''
+        Turn the return dataframe into a series to compute the aggregate
+        daily statistics. We assume any zero days are when we didn't have a 
+        position so we remove those from the series.
+        '''
+        daily_returns = self.data.T.values.flatten()
+        daily_returns[daily_returns == 0] = NaN
+        return Returns(Series(daily_returns))
 
     def format_pct(self, pct):
         return round(100 * pct, 2)
 
     def summary(self):
-        # Turn the return dataframe into a series to compute the aggregate
-        # daily statistics. We assume any zero days are when we didn't have a 
-        # position so we remove those from the series.
-        daily_returns = Series(self.data.T.values.flatten())
-        daily_returns[daily_returns == 0] = NaN
-        daily_returns = Returns(daily_returns.dropna())
-
+        # We drop NAs from the data here to avoid skewing the stats
+        daily_returns = Returns(self.combined().data.dropna())
         summary = Series(dtype = float)
         summary['Yearly mean'] = self.format_pct(daily_returns.annual_mean())
         summary['Volatility'] = self.format_pct(daily_returns.volatility())

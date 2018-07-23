@@ -481,14 +481,14 @@ class Sampler:
         selected - the TradeCollection produced by the selection process
         base - the TradeCollection representing the pool of trades selected from
         '''
-        self.summary_report['selected'] = summary_report(selected)
+        self.summary_report['selected'] = selected.summary()
         print('Running {} samples: '.format(self.N), end = '')
         for n in range(self.N):
             samples = random.choice(range(base.count), selected.count, replace = False)
             # random.choice returns an array of numpy.int32, so we need to cast to int
             samples = [int(s) for s in samples]
             trade_subset = base.subset(samples)
-            self.summary_report[n] = summary_report(trade_subset)
+            self.summary_report[n] = trade_subset.summary()
             print('.', end = '')
         print('\ndone.')
 
@@ -506,14 +506,15 @@ class Sampler:
         for i in range(3):
             results[i][1:].hist(ax = axarr[i], bins = bins)
             axarr[i].set_title(keys[i])
-            axarr[i].axvline(results[i]['selected'], color='k', linestyle='dashed', linewidth=1)    
+            axarr[i].axvline(results[i]['selected'], color= 'r', linestyle='dashed', linewidth=2)    
         return (fig, axarr)
 
     def skill_hist(self, metric, **kwargs):
         values = self.summary_report.loc[metric]
         # first value is the selected, so we remove from the histogram
         ax = values[1:].hist(**kwargs)
-        ax.axvline(values['selected'], color='k', linestyle='dashed', linewidth=1)
+        ax.set_title(metric)
+        ax.axvline(values['selected'], color='r', linestyle='dashed', linewidth=2)
         return ax
 
 
@@ -764,18 +765,24 @@ class ParameterFuzzer:
 
 
 # Analysis of exit conditions
-def test_trailing_stop(strat, stops):
-    result = DataFrame(columns = [0] + stops)
-    result[0] = summary_report(strat.trades)
+def test_stop_loss(strat, stops):
+    result = DataFrame(dtype = float)
+    result['base'] = strat.summary()
     for s in stops:
-        result[s] = summary_report(strat.trades.apply_exit_condition(TrailingStop(s)))
+        strat.trial(StopLoss(s))
+
+    for k, t in strat.trials.items():
+        result[k] = t.summary()
     return result
 
-def test_stop_loss(strat, stops):
-    result = DataFrame(columns = [0] + stops)
-    result[0] = summary_report(strat.trades)
+def test_trailing_stop(strat, stops):
+    result = DataFrame(dtype = float)
+    result['base'] = strat.summary()
     for s in stops:
-        result[s] = summary_report(strat.trades.apply_exit_condition(StopLoss(s)))
+        strat.trial(TrailingStop(s))
+
+    for k, t in strat.trials.items():
+        result[k] = t.summary()
     return result
 
 

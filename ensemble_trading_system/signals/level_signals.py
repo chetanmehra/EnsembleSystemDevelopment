@@ -30,7 +30,7 @@ class Crossover(SignalElement):
         ind_data = strategy.get_empty_dataframe(fill_data = 'Down')
         ind_data[fast_ema > slow_ema] = 'Up'
 
-        return Signal(ind_data, ['Up', 'Down'], Panel.from_dict({'Fast':fast_ema, 'Slow':slow_ema}))
+        return Signal(ind_data, ['Up', 'Down'], {'Fast':fast_ema, 'Slow':slow_ema})
     
     def update_param(self, new_params):
         self.slow.update_param(max(new_params))
@@ -64,7 +64,7 @@ class TripleCrossover(SignalElement):
 
         ind_data = strategy.get_empty_dataframe(fill_data = 'Down')
         ind_data[levels] = 'Up'
-        return Signal(ind_data, ['Up', 'Down'], Panel.from_dict({'Fast':fast_ema, 'Mid':mid_ema, 'Slow':slow_ema}))
+        return Signal(ind_data, ['Up', 'Down'], {'Fast':fast_ema, 'Mid':mid_ema, 'Slow':slow_ema})
     
     def update_param(self, new_params):
         pars = list(new_params)
@@ -140,6 +140,6 @@ class MultiLevelMACD(SignalElement):
         prices = strategy.indicator_prices
         fast = self.fast(prices)
         slow = self.slow(prices)
-        return Signal((fast - slow), {'fast': fast, 'slow': slow})
+        return Signal((fast - slow), ['diff'], {'fast': fast, 'slow': slow})
 
 

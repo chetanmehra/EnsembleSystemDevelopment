@@ -248,15 +248,15 @@ class TradeCollection(Collection):
         if 'x_range' not in kwargs:
             x_range = (min(0, min(X) - 0.01), max(X) + 0.01)
         else:
-            x_range = kwargs['x_range']
+            x_range = kwargs.pop('x_range')
         if 'y_range' not in kwargs:
             y_range = (min(Y) - 0.01, max(Y) + 0.01)
         else:
-            y_range = kwargs['y_range']
+            y_range = kwargs.pop('y_range')
         if 'ax' not in kwargs:
             fig, ax = plt.subplots(1)
         else:
-            ax = kwargs['ax']
+            ax = kwargs.pop('ax')
         
         ax.plot(X, Y, '.', **kwargs) # produces a point scatter plot
         ax.plot((0, 0), y_range, color = 'black')
@@ -266,7 +266,7 @@ class TradeCollection(Collection):
         ax.set_ylabel(ylabel)
         ax.set_xlim(x_range)
         ax.set_ylim(y_range)
-        return (fig, ax)
+        return ax
 
 class Trade(CollectionItem):
 

@@ -109,7 +109,7 @@ strat = signalStratSetup('O', 'C', params = (150, 75))
 print("Running base strat...")
 with Timer() as t:
         strat.run()
-print("Strategy ran in: %s s" % round(t.secs, 2))
+print("Strategy ran in: %ss" % round(t.secs, 2))
 
 print("Generated", strat.trades.count, "trades.")
 

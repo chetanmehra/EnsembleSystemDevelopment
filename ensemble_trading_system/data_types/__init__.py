@@ -55,7 +55,7 @@ class Collection:
         modified_items = [modifier(item) for item in self.items]
         # Remove None values from the list
         modified_items = list(filter(None.__ne__, modified_items))
-        self.items = modified_items
+        return self.copy(modified_items)
 
     def subset(self, selection):
         '''

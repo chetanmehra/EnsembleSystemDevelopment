@@ -1,6 +1,20 @@
 
 class ExitCondition:
 
+    def __init__(self, stop_level):
+        self.stop = -1 * abs(stop_level)
+
+    @property
+    def name(self):
+        return self.typename() + str(abs(self.stop))
+
+    def typename(self):
+        """
+        Returns the class name.
+        Assumes type returns "<class '[Parents].[Name]'>"
+        """
+        return str(type(self)).split(".")[-1][:-2]
+
     def get_limit_hits(self, trade):
         raise NotImplementedError("Exit condition must impelement get_limit_hits")
 
@@ -14,16 +28,16 @@ class ExitCondition:
 class TrailingStop(ExitCondition):
 
     def __init__(self, stop_level):
-        self.stop = -1 * abs(stop_level)
+        super().__init__(stop_level)
 
     def get_limit_hits(self, trade):
-        drawdowns = trade.drawdowns().Drawdown
+        drawdowns = trade.drawdowns().series
         return drawdowns.index[drawdowns <= self.stop]
 
 class StopLoss(ExitCondition):
 
     def __init__(self, stop_level):
-        self.stop = -1 * abs(stop_level)
+        super().__init__(stop_level)
 
     def get_limit_hits(self, trade):
         returns = trade.cumulative
@@ -32,7 +46,7 @@ class StopLoss(ExitCondition):
 class ReturnTriggeredTrailingStop(ExitCondition):
 
     def __init__(self, stop_level, return_level):
-        self.stop = -1 * abs(stop_level)
+        super().__init__(stop_level)
         self.return_level = return_level
 
     def get_limit_hits(self, trade):
