@@ -66,7 +66,6 @@ class Returns(DataElement):
     
     def log(self):
         returns = self.data
-        returns[returns <= -1.0] = -0.9999999999
         return log(returns + 1)
 
     def annualised(self):
