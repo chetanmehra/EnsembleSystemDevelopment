@@ -382,3 +382,55 @@ class Trade(CollectionItem):
 
     def plot_highwater(self, **kwargs):
         self.drawdowns().Highwater.plot(**kwargs)
+
+
+
+def trade_frame(positions, returns, prices):
+    pass
+
+class TradeGroups:
+    '''
+    Derivative of Positions. Attempts to keep all data as DataFrame's
+    using groupby to produce by-trade statistics.
+    '''
+    def __init__(self, pos_data):
+        self.positions = pos_data
+        self._trade_numbers = None
+
+    def clear_cache(self):
+        self._trade_numbers = None
+
+    def get_trade_numbers(self):
+        if self._trade_numbers is None:
+            # To get the trade numbers we produce a rolling
+            # count of trades starting with the left most column (ticker)
+            # and progressing through the dataframe.
+            pos_data = self.positions
+            # Find the entries for each position
+            delta = pos_data - pos_data.shift(1)
+            delta.iloc[0] = 0
+            entries = (delta != 0) & (delta == pos_data)
+            # Increment successive entries by 1
+            col_counts = (1 * entries).cumsum() * sign(pos_data)
+            # We have trade counts starting from one in each column
+            # Need to step each column up by the count from the previous
+            col_step = col_counts.max().cumsum().shift(1)
+            col_step.iloc[0] = 0
+            # Before we add the step, need to replace zeroes with NaN
+            # so that the zeroes don't get incremented
+            col_counts[col_counts == 0] = NaN
+            col_counts += col_step
+            self._trade_numbers = col_counts.stack()
+        return self._trade_numbers
+
+    def get_groups(self, data):
+        '''
+        Returns a groupby object of the supplied dataframe
+        Note: We need to stack the data into a Series to get a
+        continuous trade count, otherwise it would be by column.
+        '''
+        # Note: stacking the dataframe will produce a multi-index
+        # series. First level of index is dates, second level is ticker.
+        data = data.stack()
+        trades = self.get_trade_numbers()
+        return data.groupby(trades)

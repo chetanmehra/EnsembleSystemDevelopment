@@ -38,7 +38,7 @@ from rules.forecast_rules import CarterPositions
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop, ReturnTriggeredTrailingStop
 from trade_modifiers.filters import HighPassFilter
 from system.core import PositionCostThreshold, PositionMaxSize, PositionMinSize
-from system.analysis import summary_report, ParameterFuzzer
+from system.analysis import Timer, summary_report, ParameterFuzzer
 
 
 # TODO Strategy should keep full list of trades after filter, to allow easy reapplication of filters without having to
@@ -105,7 +105,9 @@ strat = signalStratSetup('O', 'C', params = (150, 75))
 # strat.filters.append(HighPassFilter(cyclic, 0.0))
 
 print("Running base strat...")
-strat.run()
+with Timer() as t:
+    strat.run()
+print("Completed in {:2}s".format(t.secs))
 print("Generated", strat.trades.count, "trades.")
 
 # print("Applying stops...")

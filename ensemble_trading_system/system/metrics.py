@@ -6,12 +6,14 @@ from pandas import Series, DataFrame
 from numpy import sign, log, NaN
 from sklearn.linear_model import LinearRegression
 
+from data_types.constants import TRADING_DAYS_PER_YEAR
+
 def Sharpe(returns):
     try:
         sharpe = returns.mean() / returns.std()
     except ZeroDivisionError:
         sharpe = NaN
-    return sharpe
+    return sharpe * (TRADING_DAYS_PER_YEAR ** 0.5)
 
 def OptF(returns):
     try:
@@ -21,10 +23,13 @@ def OptF(returns):
     return optf
 
 def G(returns):
+    '''
+    The growth rate assuming investment at Optimal F
+    '''
     S_sqd = Sharpe(returns) ** 2
     return ((1 + S_sqd) ** 2 - S_sqd) ** 0.5 - 1
 
-def GeometricGrowth(returns, N = 1):
+def GeometricGrowth(returns, N = TRADING_DAYS_PER_YEAR):
     G_base = ((1 + returns.mean()) ** 2 - (returns.std() ** 2))
     G = (abs(G_base) ** 0.5)
     return sign(G_base) * (G ** N) - 1

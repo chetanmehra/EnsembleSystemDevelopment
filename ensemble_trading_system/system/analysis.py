@@ -4,11 +4,62 @@ import matplotlib.pyplot as plt
 from pandas import qcut, cut, concat, DataFrame, Series
 from numpy import log, random, arange, NaN
 from multiprocessing import Pool, cpu_count
+import time
 
 from data_types.returns import Returns, AverageReturns
+from data_types.constants import TRADING_DAYS_PER_YEAR
 from system.core import Strategy, Portfolio
 from system.metrics import *
 from trade_modifiers.exit_conditions import StopLoss, TrailingStop
+
+
+# Profiling
+class Timer:
+    '''
+    Usage:
+    with Timer() as t:
+        [run method to be timed]
+    print("some words: %ss" % t.secs)
+    
+    or the following will output as milliseconds "elapsed time: [time] ms":
+    with Timer(verbose = True) as t:
+        [run method to be timed]
+    '''
+    
+    def __init__(self, verbose=False):
+        self.verbose = verbose
+
+    def __enter__(self):
+        self.start = time.time()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.time()
+        self.secs = self.end - self.start
+        self.msecs = self.secs * 1000  # millisecs
+        if self.verbose:
+            print("elapsed time: %f ms" % self.msecs)
+
+
+# Signal analysis
+def signal_summary(returns, levels):
+    '''
+    Takes a dataframe of returns, and dataframe of levels (typically 
+    ['Flat', 'Long', 'Short'], but could be anything), and returns a 
+    summary of performance for each of the levels and base returns.
+    Used to compare whether the segregation from a signal is improving 
+    the return profile.
+    '''
+    metrics = ['mean', 'median', 'std', 'skew', OptF, GeometricGrowth]
+    grouped = returns.stack().groupby(levels.stack())
+    summary = grouped.agg(metrics).T # Transpose to have metrics as index for adding base
+    summary.insert(0, 'Base', returns.stack().agg(metrics))
+    summary.loc['mean'] *= TRADING_DAYS_PER_YEAR
+    summary.loc['std'] *= (TRADING_DAYS_PER_YEAR ** 0.5)
+    summary.loc['Sharpe'] = summary.loc['mean'] / summary.loc['std']
+    return summary
+
+
 
 
 # Path dependent trade results
