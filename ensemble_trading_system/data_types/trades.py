@@ -369,7 +369,7 @@ class Trade(CollectionItem):
 
     # Plotting
     def plot_result(self):
-        f, axarr = plt.subplots(2, 1, sharex = True)
+        _, axarr = plt.subplots(2, 1, sharex = True)
         axarr[0].set_ylabel('Return')
         axarr[1].set_ylabel('Drawdown')
         axarr[1].set_xlabel('Days in trade')

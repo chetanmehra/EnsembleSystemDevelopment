@@ -103,6 +103,7 @@ class EventFactory:
 
 
 class TradeEvent(CollectionItem):
+    Label = "base event"
 
     def __init__(self, ticker, date, size):
         self.ticker = ticker

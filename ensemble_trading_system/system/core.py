@@ -259,7 +259,7 @@ class Strategy:
             ticker = trades.ticker
         start = min(entries) - DateOffset(10)
         end = max(exits) + DateOffset(10)
-        fig, ax = self.market.candlestick(ticker, start, end)
+        _, ax = self.market.candlestick(ticker, start, end)
         self.plot_measures(ticker, start, end, ax)
         for filter in self.filters:
             filter.plot(ticker, start, end, ax)
@@ -485,7 +485,7 @@ class Portfolio:
         Plots the portfolio returns and drawdowns vs the market.
         '''
         start = self.trade_start_date
-        f, axarr = plt.subplots(2, 1, sharex = True)
+        _, axarr = plt.subplots(2, 1, sharex = True)
         axarr[0].set_ylabel('Return')
         axarr[1].set_ylabel('Drawdown')
         axarr[1].set_xlabel('Days in trade')
@@ -703,7 +703,7 @@ class MinimumTradePrice:
         Accepts trades provided the entry price is above a defined threshold.
         The idea is to stop positions taken in shares which would incur excessive slippage.
         """
-        return trade.entry_price >= min_price
+        return trade.entry_price >= self.min_price
 
 
 class Transactions:
